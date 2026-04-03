@@ -20,7 +20,8 @@ function defaultState() {
     licenses: [],
     promo_codes: [],
     license_promos: [],
-    company_settings: []
+    company_settings: [],
+    projects: []
   };
 }
 
@@ -71,6 +72,7 @@ function createDb() {
           if (q.includes('promo_codes')) state.promo_codes = state.promo_codes || [];
           if (q.includes('license_promos')) state.license_promos = state.license_promos || [];
           if (q.includes('company_settings')) state.company_settings = state.company_settings || [];
+          if (q.includes('projects')) state.projects = state.projects || [];
           saveState();
         } else if (q.startsWith('insert into users')) {
           const [username, password] = params;
@@ -113,6 +115,19 @@ function createDb() {
             id: 1, company_name, logo_path, currency, tax_rate, contact_email, contact_phone, address, updated_at: new Date().toISOString()
           }];
           lastID = 1;
+          saveState();
+        } else if (q.startsWith('insert or replace into projects')) {
+          const [id, title, client, propState, total, despiece_data, hardware_data, summary_data] = params;
+          const i = state.projects.findIndex(p => p.id === id);
+          if (i >= 0) {
+            state.projects[i] = { ...state.projects[i], title, client, state: propState, total, despiece_data, hardware_data, summary_data, updated_at: new Date().toISOString() };
+          } else {
+            state.projects.push({ id, title, client, state: propState, total, despiece_data, hardware_data, summary_data, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+          }
+          saveState();
+        } else if (q.startsWith('delete from projects')) {
+          const [id] = params;
+          state.projects = state.projects.filter(p => p.id !== id);
           saveState();
         } else {
           throw new Error(`Unsupported SQL in run(): ${sql}`);
@@ -158,6 +173,9 @@ function createDb() {
         } else if (q === 'select * from promo_codes where code = ? and is_active = 1') {
           const [code] = params;
           row = state.promo_codes.find((x) => x.code === code && Number(x.is_active) === 1) || undefined;
+        } else if (q.includes('select * from projects where id = ?')) {
+          const [id] = params;
+          row = state.projects.find(p => p.id === id) || undefined;
         } else {
           throw new Error(`Unsupported SQL in get(): ${sql}`);
         }
@@ -173,6 +191,9 @@ function createDb() {
         if (q === 'select * from productos') rows = state.productos;
         else if (q === 'select * from plans where 1=1') rows = state.plans;
         else if (q === 'select * from company_settings') rows = state.company_settings;
+        else if (q.includes('select id, title, client, state, total, created_at, updated_at from projects')) {
+          rows = [...(state.projects || [])].sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
+        }
         else {
           throw new Error(`Unsupported SQL in all(): ${sql}`);
         }
