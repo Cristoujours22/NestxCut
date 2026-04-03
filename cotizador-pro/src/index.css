@@ -1,12 +1,6 @@
-/* Estilos para Login (pueden coexistir) */
-.flex {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
+@import "tailwindcss";
 
+/* Estilos para Login (pueden coexistir) */
 .login-box {
   width: 400px;
   padding: 40px;
@@ -191,20 +185,6 @@
 }
 
 /* Checkbox y Label juntos (Login) */
-.flex.flex-row.items-center.mb-4.justify-center {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  margin-bottom: 1rem;
-  justify-content: center;
-}
-
-.flex.items-center.space-x-2 {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-}
 
 input[type="checkbox"] {
   width: 1.1rem;
@@ -258,14 +238,10 @@ label[for="remember"]:hover {
 /* Estilo Global Body */
 body {
   background: linear-gradient(#141e30, #243b55);
-  display: flex;
-  flex-direction: column;
   min-height: 100vh;
   margin: 0;
-  /* Definir color de texto por defecto para el body si es necesario,
-     aunque los componentes suelen especificar el suyo */
-  color: #f3f4f6; /* Por ejemplo, un gris claro por defecto */
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; /* Fuente por defecto */
+  color: #f3f4f6; 
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; 
 }
 
 
@@ -448,4 +424,11 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .menu-button:hover {
     background-color: #4b5563; /* Color de fondo al pasar el mouse (gray-600) */
+}
+
+/* --- Utilidades --- */
+.glass-panel {
+  background: rgba(15, 25, 48, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
