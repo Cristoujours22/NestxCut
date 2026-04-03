@@ -132,6 +132,10 @@ function createDb() {
           const [id] = params;
           state.projects = state.projects.filter(p => p.id !== id);
           saveState();
+        } else if (q.startsWith('update users set password')) {
+          const [password, id] = params;
+          const u = state.users.find((r) => Number(r.id) === Number(id));
+          if (u) { u.password = password; saveState(); }
         } else {
           throw new Error(`Unsupported SQL in run(): ${sql}`);
         }
@@ -194,6 +198,7 @@ function createDb() {
         if (q === 'select * from productos') rows = state.productos;
         else if (q === 'select * from plans where 1=1') rows = state.plans;
         else if (q === 'select * from company_settings') rows = state.company_settings;
+        else if (q === 'select id, username, password from users') rows = state.users.map(u => ({ id: u.id, username: u.username, password: u.password }));
         else if (q.includes('select id, title, client, state, total, created_at, updated_at from projects')) {
           rows = [...(state.projects || [])].sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
         }
@@ -252,6 +257,21 @@ function initializeDatabase() {
           db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['Admin160490', defaultHash], (err3) => {
             if (err3) console.error('Error inserting default user:', err3.message);
             else console.log('Default user inserted securely.');
+          });
+        } else {
+          // Auto-migrate: if existing user passwords are plaintext (don't start with $2), hash them
+          db.all('SELECT id, username, password FROM users', [], (errM, users) => {
+            if (!errM && users) {
+              users.forEach(u => {
+                if (u.password && !u.password.startsWith('$2')) {
+                  const hashed = bcrypt.hashSync(u.password, 10);
+                  db.run('UPDATE users SET password = ? WHERE id = ?', [hashed, u.id], (errU) => {
+                    if (errU) console.error(`Error migrating password for ${u.username}:`, errU.message);
+                    else console.log(`[Auth] Password migrated to bcrypt for user: ${u.username}`);
+                  });
+                }
+              });
+            }
           });
         }
       });
