@@ -7,6 +7,7 @@ import Despiece from './components/Despiece'; // Your main application view
 import Settings from './components/Settings'; // Settings component
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './components/dashboard/Dashboard';
+import ProjectWorkspace from './components/project/ProjectWorkspace';
 import './App.css'; // App-specific styles
 
 // --- Protected Route Component ---
@@ -96,7 +97,10 @@ function App() {
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     
-                    {/* Backward compatibility para el componente original */}
+                    {/* Project Workspace (Editor de Cotización) */}
+                    <Route path="/proyecto/:id" element={<ProjectWorkspace />} />
+
+                    {/* Backward compatibility para el componente original estático */}
                     <Route path="/despiece" element={<Despiece />} />
                     
                     <Route path="/settings" element={<Settings />} />
