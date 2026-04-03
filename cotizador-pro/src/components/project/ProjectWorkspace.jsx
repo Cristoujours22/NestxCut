@@ -24,6 +24,8 @@ export default function ProjectWorkspace() {
   const [activeTab, setActiveTab] = useState('despiece');
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [despieceData, setDespieceData] = useState([]);
 
   // Cargar info del proyecto desde la base de datos
   useEffect(() => {
@@ -32,6 +34,11 @@ export default function ProjectWorkspace() {
         if (window.electronAPI?.getProject) {
           const data = await window.electronAPI.getProject(id);
           setProject(data);
+          try {
+            setDespieceData(JSON.parse(data.despiece_data || "[]"));
+          } catch(e) {
+            console.error("Error parsing despiece DB data", e);
+          }
         }
       } catch (error) {
         console.error("Error fetching project:", error);
@@ -41,6 +48,22 @@ export default function ProjectWorkspace() {
     };
     fetchProject();
   }, [id]);
+
+  const handleSave = async () => {
+    if (!project || !window.electronAPI?.saveProject) return;
+    setIsSaving(true);
+    try {
+      await window.electronAPI.saveProject({
+        ...project,
+        despiece_data: JSON.stringify(despieceData)
+      });
+      // Optionally show a toast here
+    } catch(err) {
+      console.error("Error guardando proyecto", err);
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   const projectName = project?.title || `Proyecto #${id}`;
   const clientName = project?.client || 'Cliente No Asignado';
@@ -87,9 +110,17 @@ export default function ProjectWorkspace() {
             </div>
 
             <div className="flex gap-2">
-              <button className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#202b46] transition-colors flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px]">save</span>
-                Guardar Cambios
+              <button 
+                onClick={handleSave}
+                disabled={isSaving}
+                className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#202b46] transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <span className="material-symbols-outlined text-[18px] animate-spin text-[#00e0fe]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">save</span>
+                )}
+                {isSaving ? "Guardando..." : "Guardar Cambios"}
               </button>
             </div>
           </div>
@@ -118,9 +149,24 @@ export default function ProjectWorkspace() {
 
       {/* Main Content Area para las pestañas */}
       <div className="flex-1 overflow-y-auto p-6 bg-[#0a1122]">
-        {activeTab === 'despiece' && <Despiece isNested={true} />}
-        {activeTab === 'herrajes' && <HerrajesPanel />}
-        {activeTab === 'resumen' && <ResumenPanel />}
+        {loading ? (
+           <div className="flex h-full items-center justify-center text-[#00e0fe]">
+             <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+             Cargando proyecto...
+           </div>
+        ) : (
+          <>
+            {activeTab === 'despiece' && (
+              <Despiece 
+                initialData={despieceData} 
+                onChange={setDespieceData} 
+                isNested={true} 
+              />
+            )}
+            {activeTab === 'herrajes' && <HerrajesPanel />}
+            {activeTab === 'resumen' && <ResumenPanel />}
+          </>
+        )}
       </div>
     </div>
   );

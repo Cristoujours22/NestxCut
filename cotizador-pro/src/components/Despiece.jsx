@@ -21,101 +21,10 @@ const columnClasses = {
     l2: 'col-l2', a1: 'col-a1', a2: 'col-a2', actions: 'col-actions'
 };
 
-// --- Componente del Menú Hamburguesa (MODIFICADO) ---
-const HamburgerMenu = ({ onExport, onSave }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const menuRef = useRef(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
-                setIsOpen(false);
-            }
-        };
-
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        } else {
-            document.removeEventListener('mousedown', handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [isOpen]);
-
-    const handleExportClick = () => {
-        onExport();
-        setIsOpen(false);
-    };
-
-    const handleSaveClick = () => {
-        onSave();
-        setIsOpen(false);
-    };
-
-    return (
-        <div className="relative inline-block" ref={menuRef}>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="p-2 flex items-center gap-2 rounded-md text-gray-100 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                aria-label="Abrir menú"
-            >
-                {/* Ícono de React */}
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 841.9 595.3"
-                    className="w-6 h-6 text-blue-400"
-                >
-                    <g fill="currentColor">
-                        <path d="M666.3 296.5c0 45.9-37.2 83.1-83.1 83.1s-83.1-37.2-83.1-83.1 37.2-83.1 83.1-83.1 83.1 37.2 83.1 83.1z" />
-                        <path d="M667.8 296.5c0-50.2-40.8-91-91-91s-91 40.8-91 91 40.8 91 91 91 91-40.8 91-91zm-91 83.1c-45.9 0-83.1-37.2-83.1-83.1s37.2-83.1 83.1-83.1 83.1 37.2 83.1 83.1-37.2 83.1-83.1 83.1z" />
-                    </g>
-                </svg>
-                {/* Ícono de menú hamburguesa */}
-                <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M4 6h16M4 12h16M4 18h16"
-                    ></path>
-                </svg>
-            </button>
-
-            {isOpen && (
-                <div
-                    className="absolute left-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg z-20 border border-gray-600 flex flex-col"
-                    style={{ position: 'absolute' }}
-                >
-                    <button
-                        onClick={handleSaveClick}
-                        className="menu-button"
-                    >
-                        Guardar Cambios
-                    </button>
-                    <button
-                        onClick={handleExportClick}
-                        className="menu-button"
-                    >
-                        Exportar Despiece
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-};
-
 // --- Componente Principal Despiece ---
-function Despiece() {
+function Despiece({ initialData, onChange, isNested }) {
     const { user, logout } = useAuth();
-    const [rows, setRows] = useState([createNewRow()]);
+    const [rows, setRows] = useState(initialData && initialData.length > 0 ? initialData : [createNewRow()]);
     const [error, setError] = useState('');
     const [activeCell, setActiveCell] = useState(null);
     const inputRefs = useRef({});
@@ -151,6 +60,13 @@ function Despiece() {
         });
         if (error) setError('');
     }, [error]);
+
+    // Transmit changes up to Workspace
+    useEffect(() => {
+        if (onChange) {
+            onChange(rows);
+        }
+    }, [rows, onChange]);
 
     const handleKeyDown = useCallback((event, rowIndex, field) => {
         const currentInputKey = `${rowIndex}-${field}`;
@@ -373,60 +289,26 @@ function Despiece() {
 
     // --- Renderizado del Componente ---
     return (
-        // Contenedor principal que ocupa toda la pantalla y usa flexbox vertical
-        <div className="flex flex-col h-screen bg-gray-900 text-gray-100">
-            {/* Encabezado fijo - Usamos una clase CSS para el layout */}   
-            <header className="app-header">
-                {/* Sección Izquierda: Menú Hamburguesa */}
-                <div className="header-left">
-                    <HamburgerMenu onExport={handleExport} onSave={handleSaveChanges} />
-                </div>
-
-                {/* Sección Centro: Logo */}
-                <div className="header-center">
-                    <svg
-                        width="40"
-                        height="40"
-                        viewBox="0 0 50 50"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="inline-block align-middle text-blue-400"
-                    >
-                        <path d="M25 0L0 50H10L25 20L40 50H50L25 0Z" fill="currentColor" />
-                    </svg>
-                </div>
-
-                {/* Sección Derecha: Usuario y Settings */}
-                <div className="header-right flex items-center gap-3">
-                    <Link
-                        to="/settings"
-                        className="p-2 hover:bg-gray-600 rounded-lg transition-colors"
-                        title="Configuración"
-                    >
-                        <span className="material-symbols-outlined">settings</span>
-                    </Link>
-                    {user && (
-                        <span className="text-sm text-gray-300 whitespace-nowrap">
-                             {user.username}
-                        </span>
-                    )}
-                    <button
-                        onClick={logout}
-                        className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm rounded transition duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 shrink-0"
-                    >
-                        Cerrar Sesión
-                    </button>
-                </div>
-            </header>
+        <div className={`flex flex-col flex-1 ${isNested ? '' : 'h-screen'} bg-[#0a1122] text-[#dee5ff]`}>
+            {/* Si NO estamos anidados, mostrar top bar falso para fallback, si no delegar al Workspace */}
+            {!isNested && (
+                <header className="flex justify-between items-center p-4 bg-[#060e20] border-b border-[#1a233a]">
+                    <div className="font-bold">Despiece Standalone</div>
+                    <button onClick={logout} className="text-red-400">Salir</button>
+                </header>
+            )}
 
             {/* Sección de Resumen */}
-            <div className="flex-shrink-0 bg-gray-700 text-gray-200 p-2 text-center text-sm">
-                Cant. Láminas: {laminaCount} | Cant. Piezas: {piezaCount} | Canto Rígido (m): {cantoRigido.toFixed(2)} | Canto Flexible (m): {cantoFlexible.toFixed(2)}
+            <div className="shrink-0 bg-[#060e20] border-b border-[#1a233a] p-3 flex items-center justify-center gap-6 text-sm font-bold text-[#a3aac4]">
+                <div className="flex gap-2 items-center"><span className="material-symbols-outlined text-[#00e0fe]">layers</span> Cant. Láminas: <span className="text-white">{laminaCount}</span></div>
+                <div className="flex gap-2 items-center"><span className="material-symbols-outlined text-[#00e0fe]">grid_on</span> Cant. Piezas: <span className="text-white">{piezaCount}</span></div>
+                <div className="flex gap-2 items-center"><span className="material-symbols-outlined text-[#00e0fe]">straighten</span> Canto Rígido: <span className="text-white">{cantoRigido.toFixed(2)}m</span></div>
+                <div className="flex gap-2 items-center"><span className="material-symbols-outlined text-[#00e0fe]">gesture</span> Canto Flexible: <span className="text-white">{cantoFlexible.toFixed(2)}m</span></div>
             </div>
 
              {/* Mensaje de Error General */}
             {error && (
-                <div className="flex-shrink-0 bg-red-700 text-white text-center p-2 text-sm">
+                <div className="flex-shrink-0 bg-red-500/20 text-red-300 font-bold text-center p-2 text-sm border-b border-red-500/30">
                     Error: {error}
                 </div>
             )}
