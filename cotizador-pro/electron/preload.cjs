@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Define a whitelist of channels for security
 const validInvokeChannels = [
   'login', 
+  'get-session',
+  'logout',
   'get-productos', 
   'add-producto',
   // Licensing channels
@@ -47,6 +49,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Convenience methods for common operations
   login: (username, password) => ipcRenderer.invoke('login', username, password),
+  getSession: () => ipcRenderer.invoke('get-session'),
+  logout: () => ipcRenderer.invoke('logout'),
   getProductos: () => ipcRenderer.invoke('get-productos'),
   addProducto: (nombre, precio) => ipcRenderer.invoke('add-producto', nombre, precio),
   

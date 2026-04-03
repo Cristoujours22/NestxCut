@@ -6,55 +6,57 @@ const AuthContext = createContext(null);
 
 // Create the provider component
 export const AuthProvider = ({ children }) => {
-    // State to hold the authenticated user object { id, username } or null
-    // Initialize user to null, forcing login on start
     const [user, setUser] = useState(null);
-    // State to indicate if the initial auth check is loading (now much simpler)
-    const [isLoading, setIsLoading] = useState(true); // Start as true, indicating loading state
+    const [isLoading, setIsLoading] = useState(true);
 
-    // useEffect is no longer needed to check localStorage for isLoggedIn on startup
-    // We only need localStorage for 'remember username' functionality handled in Login.jsx
     useEffect(() => {
-         console.log("[AuthContext] Initializing. User forced to null on startup.");
-         // Optional: You could still clear flags here for consistency,
-         // although logout should handle it.
-         // try {
-         //     localStorage.removeItem('isLoggedIn');
-         // } catch (error) {
-         //     console.error("[AuthContext] Error clearing isLoggedIn on init:", error);
-         // }
-         // No need to set isLoading to false here as it starts false
+         const initAuth = async () => {
+             console.log("[AuthContext] Initializing. Checking active session...");
+             try {
+                if(window.electronAPI?.getSession) {
+                    const activeSession = await window.electronAPI.getSession();
+                    if(activeSession) {
+                        console.log("[AuthContext] Session found:", activeSession);
+                        setUser(activeSession);
+                    } else {
+                        console.log("[AuthContext] No active session found on backend.");
+                    }
+                }
+             } catch(err) {
+                 console.error("[AuthContext] Error getting session:", err);
+             } finally {
+                 setIsLoading(false);
+             }
+         }
+         initAuth();
     }, []);
 
-
-    // Login function: Updates state and sets the core isLoggedIn flag
     const login = useCallback((userData) => {
         console.log("[AuthContext] Logging in user:", userData);
-        setUser(userData); // Set user state
+        setUser(userData);
         try {
-            // Set flag to indicate user is now logged in *for the current session*
             localStorage.setItem('isLoggedIn', 'true');
             console.log("[AuthContext] Set isLoggedIn=true in localStorage.");
-            // Saving 'savedUsername' based on 'remember' still happens in Login.jsx
         } catch (error) {
             console.error("[AuthContext] Error saving isLoggedIn to localStorage:", error);
         }
-    }, []); // useCallback to memoize the function
+    }, []);
 
-    // Logout function: Clears state and all related localStorage items
-    const logout = useCallback(() => {
+    const logout = useCallback(async () => {
         console.log("[AuthContext] Logging out user");
-        setUser(null); // Clear user state
+        setUser(null);
         try {
-            // Clear all auth-related flags on logout
+            if(window.electronAPI?.logout) {
+                await window.electronAPI.logout();
+            }
             localStorage.removeItem('isLoggedIn');
             localStorage.removeItem('savedUsername');
             localStorage.removeItem('rememberLogin');
-            console.log("[AuthContext] Cleared auth flags from localStorage on logout.");
+            console.log("[AuthContext] Cleared auth flags and closed backend session.");
         } catch (error) {
-            console.error("[AuthContext] Error clearing auth status from localStorage:", error);
+            console.error("[AuthContext] Error on logout:", error);
         }
-    }, []); // useCallback to memoize the function
+    }, []);
 
     // Value provided by the context
     const value = {

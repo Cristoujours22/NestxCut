@@ -3,10 +3,12 @@ const path = require('path');
 const ipcContract = require('./ipcContract.cjs');
 const LicensingService = require('./licensing/licensingService.cjs');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 let mainWindow;
 let db;
 let licensingService;
+let activeSession = null;
 
 const isDev = process.env.ELECTRON_IS_DEV === 'true' || process.env.NODE_ENV !== 'production';
 
@@ -144,10 +146,10 @@ function createDb() {
         let row = null;
         if (q === 'select count(*) as count from users') row = { count: state.users.length };
         else if (q === 'select count(*) as count from plans') row = { count: state.plans.length };
-        else if (q === 'select id, username from users where username = ? and password = ?') {
-          const [username, password] = params;
-          const u = state.users.find((x) => x.username === username && x.password === password);
-          row = u ? { id: u.id, username: u.username } : undefined;
+        else if (q === 'select id, username, password from users where username = ?') {
+          const [username] = params;
+          const u = state.users.find((x) => x.username === username);
+          row = u ? { id: u.id, username: u.username, password: u.password } : undefined;
         } else if (q === 'select * from plans order by id limit 1') {
           row = state.plans[0] || undefined;
         } else if (q === 'select * from licenses where license_key = ? and status = ?') {
@@ -246,9 +248,10 @@ function initializeDatabase() {
       if (err) console.error('Error creating users table:', err.message);
       db.get('SELECT COUNT(*) as count FROM users', [], (err2, row) => {
         if (!err2 && row && row.count === 0) {
-          db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['Admin160490', '160490'], (err3) => {
+          const defaultHash = bcrypt.hashSync('160490', 10);
+          db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['Admin160490', defaultHash], (err3) => {
             if (err3) console.error('Error inserting default user:', err3.message);
-            else console.log('Default user inserted.');
+            else console.log('Default user inserted securely.');
           });
         }
       });
@@ -416,12 +419,25 @@ ipcMain.handle('login', async (event, username, password) => {
   console.log(`Login attempt for user: ${username}`);
   return new Promise((resolve, reject) => {
     if (!db) return reject(new Error('Database connection error.'));
-    db.get('SELECT id, username FROM users WHERE username = ? AND password = ?', [username, password], (err, row) => {
+    db.get('SELECT id, username, password FROM users WHERE username = ?', [username], (err, row) => {
       if (err) return reject(new Error('Error during login process.'));
-      if (row) resolve({ success: true, userId: row.id, username: row.username });
-      else resolve({ success: false, message: 'Usuario o contraseña incorrectos.' });
+      if (row && bcrypt.compareSync(password, row.password)) {
+        activeSession = { id: row.id, username: row.username };
+        resolve({ success: true, userId: row.id, username: row.username });
+      } else {
+        resolve({ success: false, message: 'Usuario o contraseña incorrectos.' });
+      }
     });
   });
+});
+
+ipcMain.handle('get-session', async () => {
+  return activeSession;
+});
+
+ipcMain.handle('logout', async () => {
+  activeSession = null;
+  return { success: true };
 });
 
 ipcMain.handle('get-productos', async () => {
