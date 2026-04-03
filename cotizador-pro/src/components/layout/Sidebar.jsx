@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-export default function Sidebar() {
+export default function Sidebar({ onOpenNewProject }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,7 +56,7 @@ export default function Sidebar() {
       {/* Primary Action Button (Bottom) */}
       <div className="mt-auto p-6">
         <button 
-          onClick={() => { /* Lógica para nuevo proyecto */ }}
+          onClick={onOpenNewProject}
           className="w-full bg-[#00e0fe] text-[#002f33] py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#99f7ff] transition-colors shadow-[0_4px_15px_rgba(0,224,254,0.2)] hover:shadow-[0_6px_20px_rgba(0,224,254,0.3)] hover:-translate-y-0.5 active:translate-y-0"
         >
           <span className="material-symbols-outlined text-[20px]">add_circle</span>
