@@ -116,8 +116,9 @@ function createDb() {
           }];
           lastID = 1;
           saveState();
-        } else if (q.startsWith('insert or replace into projects')) {
+        } else if (q.includes('insert or replace into projects')) {
           const [id, title, client, propState, total, despiece_data, hardware_data, summary_data] = params;
+          state.projects = state.projects || [];
           const i = state.projects.findIndex(p => p.id === id);
           if (i >= 0) {
             state.projects[i] = { ...state.projects[i], title, client, state: propState, total, despiece_data, hardware_data, summary_data, updated_at: new Date().toISOString() };
@@ -125,7 +126,7 @@ function createDb() {
             state.projects.push({ id, title, client, state: propState, total, despiece_data, hardware_data, summary_data, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
           }
           saveState();
-        } else if (q.startsWith('delete from projects')) {
+        } else if (q.includes('delete from projects')) {
           const [id] = params;
           state.projects = state.projects.filter(p => p.id !== id);
           saveState();
@@ -636,7 +637,10 @@ ipcMain.handle('get-projects', async () => {
   return new Promise((resolve, reject) => {
     if (!db) return reject(new Error('Database not connected.'));
     db.all('SELECT id, title, client, state, total, created_at, updated_at FROM projects ORDER BY updated_at DESC', [], (err, rows) => {
-      if (err) reject(new Error('Failed to fetch projects.'));
+      if (err) {
+        console.error("IPC get-projects error:", err.message);
+        reject(err);
+      }
       else resolve(rows || []);
     });
   });
@@ -671,8 +675,8 @@ ipcMain.handle('save-project', async (event, project) => {
       project.summary_data || '{}'
     ], function(err) {
       if (err) {
-        console.error("Error saving project:", err);
-        return reject(new Error('Failed to save project.'));
+        console.error("Error saving project:", err.message);
+        return reject(err);
       }
       resolve({ success: true, id: project.id });
     });
