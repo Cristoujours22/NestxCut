@@ -1,19 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const mockConfig = { currency: 'COP' };
 
-const MOCK_PROJECTS = [
-  { id: 1, title: 'Cocina Familia Pérez', client: 'Sandra Pérez', date: '24 Oct 2023', total: 4250000, state: 'APROBADA' },
-  { id: 2, title: 'Mueble Baño Moderno', client: 'Juan Gómez', date: '22 Oct 2023', total: 1800000, state: 'EN PROGRESO' },
-  { id: 3, title: 'Repisas Estudio', client: 'Laura Soto', date: '20 Oct 2023', total: 650000, state: 'RECHAZADA' },
-  { id: 4, title: 'Closet Principal', client: 'Familia Vargas', date: '18 Oct 2023', total: 8500000, state: 'PENDIENTE' }
-];
-
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        if (window.electronAPI?.getProjects) {
+          const data = await window.electronAPI.getProjects();
+          setProjects(data);
+        }
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProjects();
+  }, []);
 
   const getStatusStyle = (state) => {
     switch (state) {
@@ -142,38 +153,63 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1a233a]">
-              {MOCK_PROJECTS.map((proj) => (
-                <tr key={proj.id} className="hover:bg-[#1a233a]/30 transition-colors group cursor-pointer">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1a233a] to-[#0f1930] flex items-center justify-center border border-[#40485d]/30 shrink-0">
-                        <span className="material-symbols-outlined text-[#99f7ff] text-[20px]">dataset</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-white text-[14px]">{proj.title}</span>
-                        <span className="text-[#a3aac4] text-[12px]">{proj.client}</span>
-                      </div>
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 flex items-center justify-center">
+                    <div className="flex items-center gap-3 text-[#00e0fe]">
+                      <span className="material-symbols-outlined animate-spin">progress_activity</span>
+                      <span className="font-bold">Cargando proyectos...</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[#dee5ff]">{proj.date}</td>
-                  <td className="px-6 py-4">
-                    <span className="font-bold text-white text-[15px]">
-                      {new Intl.NumberFormat('es-CO', { style: 'currency', currency: mockConfig.currency || 'COP', maximumFractionDigits: 0 }).format(proj.total)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${getStatusStyle(proj.state)}`}>
-                      <span className="material-symbols-outlined text-[14px]">{getStatusIcon(proj.state)}</span>
-                      {proj.state}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-[#a3aac4] hover:text-white p-2 rounded-lg hover:bg-[#1a233a] transition-colors opacity-0 group-hover:opacity-100">
-                      <span className="material-symbols-outlined text-[20px]">more_vert</span>
-                    </button>
+                </tr>
+              ) : projects.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center">
+                    <span className="material-symbols-outlined text-[#1a233a] text-6xl mb-4">folder_open</span>
+                    <h3 className="text-[#dee5ff] font-bold mb-2">No hay proyectos</h3>
+                    <p className="text-[#a3aac4] text-sm">Comienza creando tu primer proyecto de cotización.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                projects.map((proj) => (
+                  <tr 
+                    key={proj.id} 
+                    onClick={() => navigate(`/proyecto/${proj.id}`)}
+                    className="hover:bg-[#1a233a]/30 transition-colors group cursor-pointer"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1a233a] to-[#0f1930] flex items-center justify-center border border-[#40485d]/30 shrink-0">
+                          <span className="material-symbols-outlined text-[#99f7ff] text-[20px]">dataset</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-white text-[14px]">{proj.title}</span>
+                          <span className="text-[#a3aac4] text-[12px]">{proj.client}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-[#dee5ff]">
+                      {new Date(proj.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-white text-[15px]">
+                        {new Intl.NumberFormat('es-CO', { style: 'currency', currency: mockConfig.currency || 'COP', maximumFractionDigits: 0 }).format(proj.total || 0)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${getStatusStyle(proj.state)}`}>
+                        <span className="material-symbols-outlined text-[14px]">{getStatusIcon(proj.state)}</span>
+                        {proj.state}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button className="text-[#a3aac4] hover:text-white p-2 rounded-lg hover:bg-[#1a233a] transition-colors opacity-0 group-hover:opacity-100">
+                        <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

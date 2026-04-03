@@ -21,7 +21,11 @@ const validInvokeChannels = [
   'generate-license-key',
   'get-env',
   'open-external',
-  'activate-license-after-payment'
+  'activate-license-after-payment',
+  'get-projects',
+  'get-project',
+  'save-project',
+  'delete-project'
 ]; // Add other DB channels
 const validSendChannels = []; // Channels for sending one-way messages to main
 const validOnChannels = [];   // Channels for receiving messages from main
@@ -69,6 +73,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Activate license after Paddle payment
   activateLicenseAfterPayment: (paymentData) => ipcRenderer.invoke('activate-license-after-payment', paymentData),
+
+  // Projects API
+  getProjects: () => ipcRenderer.invoke('get-projects'),
+  getProject: (id) => ipcRenderer.invoke('get-project', id),
+  saveProject: (project) => ipcRenderer.invoke('save-project', project),
+  deleteProject: (id) => ipcRenderer.invoke('delete-project', id),
 
   // Function to send one-way messages to the main process (using ipcMain.on)
   send: (channel, data) => {

@@ -8,17 +8,31 @@ export default function NewProjectModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!projectName.trim() || !clientName.trim()) return;
     
-    // Aquí después conectaremos la lógica real de guardado
     const newProjectId = Date.now().toString(); // ID temporal
-    console.log("Creando proyecto:", { id: newProjectId, projectName, clientName });
+    
+    // Guardar en backend
+    if (window.electronAPI?.saveProject) {
+      await window.electronAPI.saveProject({
+        id: newProjectId,
+        title: projectName,
+        client: clientName,
+        state: 'EN PROGRESO',
+        total: 0,
+        despiece_data: '[]',
+        hardware_data: '{}',
+        summary_data: '{}'
+      });
+    } else {
+      console.warn("Electron API not available, running in browser mode");
+    }
     
     onClose();
     // Navegar directamente al Project Workspace
-    navigate(`/proyecto/${newProjectId}`, { state: { projectName, clientName } });
+    navigate(`/proyecto/${newProjectId}`);
   };
 
   return (

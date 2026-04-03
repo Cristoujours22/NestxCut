@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Despiece from '../Despiece';
 
@@ -22,10 +22,29 @@ export default function ProjectWorkspace() {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('despiece');
+  const [project, setProject] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Datos del state en React Router (cuando venimos del modal Nuevo Proyecto)
-  const projectName = location.state?.projectName || `Proyecto #${id}`;
-  const clientName = location.state?.clientName || 'Cliente No Asignado';
+  // Cargar info del proyecto desde la base de datos
+  useEffect(() => {
+    const fetchProject = async () => {
+      try {
+        if (window.electronAPI?.getProject) {
+          const data = await window.electronAPI.getProject(id);
+          setProject(data);
+        }
+      } catch (error) {
+        console.error("Error fetching project:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProject();
+  }, [id]);
+
+  const projectName = project?.title || `Proyecto #${id}`;
+  const clientName = project?.client || 'Cliente No Asignado';
+  const state = project?.state || 'EN PROGRESO';
 
   const tabs = [
     { id: 'despiece', label: 'Despiece', icon: 'architecture' },
@@ -52,8 +71,12 @@ export default function ProjectWorkspace() {
               <div>
                 <h1 className="font-['Space_Grotesk'] text-2xl font-bold text-[#dee5ff] flex items-center gap-2">
                   {projectName}
-                  <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded uppercase tracking-wider border border-blue-500/20 align-middle">
-                    En Progreso
+                  <span className={`text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border align-middle ${
+                    state === 'APROBADA' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                    state === 'RECHAZADA' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                    'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                  }`}>
+                    {state}
                   </span>
                 </h1>
                 <p className="text-[#a3aac4] text-sm mt-1 flex items-center gap-1.5">
