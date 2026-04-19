@@ -1,0 +1,45 @@
+const validInvokeChannels = [
+  'login',
+  'get-session',
+  'logout',
+  'get-productos',
+  'add-producto',
+  'get-plans',
+  'get-license-status',
+  'licensing:getStatus',
+  'licensing:purchase',
+  'licensing:upgrade',
+  'licensing:applyPromo',
+  'activate-license',
+  'apply-promo-code',
+  'get-company-settings',
+  'save-company-settings',
+  'generate-license-key',
+  'get-env',
+  'open-external',
+  'activate-license-after-payment',
+  'get-projects',
+  'get-project',
+  'save-project',
+  'delete-project',
+  'get-servicios',
+  'get-servicio',
+  'add-servicio',
+  'update-servicio',
+  'delete-servicio',
+  'get-inventory-items',
+  'add-inventory-item',
+  'update-inventory-item',
+  'delete-inventory-item',
+  'get-inventory-movements',
+  'add-inventory-movement',
+];
+
+const validSendChannels = [];
+const validOnChannels = [];
+
+module.exports = {
+  validInvokeChannels,
+  validSendChannels,
+  validOnChannels,
+};
