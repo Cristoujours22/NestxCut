@@ -4,7 +4,7 @@ import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './components/Login';
 import Register from './components/Register';
-import Despiece from './components/Despiece';
+import Despiece from './components/despiece/DespieceTabs';
 import Settings from './components/Settings';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './components/dashboard/Dashboard';

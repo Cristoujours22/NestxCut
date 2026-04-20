@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import Despiece from '../Despiece';
+import Despiece from '../despiece/DespieceTabs';
 
 // Placeholders temporales para las nuevas pestañas
 const HerrajesPanel = () => (
