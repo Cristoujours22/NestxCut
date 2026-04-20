@@ -63,6 +63,19 @@ function TableSheet({
     if (onRedo) onRedo(redo);
   }, [undo, redo, onUndo, onRedo]);
 
+  // ADN-style: Focus input when activePos changes
+  useEffect(() => {
+    if (activePos) {
+      const inputId = `${activePos.rowIndex}-${activePos.field}`;
+      const inputEl = document.getElementById(inputId);
+      if (inputEl && document.activeElement !== inputEl) {
+        inputEl.focus();
+      }
+    }
+  }, [activePos]);
+
+  // Prevent default browser behavior for better UX
+
   const sanitize = (field, value) => {
     if (['l1', 'l2', 'a1', 'a2'].includes(field)) {
       if (value === '') return '';
@@ -244,11 +257,11 @@ function TableSheet({
                   <td key={col.key} className="border-b border-r border-gray-600 p-0" style={{ height: '36px' }}>
                     {col.inputType === 'select' ? (
                       <select
+                        id={cellId}
                         ref={el => inputRefs.current[cellId] = el}
                         value={row[col.key] || ''}
                         onChange={e => handleChange(rowIdx, col.key, e.target.value)}
-                        onClick={e => handleClick(rowIdx, col.key, e)}
-                        onFocus={() => handleClick(rowIdx, col.key, e)}
+                        onFocus={() => handleClick(rowIdx, col.key, {})}
                         style={{ width: '100%', height: '100%' }}
                         className={`w-full h-full px-2 bg-transparent border-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       >
@@ -258,18 +271,18 @@ function TableSheet({
                       </select>
                     ) : (
                       <input
+                        id={cellId}
                         ref={el => inputRefs.current[cellId] = el}
                         value={row[col.key] || ''}
                         onChange={e => handleChange(rowIdx, col.key, e.target.value)}
+                        onFocus={() => handleClick(rowIdx, col.key, {})}
                         onClick={e => handleClick(rowIdx, col.key, e)}
                         onDoubleClick={() => handleDblClick(rowIdx, col.key)}
                         onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
                         onPaste={e => handlePaste(e, rowIdx, col.key)}
-                        readOnly={false}
                         style={{ 
                           width: '100%', 
                           height: '100%',
-                          caretColor: canEdit ? 'auto' : 'transparent',
                         }}
                         className={`w-full h-full px-2 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       />
