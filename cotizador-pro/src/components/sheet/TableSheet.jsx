@@ -13,24 +13,25 @@ function TableSheet({
   onUndo,
   onRedo,
 }) {
-  // Estado único para celda activa
-  const [activePos, setActivePos] = useState(null); // { rowIndex, field }
+  // Estado: celda activa = { rowIndex, field }
+  const [activePos, setActivePos] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const inputRefs = useRef({});
 
-  // Computed
   const fieldOrder = useMemo(() => columns.map(c => c.key), [columns]);
   const lastField = fieldOrder[fieldOrder.length - 1];
   const activeRow = activePos?.rowIndex;
   const activeField = activePos?.field;
 
   const focusInput = (rowIndex, field) => {
-    const input = inputRefs.current[`${rowIndex}-${field}`];
-    if (input) {
-      input.focus();
-      input.select();
-    }
+    setTimeout(() => {
+      const input = inputRefs.current[`${rowIndex}-${field}`];
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 10);
   };
 
   // Undo/Redo
@@ -63,19 +64,6 @@ function TableSheet({
     if (onRedo) onRedo(redo);
   }, [undo, redo, onUndo, onRedo]);
 
-  // ADN-style: Focus input when activePos changes
-  useEffect(() => {
-    if (activePos) {
-      const inputId = `${activePos.rowIndex}-${activePos.field}`;
-      const inputEl = document.getElementById(inputId);
-      if (inputEl && document.activeElement !== inputEl) {
-        inputEl.focus();
-      }
-    }
-  }, [activePos]);
-
-  // Prevent default browser behavior for better UX
-
   const sanitize = (field, value) => {
     if (['l1', 'l2', 'a1', 'a2'].includes(field)) {
       if (value === '') return '';
@@ -88,72 +76,83 @@ function TableSheet({
     return value;
   };
 
-  // Cambia valor
+  // Handle cambio - activa celda y guarda
   const handleChange = (rowIndex, field, value) => {
     const v = sanitize(field, value);
     if (v === null) return;
     saveHistory();
+    setActivePos({ rowIndex, field });
     onRowsChange(prev => prev.map((r, i) => i === rowIndex ? { ...r, [field]: v } : r));
   };
 
-  // Agrega fila
   const addRow = () => {
     saveHistory();
     onRowsChange(prev => [...prev, createRow()]);
-    setTimeout(() => focusInput(rows.length, fieldOrder[0]), 0);
+    setTimeout(() => focusInput(rows.length, fieldOrder[0]), 50);
   };
 
-  // Keyboard handler
   const handleKeyDown = (e, rowIndex, field) => {
     const fieldIdx = fieldOrder.indexOf(field);
-    
+    const isActive = activeRow === rowIndex && activeField === field;
+
     // Undo/Redo
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Z')) { redo(); return; }
-    
-    // F2 = editar
-    if (e.key === 'F2') {
-      e.preventDefault();
-      setActivePos({ rowIndex, field });
-      setTimeout(() => focusInput(rowIndex, field), 0);
-      return;
-    }
-    
-    // Escape = salir
-    if (e.key === 'Escape') {
-      setActivePos(null);
-      return;
-    }
-    
-    // Navigation - ALWAYS work (like ADN)
+
+    // Navigation - siempre funciona
     switch (e.key) {
       case 'ArrowUp':
-        if (rowIndex > 0) { e.preventDefault(); setActivePos({ rowIndex: rowIndex - 1, field }); }
+        e.preventDefault();
+        if (rowIndex > 0) {
+          setActivePos({ rowIndex: rowIndex - 1, field });
+          focusInput(rowIndex - 1, field);
+        }
         break;
       case 'ArrowDown':
-        if (rowIndex < rows.length - 1) { e.preventDefault(); setActivePos({ rowIndex: rowIndex + 1, field }); }
+        e.preventDefault();
+        if (rowIndex < rows.length - 1) {
+          setActivePos({ rowIndex: rowIndex + 1, field });
+          focusInput(rowIndex + 1, field);
+        }
         break;
       case 'ArrowLeft':
-        if (fieldIdx > 0) { e.preventDefault(); setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] }); }
+        e.preventDefault();
+        if (fieldIdx > 0) {
+          setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
+          focusInput(rowIndex, fieldOrder[fieldIdx - 1]);
+        }
         break;
       case 'ArrowRight':
-        if (fieldIdx < fieldOrder.length - 1) { e.preventDefault(); setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] }); }
+        e.preventDefault();
+        if (fieldIdx < fieldOrder.length - 1) {
+          setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
+          focusInput(rowIndex, fieldOrder[fieldIdx + 1]);
+        }
         break;
       case 'Enter':
+        e.preventDefault();
         if (rowIndex < rows.length - 1) {
-          e.preventDefault();
           setActivePos({ rowIndex: rowIndex + 1, field });
+          focusInput(rowIndex + 1, field);
         }
         break;
       case 'Tab':
         e.preventDefault();
-        setActivePos(null);
         if (e.shiftKey) {
-          if (fieldIdx > 0) setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
-          else if (rowIndex > 0) setActivePos({ rowIndex: rowIndex - 1, field: lastField });
+          if (fieldIdx > 0) {
+            setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
+            focusInput(rowIndex, fieldOrder[fieldIdx - 1]);
+          } else if (rowIndex > 0) {
+            setActivePos({ rowIndex: rowIndex - 1, field: lastField });
+            focusInput(rowIndex - 1, lastField);
+          }
         } else {
-          if (fieldIdx < fieldOrder.length - 1) setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
-          else addRow();
+          if (fieldIdx < fieldOrder.length - 1) {
+            setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
+            focusInput(rowIndex, fieldOrder[fieldIdx + 1]);
+          } else {
+            addRow();
+          }
         }
         break;
       case 'Escape':
@@ -162,21 +161,20 @@ function TableSheet({
       case 'F2':
         e.preventDefault();
         setActivePos({ rowIndex, field });
-        setTimeout(() => focusInput(rowIndex, field), 0);
+        focusInput(rowIndex, field);
         break;
     }
   };
 
-  // Click - selecciona
+  // Click = selecciona celda
   const handleClick = (rowIndex, field, e) => {
-    e.stopPropagation();
     setActivePos({ rowIndex, field });
   };
 
-  // Doble click - edita
+  // Doble click = enfoca y permite editar
   const handleDblClick = (rowIndex, field) => {
     setActivePos({ rowIndex, field });
-    setTimeout(() => focusInput(rowIndex, field), 0);
+    focusInput(rowIndex, field);
   };
 
   const handlePaste = (e, rowIdx, fld) => {
@@ -194,7 +192,6 @@ function TableSheet({
     });
   };
 
-  // Render headers
   const renderHeaders = () => {
     if (!headerGroups.length) return null;
     return (
@@ -233,10 +230,7 @@ function TableSheet({
                 const isActive = activeRow === rowIdx && activeField === col.key;
                 const cellId = `${rowIdx}-${col.key}`;
                 const alignment = col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left';
-                
-                // ADN behavior: cells ALWAYS editable on click/focus - NO readOnly gate
-                const canEdit = true; // Always editable!
-                
+
                 return (
                   <td key={col.key} className="border-b border-r border-gray-600 p-0" style={{ height: '36px' }}>
                     {col.inputType === 'select' ? (
@@ -264,10 +258,7 @@ function TableSheet({
                         onDoubleClick={() => handleDblClick(rowIdx, col.key)}
                         onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
                         onPaste={e => handlePaste(e, rowIdx, col.key)}
-                        style={{ 
-                          width: '100%', 
-                          height: '100%',
-                        }}
+                        style={{ width: '100%', height: '100%' }}
                         className={`w-full h-full px-2 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       />
                     )}
