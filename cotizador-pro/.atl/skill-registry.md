@@ -8,6 +8,7 @@
 |---------|-------|------|
 | usar cuando el agente implemente, refactorice o extienda inventario, stock, tableros, herrajes, movimientos, reservas o integraciones con despiece/cotización | nestxcut-inventory | C:\Users\Cristian\Desktop\DespieceAPP\cotizador-pro\.agents\skills\nestxcut-inventory\SKILL.md |
 | usar cuando el agente implemente, refactorice o depure tabs de despiece, selección de material por tab, cantos por tab o sincronización parent-child del despiece | nestxcut-despiece-tabs | C:\Users\Cristian\Desktop\DespieceAPP\cotizador-pro\.agents\skills\nestxcut-despiece-tabs\SKILL.md |
+| usar cuando el agente implemente, depure o refactorice navegación, selección, edición rápida, edición inmersiva, pegado o creación de filas en tablas tipo grilla | nestxcut-sheet-cells | C:\Users\Cristian\Desktop\DespieceAPP\cotizador-pro\.agents\skills\nestxcut-sheet-cells\SKILL.md |
 | electron, contextBridge, IPC, security, packaging, react, desktop app | electron-best-practices | C:\Users\Cristian\Desktop\DespieceAPP\cotizador-pro\.agents\skills\electron-best-practices\SKILL.md |
 
 ## Compact Rules
@@ -29,6 +30,14 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - El selector de material vive en la banda de tabs; tabs inactivas muestran label compacto.
 - `L1/L2/A1/A2` deben depender de refs de cantos controladas; no aceptar texto libre arbitrario.
 - Mantener panel de cantos separado de la tabla y resumen derivado fuera de las celdas.
+
+### nestxcut-sheet-cells
+- Separar siempre `selection`, `quick` e `immersive`; una celda activa no implica edición.
+- Click simple selecciona; doble click o `F2` entran en inmersiva.
+- Escribir sobre celda seleccionada activa edición rápida; `Backspace/Delete` limpian y entran en quick.
+- En `quick`, flechas o `Escape` cierran edición y navegan; en `immersive`, flechas no navegan la grilla.
+- En `immersive`, no seleccionar todo automáticamente; permitir `Ctrl+V` dentro del texto sin reemplazo forzado.
+- Al crear fila nueva, resolver foco post-render con pending focus para evitar bloqueos de navegación.
 
 ### electron-best-practices
 - Mantener `contextIsolation: true`, `sandbox: true` y `nodeIntegration: false`.
@@ -57,4 +66,5 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 
 - Si se toca `src/components/inventory/` o `src/features/inventory/` → inyectar `nestxcut-inventory`.
 - Si se toca `src/components/despiece/`, `src/components/sheet/` o sincronización con `ProjectWorkspace` → inyectar `nestxcut-despiece-tabs`.
+- Si se toca comportamiento por celda, teclado, focus o clipboard de grillas → inyectar `nestxcut-sheet-cells`.
 - Si se toca `electron/`, preload, IPC o seguridad renderer/main → inyectar `electron-best-practices`.

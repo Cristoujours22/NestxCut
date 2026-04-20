@@ -15,21 +15,49 @@ function TableSheet({
 }) {
   // Estado: celda activa = { rowIndex, field }
   const [activePos, setActivePos] = useState(null);
+  const [editMode, setEditMode] = useState('selection');
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const inputRefs = useRef({});
+  const pendingFocusRef = useRef(null);
 
   const fieldOrder = useMemo(() => columns.map(c => c.key), [columns]);
   const lastField = fieldOrder[fieldOrder.length - 1];
   const activeRow = activePos?.rowIndex;
   const activeField = activePos?.field;
+  const isEditing = editMode !== 'selection';
 
-  const focusInput = (rowIndex, field) => {
+  const focusInput = (rowIndex, field, { selectAll = true, cursorToEnd = false } = {}) => {
     setTimeout(() => {
       const input = inputRefs.current[`${rowIndex}-${field}`];
       if (input) {
         input.focus();
-        input.select();
+        if (selectAll && typeof input.select === 'function') {
+          input.select();
+        }
+        if (cursorToEnd && typeof input.setSelectionRange === 'function') {
+          const end = String(input.value ?? '').length;
+          input.setSelectionRange(end, end);
+        }
+      }
+    }, 10);
+  };
+
+  const focusCell = (rowIndex, field, mode = 'selection', focusOptions = undefined) => {
+    setActivePos({ rowIndex, field });
+    setEditMode(mode);
+    if (mode !== 'selection') {
+      focusInput(rowIndex, field, focusOptions);
+    } else {
+      focusSelectedCell(rowIndex, field);
+    }
+  };
+
+  const focusSelectedCell = (rowIndex, field) => {
+    setTimeout(() => {
+      const input = inputRefs.current[`${rowIndex}-${field}`];
+      if (input) {
+        input.focus();
       }
     }, 10);
   };
@@ -64,6 +92,19 @@ function TableSheet({
     if (onRedo) onRedo(redo);
   }, [undo, redo, onUndo, onRedo]);
 
+  useEffect(() => {
+    if (!pendingFocusRef.current) return;
+    const { rowIndex, field, mode = 'selection' } = pendingFocusRef.current;
+    if (rowIndex >= rows.length) return;
+
+    pendingFocusRef.current = null;
+    if (mode === 'selection') {
+      focusSelectedCell(rowIndex, field);
+    } else {
+      focusInput(rowIndex, field, { selectAll: false, cursorToEnd: true });
+    }
+  }, [rows.length]);
+
   const sanitize = (field, value) => {
     if (['l1', 'l2', 'a1', 'a2'].includes(field)) {
       if (value === '') return '';
@@ -85,100 +126,145 @@ function TableSheet({
     onRowsChange(prev => prev.map((r, i) => i === rowIndex ? { ...r, [field]: v } : r));
   };
 
+  const handleQuickEdit = (rowIndex, field, event) => {
+    const isActiveCell = activeRow === rowIndex && activeField === field;
+    if (!isActiveCell || isEditing) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      event.preventDefault();
+      handleChange(rowIndex, field, '');
+      setEditMode('quick');
+      focusInput(rowIndex, field, { selectAll: false, cursorToEnd: true });
+      return;
+    }
+
+    if (event.key.length === 1) {
+      event.preventDefault();
+      handleChange(rowIndex, field, event.key);
+      setEditMode('quick');
+      focusInput(rowIndex, field, { selectAll: false, cursorToEnd: true });
+    }
+  };
+
   const addRow = () => {
+    const nextRowIndex = rows.length;
     saveHistory();
     onRowsChange(prev => [...prev, createRow()]);
-    setTimeout(() => focusInput(rows.length, fieldOrder[0]), 50);
+    setActivePos({ rowIndex: nextRowIndex, field: fieldOrder[0] });
+    setEditMode('selection');
+    pendingFocusRef.current = { rowIndex: nextRowIndex, field: fieldOrder[0], mode: 'selection' };
   };
 
   const handleKeyDown = (e, rowIndex, field) => {
     const fieldIdx = fieldOrder.indexOf(field);
-    const isActive = activeRow === rowIndex && activeField === field;
 
     // Undo/Redo
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Z')) { redo(); return; }
+
+    if (e.key === 'F2') {
+      e.preventDefault();
+      focusCell(rowIndex, field, 'immersive', { selectAll: false, cursorToEnd: true });
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setEditMode('selection');
+      return;
+    }
+
+    if (editMode === 'immersive') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setEditMode('selection');
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (!isEditing) {
+      handleQuickEdit(rowIndex, field, e);
+      if (e.defaultPrevented) return;
+    }
 
     // Navigation - siempre funciona
     switch (e.key) {
       case 'ArrowUp':
         e.preventDefault();
         if (rowIndex > 0) {
-          setActivePos({ rowIndex: rowIndex - 1, field });
-          focusInput(rowIndex - 1, field);
+          focusCell(rowIndex - 1, field, 'selection');
         }
         break;
       case 'ArrowDown':
         e.preventDefault();
         if (rowIndex < rows.length - 1) {
-          setActivePos({ rowIndex: rowIndex + 1, field });
-          focusInput(rowIndex + 1, field);
+          focusCell(rowIndex + 1, field, 'selection');
         }
         break;
       case 'ArrowLeft':
         e.preventDefault();
         if (fieldIdx > 0) {
-          setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
-          focusInput(rowIndex, fieldOrder[fieldIdx - 1]);
+          focusCell(rowIndex, fieldOrder[fieldIdx - 1], 'selection');
         }
         break;
       case 'ArrowRight':
         e.preventDefault();
         if (fieldIdx < fieldOrder.length - 1) {
-          setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
-          focusInput(rowIndex, fieldOrder[fieldIdx + 1]);
+          focusCell(rowIndex, fieldOrder[fieldIdx + 1], 'selection');
         }
         break;
       case 'Enter':
         e.preventDefault();
         if (rowIndex < rows.length - 1) {
-          setActivePos({ rowIndex: rowIndex + 1, field });
-          focusInput(rowIndex + 1, field);
+          focusCell(rowIndex + 1, field, 'selection');
+        } else if (field === lastField) {
+          addRow();
         }
         break;
       case 'Tab':
         e.preventDefault();
         if (e.shiftKey) {
           if (fieldIdx > 0) {
-            setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
-            focusInput(rowIndex, fieldOrder[fieldIdx - 1]);
+            focusCell(rowIndex, fieldOrder[fieldIdx - 1], 'selection');
           } else if (rowIndex > 0) {
-            setActivePos({ rowIndex: rowIndex - 1, field: lastField });
-            focusInput(rowIndex - 1, lastField);
+            focusCell(rowIndex - 1, lastField, 'selection');
           }
         } else {
           if (fieldIdx < fieldOrder.length - 1) {
-            setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
-            focusInput(rowIndex, fieldOrder[fieldIdx + 1]);
+            focusCell(rowIndex, fieldOrder[fieldIdx + 1], 'selection');
           } else {
             addRow();
           }
         }
         break;
-      case 'Escape':
-        setActivePos(null);
-        break;
-      case 'F2':
-        e.preventDefault();
-        setActivePos({ rowIndex, field });
-        focusInput(rowIndex, field);
+      default:
         break;
     }
   };
 
   // Click = selecciona celda (sin enfocar, sin editar)
   const handleClick = (rowIndex, field, e) => {
+    e.preventDefault();
     e.stopPropagation();
     setActivePos({ rowIndex, field });
+    setEditMode('selection');
+    focusSelectedCell(rowIndex, field);
   };
 
   // Doble click = enfoca y permite editar
-  const handleDblClick = (rowIndex, field) => {
-    setActivePos({ rowIndex, field });
-    focusInput(rowIndex, field);
+  const handleDblClick = (rowIndex, field, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    focusCell(rowIndex, field, 'immersive', { selectAll: false, cursorToEnd: true });
   };
 
   const handlePaste = (e, rowIdx, fld) => {
+    if (editMode === 'immersive') {
+      return;
+    }
     e.preventDefault();
     onRowsChange(prev => {
       const { rows: r } = applyClipboardToRows({
@@ -240,7 +326,10 @@ function TableSheet({
                         ref={el => inputRefs.current[cellId] = el}
                         value={row[col.key] || ''}
                         onChange={e => handleChange(rowIdx, col.key, e.target.value)}
+                        onMouseDown={e => e.preventDefault()}
                         onClick={e => handleClick(rowIdx, col.key, e)}
+                        onDoubleClick={e => handleDblClick(rowIdx, col.key, e)}
+                        onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
                         style={{ width: '100%', height: '100%', cursor: isActive ? 'pointer' : 'pointer' }}
                         className={`w-full h-full px-2 bg-transparent border-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       >
@@ -254,16 +343,17 @@ function TableSheet({
                         ref={el => inputRefs.current[cellId] = el}
                         value={row[col.key] || ''}
                         onChange={e => handleChange(rowIdx, col.key, e.target.value)}
+                        onMouseDown={e => editMode === 'selection' && e.preventDefault()}
                         onClick={e => handleClick(rowIdx, col.key, e)}
-                        onDoubleClick={() => handleDblClick(rowIdx, col.key)}
+                        onDoubleClick={e => handleDblClick(rowIdx, col.key, e)}
                         onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
                         onPaste={e => handlePaste(e, rowIdx, col.key)}
-                        readOnly={!isActive}
+                        readOnly={!isActive || editMode === 'selection'}
                         style={{ 
                           width: '100%', 
                           height: '100%', 
-                          cursor: isActive ? 'text' : 'pointer',
-                          caretColor: isActive ? 'auto' : 'hidden'
+                          cursor: isActive && editMode !== 'selection' ? 'text' : 'pointer',
+                          caretColor: isActive && editMode !== 'selection' ? 'auto' : 'transparent'
                         }}
                         className={`w-full h-full px-2 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       />
