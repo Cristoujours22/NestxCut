@@ -125,61 +125,45 @@ function TableSheet({
       return;
     }
     
-    // Navigation - arrows ALWAYS work and move selection
-    if (!activePos) {
-      switch (e.key) {
-        case 'ArrowUp':
-          if (rowIndex > 0) { e.preventDefault(); setActivePos({ rowIndex: rowIndex - 1, field }); }
-          break;
-        case 'ArrowDown':
-          if (rowIndex < rows.length - 1) { e.preventDefault(); setActivePos({ rowIndex: rowIndex + 1, field }); }
-          break;
-        case 'ArrowLeft':
-          if (fieldIdx > 0) { e.preventDefault(); setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] }); }
-          break;
-        case 'ArrowRight':
-          if (fieldIdx < fieldOrder.length - 1) { e.preventDefault(); setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] }); }
-          break;
-        case 'Enter':
-        case 'F2':
+    // Navigation - ALWAYS work (like ADN)
+    switch (e.key) {
+      case 'ArrowUp':
+        if (rowIndex > 0) { e.preventDefault(); setActivePos({ rowIndex: rowIndex - 1, field }); }
+        break;
+      case 'ArrowDown':
+        if (rowIndex < rows.length - 1) { e.preventDefault(); setActivePos({ rowIndex: rowIndex + 1, field }); }
+        break;
+      case 'ArrowLeft':
+        if (fieldIdx > 0) { e.preventDefault(); setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] }); }
+        break;
+      case 'ArrowRight':
+        if (fieldIdx < fieldOrder.length - 1) { e.preventDefault(); setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] }); }
+        break;
+      case 'Enter':
+        if (rowIndex < rows.length - 1) {
           e.preventDefault();
-          setActivePos({ rowIndex, field });
-          break;
-        case 'Tab':
-          e.preventDefault();
-          if (e.shiftKey) {
-            if (fieldIdx > 0) setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
-            else if (rowIndex > 0) setActivePos({ rowIndex: rowIndex - 1, field: lastField });
-          } else {
-            if (fieldIdx < fieldOrder.length - 1) setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
-            else addRow();
-          }
-          break;
-      }
-    } else {
-      // When active, Enter saves and moves down
-      switch (e.key) {
-        case 'Enter':
-          if (rowIndex < rows.length - 1) {
-            e.preventDefault();
-            setActivePos({ rowIndex: rowIndex + 1, field });
-          }
-          break;
-        case 'Tab':
-          e.preventDefault();
-          setActivePos(null);
-          if (e.shiftKey) {
-            if (fieldIdx > 0) setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
-            else if (rowIndex > 0) setActivePos({ rowIndex: rowIndex - 1, field: lastField });
-          } else {
-            if (fieldIdx < fieldOrder.length - 1) setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
-            else addRow();
-          }
-          break;
-        case 'Escape':
-          setActivePos(null);
-          break;
-      }
+          setActivePos({ rowIndex: rowIndex + 1, field });
+        }
+        break;
+      case 'Tab':
+        e.preventDefault();
+        setActivePos(null);
+        if (e.shiftKey) {
+          if (fieldIdx > 0) setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
+          else if (rowIndex > 0) setActivePos({ rowIndex: rowIndex - 1, field: lastField });
+        } else {
+          if (fieldIdx < fieldOrder.length - 1) setActivePos({ rowIndex, field: fieldOrder[fieldIdx + 1] });
+          else addRow();
+        }
+        break;
+      case 'Escape':
+        setActivePos(null);
+        break;
+      case 'F2':
+        e.preventDefault();
+        setActivePos({ rowIndex, field });
+        setTimeout(() => focusInput(rowIndex, field), 0);
+        break;
     }
   };
 
