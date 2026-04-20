@@ -166,8 +166,9 @@ function TableSheet({
     }
   };
 
-  // Click = selecciona celda
+  // Click = selecciona celda (sin enfocar, sin editar)
   const handleClick = (rowIndex, field, e) => {
+    e.stopPropagation();
     setActivePos({ rowIndex, field });
   };
 
@@ -239,8 +240,8 @@ function TableSheet({
                         ref={el => inputRefs.current[cellId] = el}
                         value={row[col.key] || ''}
                         onChange={e => handleChange(rowIdx, col.key, e.target.value)}
-                        onFocus={() => handleClick(rowIdx, col.key, {})}
-                        style={{ width: '100%', height: '100%' }}
+                        onClick={e => handleClick(rowIdx, col.key, e)}
+                        style={{ width: '100%', height: '100%', cursor: isActive ? 'pointer' : 'pointer' }}
                         className={`w-full h-full px-2 bg-transparent border-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       >
                         {(col.options || []).map(o => (
@@ -253,12 +254,17 @@ function TableSheet({
                         ref={el => inputRefs.current[cellId] = el}
                         value={row[col.key] || ''}
                         onChange={e => handleChange(rowIdx, col.key, e.target.value)}
-                        onFocus={() => handleClick(rowIdx, col.key, {})}
                         onClick={e => handleClick(rowIdx, col.key, e)}
                         onDoubleClick={() => handleDblClick(rowIdx, col.key)}
                         onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
                         onPaste={e => handlePaste(e, rowIdx, col.key)}
-                        style={{ width: '100%', height: '100%' }}
+                        readOnly={!isActive}
+                        style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          cursor: isActive ? 'text' : 'pointer',
+                          caretColor: isActive ? 'auto' : 'hidden'
+                        }}
                         className={`w-full h-full px-2 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       />
                     )}

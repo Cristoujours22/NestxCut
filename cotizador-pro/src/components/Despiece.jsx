@@ -91,15 +91,14 @@ function Despiece({ initialData, onChange, isNested }) {
         };
 
         switch (event.key) {
-            case 'Enter':
-                 // Add new row only if Enter is pressed in the last cell of the last row
-                if (rowIndex === rows.length - 1 && field === lastField) {
-                    event.preventDefault();
-                    handleAddRow();
-                } else {
-                    // Otherwise, move to the first cell of the next row (or add row if last)
-                     moveFocus(rowIndex + 1, 0);
-                }
+case 'Enter':
+                event.preventDefault();
+                // Move down - if at last row and last field, add new row
+                 if (rowIndex < rows.length - 1) {
+                     moveFocus(rowIndex + 1, currentFieldIndex);
+                 } else if (field === lastField) {
+                     handleAddRow();
+                 }
                 break;
             case 'Tab':
                 // Allow default Tab behavior for now, could customize later if needed
@@ -126,23 +125,21 @@ function Despiece({ initialData, onChange, isNested }) {
                  }
                  */
                 break;
-            case 'ArrowUp':
+case 'ArrowUp':
+                event.preventDefault();
                 moveFocus(rowIndex - 1, currentFieldIndex);
                 break;
             case 'ArrowDown':
+                event.preventDefault();
                 moveFocus(rowIndex + 1, currentFieldIndex);
                 break;
             case 'ArrowLeft':
-                // Move left only if cursor is at the beginning of the input
-                 if (currentInput && currentInput.selectionStart === 0) {
-                    moveFocus(rowIndex, currentFieldIndex - 1);
-                 }
+                event.preventDefault();
+                moveFocus(rowIndex, currentFieldIndex - 1);
                 break;
             case 'ArrowRight':
-                 // Move right only if cursor is at the end of the input
-                 if (currentInput && currentInput.selectionStart === currentInput.value.length) {
-                    moveFocus(rowIndex, currentFieldIndex + 1);
-                 }
+                 event.preventDefault();
+                 moveFocus(rowIndex, currentFieldIndex + 1);
                 break;
             default:
                 break;
@@ -380,17 +377,21 @@ function Despiece({ initialData, onChange, isNested }) {
                                                 <input
                                                     ref={(el) => { inputRefs.current[`${index}-${field}`] = el; }}
                                                     type={field === 'cantidad' || field === 'largo' || field === 'ancho' || field.startsWith('l') || field.startsWith('a') ? "number" : "text"}
-                                                    step={field === 'cantidad' ? "1" : "any"} // Allows decimals for dimensions
-                                                    min={field === 'cantidad' ? "1" : undefined} // Min quantity 1?
+                                                    step={field === 'cantidad' ? "1" : "any"}
+                                                    min={field === 'cantidad' ? "1" : undefined}
                                                     value={row[field]}
                                                     onChange={(e) => handleInputChange(index, field, e.target.value)}
                                                     onPaste={(e) => handlePaste(e, index, field)}
                                                     onKeyDown={(e) => handleKeyDown(e, index, field)}
-                                                    onFocus={() => setActiveCell({ rowIndex: index, field })}
+                                                    onClick={() => {
+                                // Just focus, don't change active cell to avoid editing
+                                const inputEl = inputRefs.current[`${index}-${field}`];
+                                if(inputEl) inputEl.focus();
+                            }}
                                                     onBlur={() => setActiveCell(null)}
-                                                    // Clases para estilo: Texto blanco, sin fondo/borde, foco azul, alineación
+                                                    readOnly={activeCell?.rowIndex !== index || activeCell?.field !== field}
                                                     className={`input-cell h-full w-full p-1 bg-transparent border-none outline-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:z-10 focus:relative text-white ${field === 'cantidad' ? 'text-center' : ''} ${field === 'largo' || field === 'ancho' || field.startsWith('l') || field.startsWith('a') ? 'text-right' : 'text-left'} ${activeCell?.rowIndex === index && activeCell?.field === field ? 'ring-2 ring-blue-500 z-10 relative' : ''} `}
-                                                    placeholder={field === 'cantidad' ? '0' : ''} // Placeholder subtle
+                                                    placeholder={field === 'cantidad' ? '0' : ''}
                                                 />
                                             </td>
                                         )
