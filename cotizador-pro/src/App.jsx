@@ -1,38 +1,40 @@
 // src/App.jsx
-import React, { useEffect } from 'react'; // Import useEffect
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from './context/AuthContext'; // Import the auth hook
-import Login from './components/Login'; // Your Login component
-import Despiece from './components/Despiece'; // Your main application view
-import Settings from './components/Settings'; // Settings component
+import { useAuth } from './context/AuthContext';
+import Login from './components/Login';
+import Register from './components/Register';
+import Despiece from './components/Despiece';
+import Settings from './components/Settings';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './components/dashboard/Dashboard';
 import ProjectWorkspace from './components/project/ProjectWorkspace';
-import './App.css'; // App-specific styles
+import SubscriptionExpired from './components/SubscriptionExpired';
+import { checkSubscription } from './utils/subscription';
+import './App.css';
 
 // --- Protected Route Component ---
 function ProtectedRoute() {
-    const { isAuthenticated, isLoading } = useAuth();
-    const location = useLocation(); // Get current location for redirect state
+    const { isAuthenticated, isLoading, userData } = useAuth();
+    const location = useLocation();
 
-    // Log state changes
     useEffect(() => {
         console.log(`[ProtectedRoute] isLoading: ${isLoading}, isAuthenticated: ${isAuthenticated}`);
     }, [isLoading, isAuthenticated]);
 
     if (isLoading) {
-        console.log("[ProtectedRoute] Still loading auth state...");
         return <div>Verificando sesión...</div>;
     }
 
     if (!isAuthenticated) {
-         console.log("[ProtectedRoute] User not authenticated. Redirecting to /login from:", location.pathname);
-         // Redirect to login, passing the intended destination via state
-         return <Navigate to="/login" state={{ from: location }} replace />;
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // If authenticated, render the nested routes
-    console.log("[ProtectedRoute] User authenticated. Rendering Outlet.");
+    // Verificar suscripción
+    if (!checkSubscription(userData)) {
+        return <SubscriptionExpired />;
+    }
+
     return <Outlet />;
 }
 
@@ -87,7 +89,7 @@ function App() {
             <Route element={<PublicRoute />}>
                 {/* Path for the login page */}
                 <Route path="/login" element={<Login />} />
-                 {/* Add other public routes here if needed */}
+                <Route path="/register" element={<Register />} />
             </Route>
 
             {/* Protected Routes (Require Authentication) */}

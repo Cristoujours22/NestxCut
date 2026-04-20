@@ -1,5 +1,8 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth } from '../firebase';
+import { getOrCreateUser, checkSubscription, updateDaysRemaining } from '../utils/subscription';
 
 // Create the context
 const AuthContext = createContext(null);
@@ -7,68 +10,77 @@ const AuthContext = createContext(null);
 // Create the provider component
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [userData, setUserData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-         const initAuth = async () => {
-             console.log("[AuthContext] Initializing. Checking active session...");
-             try {
-                if(window.electronAPI?.getSession) {
-                    const activeSession = await window.electronAPI.getSession();
-                    if(activeSession) {
-                        console.log("[AuthContext] Session found:", activeSession);
-                        setUser(activeSession);
-                    } else {
-                        console.log("[AuthContext] No active session found on backend.");
-                    }
+        console.log("[AuthContext] Setting up Firebase auth listener...");
+        
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                console.log("[AuthContext] User authenticated:", firebaseUser.email);
+                setUser(firebaseUser);
+                
+                // Get or create user data from Firestore
+                try {
+                    const data = await getOrCreateUser(firebaseUser.uid, firebaseUser.email);
+                    console.log("[AuthContext] User data from Firestore:", data);
+                    setUserData(data);
+                    
+                    // Actualizar días restantes en Firestore
+                    await updateDaysRemaining(firebaseUser.uid);
+                } catch (err) {
+                    console.error("[AuthContext] Error getting user data:", err);
                 }
-             } catch(err) {
-                 console.error("[AuthContext] Error getting session:", err);
-             } finally {
-                 setIsLoading(false);
-             }
-         }
-         initAuth();
+            } else {
+                console.log("[AuthContext] User not authenticated");
+                setUser(null);
+                setUserData(null);
+            }
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const login = useCallback((userData) => {
-        console.log("[AuthContext] Logging in user:", userData);
-        setUser(userData);
+    const login = useCallback(async (email, password) => {
+        console.log("[AuthContext] Logging in with Firebase...");
         try {
-            localStorage.setItem('isLoggedIn', 'true');
-            console.log("[AuthContext] Set isLoggedIn=true in localStorage.");
+            const result = await signInWithEmailAndPassword(auth, email, password);
+            console.log("[AuthContext] Login successful:", result.user.email);
+            return { success: true, user: result.user };
         } catch (error) {
-            console.error("[AuthContext] Error saving isLoggedIn to localStorage:", error);
+            console.error("[AuthContext] Login error:", error);
+            throw error;
         }
     }, []);
 
     const logout = useCallback(async () => {
-        console.log("[AuthContext] Logging out user");
-        setUser(null);
+        console.log("[AuthContext] Logging out...");
         try {
-            if(window.electronAPI?.logout) {
-                await window.electronAPI.logout();
-            }
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('savedUsername');
-            localStorage.removeItem('rememberLogin');
-            console.log("[AuthContext] Cleared auth flags and closed backend session.");
+            await signOut(auth);
+            setUser(null);
+            setUserData(null);
         } catch (error) {
-            console.error("[AuthContext] Error on logout:", error);
+            console.error("[AuthContext] Logout error:", error);
         }
     }, []);
+
+    // Check if user has access based on subscription
+    const hasAccess = userData ? checkSubscription(userData) : false;
 
     // Value provided by the context
     const value = {
         user,
+        userData,
         login,
         logout,
-        // isLoading is likely not needed anymore if we always start logged out
-        // isLoading,
-        isAuthenticated: !!user // Still useful: true only if user object is not null
+        isAuthenticated: !!user,
+        isLoading,
+        hasAccess,
+        isAdmin: userData?.role === 'admin'
     };
 
-    // Render children directly (no loading state needed for this approach)
     return (
         <AuthContext.Provider value={value}>
             {children}
