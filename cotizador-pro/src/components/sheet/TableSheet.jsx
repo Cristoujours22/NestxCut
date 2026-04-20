@@ -112,7 +112,7 @@ function TableSheet({
       return;
     }
     
-    // Navigation cuando NO hay celda activa (modo navegación)
+    // Navigation - arrows ALWAYS work and move selection
     if (!activePos) {
       switch (e.key) {
         case 'ArrowUp':
@@ -144,13 +144,16 @@ function TableSheet({
           break;
       }
     } else {
-      // Cuando hay celda activa = modo edición
+      // When active, Enter saves and moves down
       switch (e.key) {
         case 'Enter':
-          setActivePos(null);
-          if (rowIndex < rows.length - 1) setActivePos({ rowIndex: rowIndex + 1, field });
+          if (rowIndex < rows.length - 1) {
+            e.preventDefault();
+            setActivePos({ rowIndex: rowIndex + 1, field });
+          }
           break;
         case 'Tab':
+          e.preventDefault();
           setActivePos(null);
           if (e.shiftKey) {
             if (fieldIdx > 0) setActivePos({ rowIndex, field: fieldOrder[fieldIdx - 1] });
@@ -234,8 +237,8 @@ function TableSheet({
                 const cellId = `${rowIdx}-${col.key}`;
                 const alignment = col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left';
                 
-                // Modo: tiene celda activa = editable
-                const canEdit = isActive;
+                // ADN behavior: cells ALWAYS editable on click/focus - NO readOnly gate
+                const canEdit = true; // Always editable!
                 
                 return (
                   <td key={col.key} className="border-b border-r border-gray-600 p-0" style={{ height: '36px' }}>
@@ -262,7 +265,7 @@ function TableSheet({
                         onDoubleClick={() => handleDblClick(rowIdx, col.key)}
                         onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
                         onPaste={e => handlePaste(e, rowIdx, col.key)}
-                        readOnly={!canEdit}
+                        readOnly={false}
                         style={{ 
                           width: '100%', 
                           height: '100%',
