@@ -340,6 +340,7 @@ function TableSheet({
                   <td 
                     key={column.key} 
                     className={`border-b border-r border-gray-600 p-0 ${column.className || ''}`}
+                    style={{ height: '36px' }}
                   >
                     {column.inputType === 'select' ? (
                       <select
@@ -353,9 +354,11 @@ function TableSheet({
                         onMouseMove={(e) => handleMouseMove(e, rowIndex, column.key)}
                         title={column.options?.find((option) => String(option.value) === String(value))?.title || ''}
                         style={{
+                          width: '100%', 
+                          height: '100%',
                           backgroundColor: isSelected && !isActive ? '#15213b' : undefined,
                         }}
-                        className={`input-cell w-full h-full px-2 py-1 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe]' : ''}`}
+                        className={`input-cell bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe]' : ''}`}
                       >
                         {(column.options || []).map((option) => (
                           <option key={`${column.key}-${option.value}`} value={option.value} title={option.title || ''}>
@@ -382,9 +385,11 @@ function TableSheet({
                         onDoubleClick={() => handleCellFocus(rowIndex, column.key)}
                         placeholder={column.placeholder || ''}
                         style={{
+                          width: '100%', 
+                          height: '100%',
                           backgroundColor: isSelected && !isActive ? '#15213b' : undefined,
                         }}
-                        className={`input-cell w-full h-full px-2 py-1 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe]' : ''}`}
+                        className={`input-cell bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe]' : ''}`}
                       />
                     )}
                   </td>
