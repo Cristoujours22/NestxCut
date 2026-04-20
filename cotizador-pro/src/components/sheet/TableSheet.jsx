@@ -12,34 +12,24 @@ function TableSheet({
   actionsColumn,
   activeCell: controlledActiveCell,
   onActiveCellChange,
-  isEditing: controlledIsEditing,
-  onEditingChange,
   selection: controlledSelection,
   onSelectionChange,
   onUndo,
   onRedo,
 }) {
   const [uncontrolledActiveCell, setUncontrolledActiveCell] = useState(null);
-  const [uncontrolledIsEditing, setUncontrolledIsEditing] = useState(false);
   const [uncontrolledSelection, setUncontrolledSelection] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const tableRef = useRef(null);
   const inputRefs = useRef({});
   const isDraggingRef = useRef(false);
 
   const activeCell = controlledActiveCell ?? uncontrolledActiveCell;
-  const isEditing = controlledIsEditing ?? uncontrolledIsEditing;
   const selection = controlledSelection ?? uncontrolledSelection;
 
   const setActiveCell = (value) => {
     if (onActiveCellChange) onActiveCellChange(value);
     else setUncontrolledActiveCell(value);
-  };
-
-  const setIsEditing = (value) => {
-    if (onEditingChange) onEditingChange(value);
-    else setUncontrolledIsEditing(value);
   };
 
   const setSelection = (value) => {
@@ -84,21 +74,72 @@ function TableSheet({
     }
   }, [history, historyIndex, onRowsChange]);
 
-  // Keyboard shortcuts para undo/redo
+  // Keyboard shortcuts para undo/redo y navegación
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
+      // Undo/Redo
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
+        return;
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         redo();
+        return;
+      }
+      
+      // Navigation solo si hay celda activa
+      if (!activeCell) return;
+      
+      const { rowIndex, field } = activeCell;
+      const currentFieldIndex = fieldOrder.indexOf(field);
+      
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          if (rowIndex > 0) focusCell(rowIndex - 1, field);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          if (rowIndex < rows.length - 1) focusCell(rowIndex + 1, field);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (currentFieldIndex > 0) focusCell(rowIndex, fieldOrder[currentFieldIndex - 1]);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (currentFieldIndex < fieldOrder.length - 1) focusCell(rowIndex, fieldOrder[currentFieldIndex + 1]);
+          break;
+        case 'Tab':
+          e.preventDefault();
+          if (e.shiftKey) {
+            if (currentFieldIndex > 0) focusCell(rowIndex, fieldOrder[currentFieldIndex - 1]);
+            else if (rowIndex > 0) focusCell(rowIndex - 1, lastField);
+          } else {
+            if (currentFieldIndex < fieldOrder.length - 1) focusCell(rowIndex, fieldOrder[currentFieldIndex + 1]);
+            else focusCell(rowIndex + 1, fieldOrder[0]);
+          }
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (rowIndex < rows.length - 1) focusCell(rowIndex + 1, field);
+          break;
+        case 'Escape':
+          setActiveCell(null);
+          break;
+        case 'F2':
+          // F2 activa mode edición - mantener foco
+          break;
+        default:
+          break;
       }
     };
+    
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [undo, redo]);
+  }, [activeCell, rows.length, fieldOrder, lastField, undo, redo]);
 
   // Exponer undo/redo via props
   useEffect(() => {
@@ -108,10 +149,14 @@ function TableSheet({
 
   const focusCell = (rowIndex, field) => {
     const key = `${rowIndex}-${field}`;
-    const input = inputRefs.current[key];
-    if (!input) return;
-    input.focus();
-    input.select?.();
+    setActiveCell({ rowIndex, field });
+    setTimeout(() => {
+      const input = inputRefs.current[key];
+      if (input) {
+        input.focus();
+        input.select?.();
+      }
+    }, 0);
   };
 
   const sanitizeValue = (field, value) => {
@@ -152,85 +197,18 @@ function TableSheet({
     setTimeout(() => focusCell(rows.length, fieldOrder[0]), 0);
   };
 
-  const moveFocus = (event, rowIndex, fieldIndex) => {
-    if (rowIndex >= 0 && rowIndex < rows.length && fieldIndex >= 0 && fieldIndex < fieldOrder.length) {
-      if (event) event.preventDefault();
-      focusCell(rowIndex, fieldOrder[fieldIndex]);
-      return;
-    }
-
-    if (rowIndex === rows.length && fieldIndex === 0) {
-      if (event) event.preventDefault();
-      handleAddRow();
-    }
-  };
-
-  const handleKeyDown = (event, rowIndex, field) => {
-    const currentFieldIndex = fieldOrder.indexOf(field);
-    const currentInput = event?.target;
-
-    switch (event.key) {
-      case 'F2':
-        event.preventDefault();
-        setActiveCell({ rowIndex, field });
-        setIsEditing(true);
-        return;
-      case 'Escape':
-        setIsEditing(false);
-        return;
-      case 'Enter':
-        if (rowIndex === rows.length - 1 && field === lastField) {
-          event.preventDefault();
-          handleAddRow();
-          return;
-        }
-        moveFocus(event, rowIndex + 1, 0);
-        return;
-      case 'Tab':
-        event.preventDefault();
-        if (event.shiftKey) {
-          if (currentFieldIndex > 0) moveFocus(event, rowIndex, currentFieldIndex - 1);
-          else if (rowIndex > 0) moveFocus(event, rowIndex - 1, fieldOrder.length - 1);
-          return;
-        }
-
-        if (currentFieldIndex < fieldOrder.length - 1) moveFocus(event, rowIndex, currentFieldIndex + 1);
-        else moveFocus(event, rowIndex + 1, 0);
-        return;
-      case 'ArrowUp':
-        moveFocus(event, rowIndex - 1, currentFieldIndex);
-        return;
-      case 'ArrowDown':
-        moveFocus(event, rowIndex + 1, currentFieldIndex);
-        return;
-      case 'ArrowLeft':
-        if (currentInput && currentInput.selectionStart === 0) {
-          moveFocus(event, rowIndex, currentFieldIndex - 1);
-        }
-        return;
-      case 'ArrowRight':
-        if (currentInput && currentInput.selectionStart === currentInput.value.length) {
-          moveFocus(event, rowIndex, currentFieldIndex + 1);
-        }
-        return;
-      default:
-        return;
-    }
-  };
-
-  // Mouse handlers para selección
-  const handleCellFocus = (rowIndex, field, shiftKey = false) => {
+  // Click en celda para activar
+  const handleCellFocus = (rowIndex, field, isMultiSelect = false) => {
     setActiveCell({ rowIndex, field });
-    setIsEditing(true);
     
-    if (shiftKey && selection?.start) {
+    if (isMultiSelect && selection?.start) {
       setSelection({ start: selection.start, end: { rowIndex, field } });
     } else {
       setSelection({ start: { rowIndex, field }, end: { rowIndex, field } });
     }
   };
 
-  // Iniciar drag selection
+  // Iniciar drag
   const handleMouseDown = (e, rowIndex, field) => {
     if (e.button === 0) {
       isDraggingRef.current = true;
@@ -240,14 +218,11 @@ function TableSheet({
 
   // Mover durante drag
   const handleMouseMove = (e, rowIndex, field) => {
-    if (isDraggingRef.current) {
-      const start = selection?.start;
-      if (start) {
-        setSelection({ 
-          start: start, 
-          end: { rowIndex, field } 
-        });
-      }
+    if (isDraggingRef.current && selection?.start) {
+      setSelection({ 
+        start: selection.start, 
+        end: { rowIndex, field } 
+      });
     }
   };
 
@@ -255,31 +230,6 @@ function TableSheet({
   const handleMouseUp = () => {
     isDraggingRef.current = false;
   };
-
-  // Drag fill - copiar valor
-  const handleFillDrag = useCallback((fromRow, fromField, toRow, toField) => {
-    const fromValue = rows[fromRow]?.[fromField];
-    if (fromValue === undefined || fromValue === '') return;
-
-    saveToHistory();
-
-    onRowsChange(prevRows => {
-      const newRows = [...prevRows];
-      const startRow = Math.min(fromRow, toRow);
-      const endRow = Math.max(fromRow, toRow);
-      const startFieldIdx = fieldOrder.indexOf(fromField);
-      const endFieldIdx = fieldOrder.indexOf(toField);
-
-      for (let r = startRow; r <= endRow; r++) {
-        for (let f = startFieldIdx; f <= endFieldIdx; f++) {
-          if (newRows[r]) {
-            newRows[r] = { ...newRows[r], [fieldOrder[f]]: fromValue };
-          }
-        }
-      }
-      return newRows;
-    });
-  }, [rows, fieldOrder, onRowsChange, saveToHistory]);
 
   const handlePaste = (event, startRowIndex, startField) => {
     event.preventDefault();
@@ -328,8 +278,7 @@ function TableSheet({
       onMouseLeave={handleMouseUp}
     >
       <table 
-        id={tableId} 
-        ref={tableRef}
+        id={tableId}
         className="sheet-table min-w-full divide-y divide-gray-600 bg-gray-800 border border-gray-600"
       >
         <colgroup>
@@ -356,7 +305,7 @@ function TableSheet({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`border-b border-r border-gray-600 p-1 font-semibold text-xs uppercase tracking-wider ${column.className || ''}`}
+                className={`border-b border-r border-gray-600 p-2 font-semibold text-xs uppercase tracking-wider ${column.className || ''}`}
               >
                 {column.label}
               </th>
@@ -365,7 +314,7 @@ function TableSheet({
         </thead>
         <tbody className="divide-y divide-gray-600">
           {rows.map((row, rowIndex) => (
-            <tr key={row.id || rowIndex} className="group hover:bg-gray-700/70">
+            <tr key={row.id || rowIndex} className="group hover:bg-gray-700/70 h-9">
               {columns.map((column) => {
                 const value = row[column.key] ?? '';
                 const columnIndex = fieldOrder.indexOf(column.key);
@@ -390,7 +339,7 @@ function TableSheet({
                 return (
                   <td 
                     key={column.key} 
-                    className={`border-b border-r border-gray-600 p-0 relative ${column.className || ''}`}
+                    className={`border-b border-r border-gray-600 p-0 ${column.className || ''}`}
                   >
                     {column.inputType === 'select' ? (
                       <select
@@ -399,16 +348,14 @@ function TableSheet({
                         }}
                         value={value}
                         onChange={(event) => handleCellChange(rowIndex, column.key, event.target.value)}
-                        onKeyDown={(event) => handleKeyDown(event, rowIndex, column.key)}
                         onFocus={() => handleCellFocus(rowIndex, column.key)}
-                        onBlur={() => setIsEditing(false)}
                         onMouseDown={(e) => handleMouseDown(e, rowIndex, column.key)}
                         onMouseMove={(e) => handleMouseMove(e, rowIndex, column.key)}
                         title={column.options?.find((option) => String(option.value) === String(value))?.title || ''}
                         style={{
                           backgroundColor: isSelected && !isActive ? '#15213b' : undefined,
                         }}
-                        className={`input-cell h-full w-full p-2 bg-transparent border-none outline-none focus:outline-none focus:ring-2 focus:ring-[#00e0fe] focus:z-10 focus:relative text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe] z-10 relative' : ''}`}
+                        className={`input-cell w-full h-full px-2 py-1 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe]' : ''}`}
                       >
                         {(column.options || []).map((option) => (
                           <option key={`${column.key}-${option.value}`} value={option.value} title={option.title || ''}>
@@ -428,27 +375,22 @@ function TableSheet({
                         min={column.min}
                         value={value}
                         onChange={(event) => handleCellChange(rowIndex, column.key, event.target.value)}
-                        onKeyDown={(event) => handleKeyDown(event, rowIndex, column.key)}
                         onPaste={(event) => handlePaste(event, rowIndex, column.key)}
                         onFocus={() => handleCellFocus(rowIndex, column.key)}
-                        onBlur={() => setIsEditing(false)}
                         onMouseDown={(e) => handleMouseDown(e, rowIndex, column.key)}
                         onMouseMove={(e) => handleMouseMove(e, rowIndex, column.key)}
-                        onDoubleClick={() => {
-                          setActiveCell({ rowIndex, field: column.key });
-                          setIsEditing(true);
-                        }}
+                        onDoubleClick={() => handleCellFocus(rowIndex, column.key)}
                         placeholder={column.placeholder || ''}
                         style={{
                           backgroundColor: isSelected && !isActive ? '#15213b' : undefined,
                         }}
-                        className={`input-cell h-full w-full p-2 bg-transparent border-none outline-none focus:outline-none focus:ring-2 focus:ring-[#00e0fe] focus:z-10 focus:relative text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe] z-10 relative' : ''}`}
+                        className={`input-cell w-full h-full px-2 py-1 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe]' : ''}`}
                       />
                     )}
                   </td>
                 );
               })}
-              <td className="border-b border-gray-600 p-0 text-center align-middle col-actions">
+              <td className="border-b border-gray-600 p-0 text-center align-middle col-actions w-16">
                 {rows.length > 1 && (
                   <button
                     onClick={() => {
