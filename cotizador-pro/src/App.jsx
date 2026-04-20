@@ -4,7 +4,8 @@ import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './components/Login';
 import Register from './components/Register';
-import Despiece from './components/despiece/DespieceTabs';
+import Despiece from './components/despiece/Despiece';
+import InventoryPage from './components/inventory/InventoryPage';
 import Settings from './components/Settings';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './components/dashboard/Dashboard';
@@ -104,6 +105,7 @@ function App() {
 
                     {/* Backward compatibility para el componente original estático */}
                     <Route path="/despiece" element={<Despiece />} />
+                    <Route path="/inventario" element={<InventoryPage />} />
                     
                     <Route path="/settings" element={<Settings />} />
                 </Route>

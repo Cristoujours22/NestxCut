@@ -1,104 +1,151 @@
-// Wrapper para conectar ProjectWorkspace con el módulo de despiece
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import DespieceTabs from './DespieceTabs';
+import DespieceTable from './DespieceTable';
+import DespieceMaterialSelector from './DespieceMaterialSelector';
+import DespieceCantosPanel from './DespieceCantosPanel';
 
-export default function Despiece({ initialData = [], onChange, isNested }) {
-  const [despieces, setDespieces] = useState(() => {
-    // inicializar con los datos
-    if (initialData && initialData.length > 0) {
-      return initialData;
-    }
-    // crear un despiece vacío por defecto
-    return [{
-      id: `desp_${Date.now()}`,
-      material_id: null,
-      cantos: [],
-      filas: [{ id: `row_0`, cantidad: '', largo: '', ancho: '', detalle: '', l1: '', l2: '', a1: '', a2: '', rotar: '' }]
-    }];
-  });
+const API = window.electronAPI;
 
-  const [activeDespieceId, setActiveDespieceId] = useState(despieces[0]?.id);
+const createEmptyRow = () => ({
+  id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  cant: '',
+  largo: '',
+  ancho: '',
+  detalle: '',
+  rotar: '',
+  l1: '',
+  l2: '',
+  a1: '',
+  a2: ''
+});
 
-  // Cuando cambian los datos, notificar al padre
-  const handleChange = useCallback((newDespieces) => {
-    setDespieces(newDespieces);
-    if (onChange) {
-      onChange(newDespieces);
-    }
-  }, [onChange]);
+const createDespiece = () => ({
+  id: `desp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  material_id: null,
+  cantos: [],
+  filas: [createEmptyRow()]
+});
 
-  // Seleccionar un despiece
-  const handleSelect = useCallback((id) => {
-    setActiveDespieceId(id);
+function normalizeDespieces(initialData) {
+  if (!Array.isArray(initialData) || initialData.length === 0) return [createDespiece()];
+  return initialData.map((despiece, index) => ({
+    id: despiece.id || `desp_${index}`,
+    material_id: despiece.material_id || null,
+    cantos: Array.isArray(despiece.cantos) ? despiece.cantos : [],
+    filas: Array.isArray(despiece.filas) && despiece.filas.length > 0
+      ? despiece.filas.map((row, rowIndex) => ({ ...createEmptyRow(), ...row, id: row.id || `row_${index}_${rowIndex}` }))
+      : [createEmptyRow()]
+  }));
+}
+
+export default function Despiece({ initialData = [], onChange }) {
+  const [despieces, setDespieces] = useState(() => normalizeDespieces(initialData));
+  const [activeDespieceId, setActiveDespieceId] = useState(() => normalizeDespieces(initialData)[0].id);
+  const [inventoryItems, setInventoryItems] = useState([]);
+
+  useEffect(() => {
+    setDespieces(normalizeDespieces(initialData));
+    const next = normalizeDespieces(initialData);
+    setActiveDespieceId((prev) => next.some((item) => item.id === prev) ? prev : next[0].id);
+  }, [initialData]);
+
+  useEffect(() => {
+    const loadInventory = async () => {
+      try {
+        if (API?.getInventoryItems) {
+          const items = await API.getInventoryItems();
+          setInventoryItems(Array.isArray(items) ? items : []);
+        }
+      } catch (error) {
+        console.error('Error loading inventory for despiece:', error);
+      }
+    };
+    loadInventory();
   }, []);
 
-  // Agregar un nuevo despiece
-  const handleAdd = useCallback(() => {
-    const newId = `desp_${Date.now()}`;
-    const newDespieces = [...despieces, {
-      id: newId,
-      material_id: null,
-      cantos: [],
-      filas: [{ id: `row_${Date.now()}`, cantidad: '', largo: '', ancho: '', detalle: '', l1: '', l2: '', a1: '', a2: '', rotar: '' }]
-    }];
-    setDespieces(newDespieces);
-    setActiveDespieceId(newId);
-    if (onChange) onChange(newDespieces);
-  }, [despieces, onChange]);
+  const emitChange = useCallback((next) => {
+    setDespieces(next);
+    onChange?.(next);
+  }, [onChange]);
 
-  // Eliminar un despiece
+  const activeDespiece = useMemo(
+    () => despieces.find((item) => item.id === activeDespieceId) || despieces[0],
+    [despieces, activeDespieceId]
+  );
+
+  const materialOptions = useMemo(
+    () => inventoryItems.filter((item) => item.tipo === 'tablero' || item.type === 'tablero'),
+    [inventoryItems]
+  );
+
+  const inventoryCantos = useMemo(
+    () => inventoryItems.filter((item) => item.tipo === 'canto' || item.type === 'canto'),
+    [inventoryItems]
+  );
+
+  const allowedCantoRefs = useMemo(
+    () => (activeDespiece?.cantos || []).map((item) => item.ref).filter(Boolean),
+    [activeDespiece]
+  );
+
+  const patchActiveDespiece = useCallback((patch) => {
+    emitChange(despieces.map((item) => item.id === activeDespieceId ? { ...item, ...patch } : item));
+  }, [despieces, activeDespieceId, emitChange]);
+
+  const handleAdd = useCallback(() => {
+    const next = [...despieces, createDespiece()];
+    emitChange(next);
+    setActiveDespieceId(next[next.length - 1].id);
+  }, [despieces, emitChange]);
+
   const handleRemove = useCallback((id) => {
     if (despieces.length <= 1) return;
-    const newDespieces = despieces.filter(d => d.id !== id);
-    setDespieces(newDespieces);
-    if (activeDespieceId === id) {
-      setActiveDespieceId(newDespieces[0]?.id);
-    }
-    if (onChange) onChange(newDespieces);
-  }, [despieces, activeDespieceId, onChange]);
+    const next = despieces.filter((item) => item.id !== id);
+    emitChange(next);
+    if (activeDespieceId === id) setActiveDespieceId(next[0].id);
+  }, [despieces, activeDespieceId, emitChange]);
 
-  // Obtener el despiece activo
-  const activeDespiece = despieces.find(d => d.id === activeDespieceId);
+  if (!activeDespiece) return null;
 
-  // Manejar cambios en las filas
-  const handleFilasChange = useCallback((newFilas) => {
-    const newDespieces = despieces.map(d => 
-      d.id === activeDespieceId ? { ...d, filas: newFilas } : d
-    );
-    handleChange(newDespieces);
-  }, [despieces, activeDespieceId, handleChange]);
-
-  // Manejar cambio de material
-  const handleMaterialChange = useCallback((materialId) => {
-    const newDespieces = despieces.map(d =>
-      d.id === activeDespieceId ? { ...d, material_id: materialId } : d
-    );
-    handleChange(newDespieces);
-  }, [despieces, activeDespieceId, handleChange]);
-
-  // Renderizar solo el despiece activo usando DespieceTable
-  // Por ahora renderizamos una vista simple
   return (
-    <div className="h-full">
-      {/* Render tabs简单的 - solo mostrar el activo */}
-      <div className="flex gap-2 mb-2">
-        {despieces.map((d, i) => (
-          <button
-            key={d.id}
-            onClick={() => handleSelect(d.id)}
-            className={`px-3 py-1 rounded ${d.id === activeDespieceId ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300'}`}
-          >
-            Tablero {i + 1}
-          </button>
-        ))}
-        <button onClick={handleAdd} className="px-3 py-1 rounded bg-green-600 text-white">
-          + Agregar
-        </button>
-      </div>
-      
-      {/* Aquí iría la tabla de despiece */}
-      <div className="text-white p-4">
-        <pre>{JSON.stringify(activeDespiece?.filas || [], null, 2)}</pre>
+    <div className="space-y-4">
+      <DespieceTabs
+        despieces={despieces}
+        activeDespieceId={activeDespieceId}
+        onSelect={setActiveDespieceId}
+        onAdd={handleAdd}
+        onRemove={handleRemove}
+        materialOptions={materialOptions}
+        materialValue={activeDespiece.material_id || ''}
+        onMaterialChange={(material_id) => patchActiveDespiece({ material_id })}
+      />
+
+      <DespieceMaterialSelector
+        value={activeDespiece.material_id || ''}
+        materials={materialOptions}
+        onChange={(material_id) => patchActiveDespiece({ material_id })}
+      />
+
+      <DespieceCantosPanel
+        cantos={activeDespiece.cantos || []}
+        inventoryCantos={inventoryCantos}
+        onChange={(cantos) => patchActiveDespiece({ cantos })}
+      />
+
+      <div className="bg-[#0a1122] border border-[#1a233a] rounded-2xl p-4 overflow-x-auto">
+        <DespieceTable
+          rows={activeDespiece.filas || []}
+          onRowsChange={(updater) => {
+            const nextRows = typeof updater === 'function' ? updater(activeDespiece.filas || []) : updater;
+            patchActiveDespiece({ filas: nextRows });
+          }}
+          onRemoveRow={(rowIndex) => {
+            const currentRows = activeDespiece.filas || [];
+            const nextRows = currentRows.filter((_, index) => index !== rowIndex);
+            patchActiveDespiece({ filas: nextRows.length ? nextRows : [createEmptyRow()] });
+          }}
+          allowedCantoRefs={allowedCantoRefs}
+        />
       </div>
     </div>
   );
