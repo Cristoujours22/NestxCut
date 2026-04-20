@@ -22,7 +22,7 @@ function Field({ label, children }) {
   return <label className="flex flex-col gap-1 text-sm text-[#a3aac4]"> <span>{label}</span>{children}</label>;
 }
 
-export default function InventoryFormModal({ isOpen, type, item, existingItems = [], onClose, onSubmit }) {
+export default function InventoryFormModal({ isOpen, type, item, existingItems = [], onClose, onSubmit, submitError = '' }) {
   const [form, setForm] = useState(defaultByType.tablero);
   const [errors, setErrors] = useState({});
   const isEdit = Boolean(item?.id);
@@ -45,6 +45,7 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
 
     if (!form.nombre?.trim()) nextErrors.nombre = 'El nombre es obligatorio';
     if (!form.codigo?.trim()) nextErrors.codigo = 'El código es obligatorio';
+    if (String(form.cantidad_disponible ?? '').trim() === '') nextErrors.cantidad_disponible = 'La cantidad es obligatoria';
     const duplicatedCode = existingItems.some((entry) => (
       entry.codigo?.trim().toLowerCase() === form.codigo?.trim().toLowerCase()
       && entry.id !== item?.id
@@ -88,7 +89,7 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
           <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} noValidate className="p-6 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Field label="Nombre">
               <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} required className={inputClass('nombre')} />
@@ -99,7 +100,7 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
               {errors.codigo && <span className="text-red-400 text-xs">{errors.codigo}</span>}
             </Field>
             <Field label="Cantidad disponible">
-              <input type="number" value={form.cantidad_disponible || ''} onChange={(e) => set('cantidad_disponible', e.target.value)} required className={inputClass('cantidad_disponible')} />
+              <input type="number" value={form.cantidad_disponible || ''} onChange={(e) => set('cantidad_disponible', e.target.value)} className={inputClass('cantidad_disponible')} />
               {errors.cantidad_disponible && <span className="text-red-400 text-xs">{errors.cantidad_disponible}</span>}
             </Field>
             <Field label="Stock mínimo">
@@ -148,6 +149,12 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
           <Field label="Notas">
             <textarea value={form.notas || ''} onChange={(e) => set('notas', e.target.value)} rows={3} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50" />
           </Field>
+
+          {submitError ? (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {submitError}
+            </div>
+          ) : null}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-bold text-[#a3aac4] hover:text-white hover:bg-[#1a233a]">Cancelar</button>

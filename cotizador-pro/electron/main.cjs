@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const ipcContract = require('./ipcContract.cjs');
 const LicensingService = require('./licensing/licensingService.cjs');
+const { registerInventoryHandlers } = require('./ipc/inventoryHandlers.cjs');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
@@ -372,6 +373,11 @@ function initializeDatabase() {
 
 app.whenReady().then(() => {
   initializeDatabase();
+  registerInventoryHandlers({
+    ipcMain,
+    getDb: () => db,
+    saveState,
+  });
   createWindow();
   licensingService = new LicensingService(db);
   app.on('activate', () => {
