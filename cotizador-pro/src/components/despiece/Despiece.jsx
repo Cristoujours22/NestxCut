@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import DespieceTabs from './DespieceTabs';
 import DespieceTable from './DespieceTable';
 import DespieceCantosPanel from './DespieceCantosPanel';
@@ -39,8 +38,6 @@ function normalizeDespieces(initialData) {
 }
 
 export default function Despiece({ initialData = [], onChange }) {
-  const navigate = useNavigate();
-  const location = useLocation();
   const [despieces, setDespieces] = useState(() => normalizeDespieces(initialData));
   const [activeDespieceId, setActiveDespieceId] = useState(() => normalizeDespieces(initialData)[0].id);
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -109,27 +106,8 @@ export default function Despiece({ initialData = [], onChange }) {
 
   if (!activeDespiece) return null;
 
-  const isStandaloneRoute = location.pathname === '/despiece';
-
   return (
     <div className="space-y-4">
-      {isStandaloneRoute && (
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="group flex items-center justify-center w-10 h-10 rounded-full bg-[#1a233a]/50 border border-[#40485d]/30 text-[#a3aac4] hover:text-[#99f7ff] hover:bg-[#1a233a] hover:border-[#99f7ff]/50 transition-all shadow-sm"
-            title="Volver al dashboard"
-          >
-            <span className="material-symbols-outlined text-[20px] group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
-          </button>
-
-          <div>
-            <h1 className="font-['Space_Grotesk'] text-2xl font-bold text-[#dee5ff]">Despiece</h1>
-            <p className="text-[#a3aac4] text-sm mt-1">Editor de tableros, cantos y piezas</p>
-          </div>
-        </div>
-      )}
-
       <DespieceTabs
         despieces={despieces}
         activeDespieceId={activeDespieceId}

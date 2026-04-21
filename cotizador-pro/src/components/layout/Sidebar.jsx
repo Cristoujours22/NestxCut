@@ -9,7 +9,6 @@ export default function Sidebar({ onOpenNewProject }) {
 
   const menuItems = [
     { name: 'Home', icon: 'home', path: '/dashboard' },
-    { name: 'Despiece', icon: 'architecture', path: '/despiece' },
     { name: 'Cotización', icon: 'request_quote', path: '/cotizacion' },
     { name: 'Inventario', icon: 'inventory_2', path: '/inventario' },
     { name: 'Configuración', icon: 'settings', path: '/settings' },

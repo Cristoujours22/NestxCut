@@ -12,7 +12,7 @@ export const TABLERO_COLUMNS = [
   { key: 'stock_minimo', label: 'Mínimo', align: 'right' },
   {
     key: 'costo_unitario',
-    label: 'Costo',
+    label: 'Costo compra',
     align: 'right',
     render: (item) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(item.costo_unitario || 0)),
   },
