@@ -5,6 +5,7 @@ import InventoryTable from './InventoryTable';
 import InventoryFormModal from './InventoryFormModal';
 import InventoryAlertsPanel from './InventoryAlertsPanel';
 import InventoryDeleteModal from './InventoryDeleteModal';
+import InventoryStockEntryModal from './InventoryStockEntryModal';
 import { CANTO_COLUMNS } from '../../features/inventory/config/cantoColumns';
 import { TABLERO_COLUMNS } from '../../features/inventory/config/tableroColumns';
 import { HERRAJE_COLUMNS } from '../../features/inventory/config/herrajeColumns';
@@ -55,7 +56,9 @@ export default function InventoryPage() {
   const [specificFilter, setSpecificFilter] = useState('todos');
   const [modalState, setModalState] = useState({ open: false, type: 'tablero', item: null });
   const [deleteState, setDeleteState] = useState({ open: false, item: null });
+  const [stockEntryState, setStockEntryState] = useState({ open: false, item: null });
   const [submitError, setSubmitError] = useState('');
+  const [stockEntryError, setStockEntryError] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -151,6 +154,39 @@ export default function InventoryPage() {
     }
   };
 
+  const handleStockEntry = async ({ itemId, cantidad, motivo }) => {
+    setStockEntryError('');
+    try {
+      const item = items.find((item) => item.id === itemId);
+      if (!item) throw new Error('Item no encontrado');
+
+      const currentQuantity = Number(item.cantidad_disponible || 0);
+      const newQuantity = currentQuantity + cantidad;
+
+      await API.updateInventoryItem({
+        ...item,
+        cantidad_disponible: newQuantity,
+      });
+
+      if (API?.addInventoryMovement) {
+        await API.addInventoryMovement({
+          item_id: itemId,
+          movement_type: 'entrada',
+          cantidad: cantidad,
+          motivo: motivo || 'Entrada rápida de stock',
+        });
+      }
+
+      setStockEntryState({ open: false, item: null });
+      await load();
+    } catch (error) {
+      console.error('Error en entrada de stock:', error);
+      const message = error?.message || 'No se pudo registrar la entrada de stock';
+      setStockEntryError(message);
+      throw error;
+    }
+  };
+
   return (
     <div className="p-8 space-y-6 pb-20">
       <InventoryDeleteModal
@@ -195,17 +231,32 @@ export default function InventoryPage() {
         ) : activeTab === 'movimientos' ? (
           <MovementsView movements={movements} items={items} />
         ) : (
-            <InventoryTable
-              columns={columns}
-              items={filteredItems}
-              onEdit={(item) => {
-                setSubmitError('');
-                setModalState({ open: true, type: item.item_type, item });
-              }}
-              onDelete={(item) => setDeleteState({ open: true, item })}
-            />
+                <InventoryTable
+                  columns={columns}
+                  items={filteredItems}
+                  onEdit={(item) => {
+                    setSubmitError('');
+                    setModalState({ open: true, type: item.item_type, item });
+                  }}
+                  onDelete={(item) => setDeleteState({ open: true, item })}
+                  onStockEntry={(item) => {
+                    setStockEntryError('');
+                    setStockEntryState({ open: true, item });
+                  }}
+                />
           )}
         </section>
+
+      <InventoryStockEntryModal
+        isOpen={stockEntryState.open}
+        item={stockEntryState.item}
+        onClose={() => {
+          setStockEntryError('');
+          setStockEntryState({ open: false, item: null });
+        }}
+        onSubmit={handleStockEntry}
+        error={stockEntryError}
+      />
 
       <InventoryFormModal
         isOpen={modalState.open}

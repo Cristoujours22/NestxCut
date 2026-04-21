@@ -76,12 +76,12 @@ export default function Despiece({ initialData = [], onChange }) {
   );
 
   const materialOptions = useMemo(
-    () => inventoryItems.filter((item) => item.tipo === 'tablero' || item.type === 'tablero'),
+    () => inventoryItems.filter((item) => item.item_type === 'tablero' || item.tipo === 'tablero' || item.type === 'tablero'),
     [inventoryItems]
   );
 
   const inventoryCantos = useMemo(
-    () => inventoryItems.filter((item) => item.tipo === 'canto' || item.type === 'canto'),
+    () => inventoryItems.filter((item) => item.item_type === 'canto' || item.tipo === 'canto' || item.type === 'canto'),
     [inventoryItems]
   );
 

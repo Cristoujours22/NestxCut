@@ -1,7 +1,7 @@
 import InventoryStatusBadge from './InventoryStatusBadge';
 import { getStockReal, getStockStatus } from '../../features/inventory/utils/inventoryStock';
 
-export default function InventoryTable({ columns, items, onEdit, onDelete }) {
+export default function InventoryTable({ columns, items, onEdit, onDelete, onStockEntry }) {
   if (!items.length) {
     return (
       <div className="border border-dashed border-[#1a233a] rounded-2xl p-10 text-center bg-[#0a1122]/30">
@@ -39,6 +39,9 @@ export default function InventoryTable({ columns, items, onEdit, onDelete }) {
                 <td className="px-4 py-3"><InventoryStatusBadge status={stockStatus} /></td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
+                    <button onClick={() => onStockEntry(item)} className="w-9 h-9 rounded-lg border border-green-500/20 bg-green-500/10 text-green-400 hover:bg-green-500/15 inline-flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[18px]">add</span>
+                    </button>
                     <button onClick={() => onEdit(item)} className="w-9 h-9 rounded-lg border border-[#1a233a] bg-[#10182d] text-[#99f7ff] hover:bg-[#15213b] inline-flex items-center justify-center">
                       <span className="material-symbols-outlined text-[18px]">edit</span>
                     </button>
