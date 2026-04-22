@@ -147,6 +147,8 @@ export default function Despiece({ initialData = [], onChange }) {
         onClose={() => setShowNestingModal(false)}
         boardName={activeMaterial?.nombre || ''}
         boardDimensions={boardDimensions}
+        boardWidth={Number(activeMaterial?.ancho_mm || 0)}
+        boardHeight={Number(activeMaterial?.largo_mm || 0)}
         estimatedSheets={nestingEstimate.estimatedSheets}
         pieceCount={piezaCount}
         estimate={nestingEstimate}
