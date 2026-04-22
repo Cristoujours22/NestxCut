@@ -50,6 +50,12 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
   const [zoom, setZoom] = useState(1);
   if (!isOpen) return null;
 
+  const placedPiecesCount = preview?.sheets?.reduce((total, sheet) => total + sheet.pieces.length, 0) || 0;
+  const unplacedPiecesCount = preview?.unplaced?.length || 0;
+  const totalBoardArea = (estimate?.usableAncho || 0) * (estimate?.usableLargo || 0) * (preview?.sheets?.length || 0);
+  const placedArea = preview?.sheets?.reduce((total, sheet) => total + sheet.pieces.reduce((sheetTotal, piece) => sheetTotal + (piece.width * piece.height), 0), 0) || 0;
+  const globalUtilization = totalBoardArea > 0 ? (placedArea / totalBoardArea) * 100 : 0;
+
   const handleToggleRotate = (rowId) => {
     if (!onRowsChange) return;
     onRowsChange((prevRows) => prevRows.map((row) => {
@@ -100,6 +106,21 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
             <div className="bg-[#0f172b] border border-[#1a233a] rounded-xl px-4 py-3">
               <div className="text-[10px] uppercase tracking-wide text-[#6f7a97] mb-1">Aprovechamiento estimado</div>
               <div className="text-[#99f7ff] font-bold">{(estimate?.utilization || 0).toFixed(1)}%</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-[#0f172b] border border-[#1a233a] rounded-xl px-4 py-3">
+              <div className="text-[10px] uppercase tracking-wide text-[#6f7a97] mb-1">Piezas ubicadas</div>
+              <div className="text-[#dee5ff] font-bold text-2xl">{placedPiecesCount}</div>
+            </div>
+            <div className="bg-[#0f172b] border border-[#1a233a] rounded-xl px-4 py-3">
+              <div className="text-[10px] uppercase tracking-wide text-[#6f7a97] mb-1">Piezas sin ubicar</div>
+              <div className={`font-bold text-2xl ${unplacedPiecesCount > 0 ? 'text-amber-300' : 'text-[#dee5ff]'}`}>{unplacedPiecesCount}</div>
+            </div>
+            <div className="bg-[#0f172b] border border-[#1a233a] rounded-xl px-4 py-3">
+              <div className="text-[10px] uppercase tracking-wide text-[#6f7a97] mb-1">Uso global preview</div>
+              <div className="text-[#99f7ff] font-bold">{globalUtilization.toFixed(1)}%</div>
             </div>
           </div>
 

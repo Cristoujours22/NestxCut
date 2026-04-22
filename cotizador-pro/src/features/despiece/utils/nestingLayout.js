@@ -58,16 +58,18 @@ function pickBestFreeRect(freeRects, piece) {
   return best;
 }
 
-function splitFreeRect(sheet, rectIndex, placed) {
+function splitFreeRect(sheet, rectIndex, placed, kerf) {
   const rect = sheet.freeRects[rectIndex];
-  const rightWidth = rect.width - placed.width - 0;
-  const bottomHeight = rect.height - placed.height - 0;
+  const rightX = rect.x + placed.width + kerf;
+  const bottomY = rect.y + placed.height + kerf;
+  const rightWidth = rect.width - placed.width - kerf;
+  const bottomHeight = rect.height - placed.height - kerf;
 
   const nextRects = sheet.freeRects.filter((_, index) => index !== rectIndex);
 
   if (rightWidth > 0) {
     nextRects.push({
-      x: rect.x + placed.width,
+      x: rightX,
       y: rect.y,
       width: rightWidth,
       height: placed.height,
@@ -77,7 +79,7 @@ function splitFreeRect(sheet, rectIndex, placed) {
   if (bottomHeight > 0) {
     nextRects.push({
       x: rect.x,
-      y: rect.y + placed.height,
+      y: bottomY,
       width: rect.width,
       height: bottomHeight,
     });
@@ -124,7 +126,7 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
         };
 
         sheet.pieces.push(placedPiece);
-        splitFreeRect(sheet, best.rectIndex, placedPiece);
+        splitFreeRect(sheet, best.rectIndex, placedPiece, kerf);
         placed = true;
         break;
       }
@@ -147,7 +149,7 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
         };
 
         newSheet.pieces.push(placedPiece);
-        splitFreeRect(newSheet, best.rectIndex, placedPiece);
+        splitFreeRect(newSheet, best.rectIndex, placedPiece, kerf);
         sheets.push(newSheet);
         placed = true;
       }
