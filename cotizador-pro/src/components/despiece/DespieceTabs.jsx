@@ -66,7 +66,7 @@ function MaterialCombobox({ materials, value, onChange, onOpenChange }) {
         position: 'fixed',
         top: rect.bottom + 8,
         left: rect.left,
-        width: Math.max(rect.width, 520),
+        width: Math.max(rect.width, 420),
         maxWidth: '70vw',
         zIndex: 9999,
       });
@@ -85,12 +85,11 @@ function MaterialCombobox({ materials, value, onChange, onOpenChange }) {
     <div ref={dropdownRef} style={dropdownStyle} className="rounded-xl border border-[#1a233a] bg-[#0a1122] shadow-2xl overflow-hidden">
       <div className="p-2 border-b border-[#1a233a] bg-[#060e20]">
         <div className="relative">
-          <span className={`material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[#6f7a97] text-[16px] pointer-events-none transition-opacity ${open ? 'opacity-0' : 'opacity-100'}`}>search</span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Buscar por referencia o nombre..."
-            className="w-full bg-[#0a1122] border border-[#1a233a] text-[12px] text-white rounded-lg pl-7 pr-2 py-2 focus:outline-none focus:border-[#00e0fe]/50"
+            className="w-full bg-[#0a1122] border border-[#1a233a] text-[12px] text-white rounded-lg px-3 py-2 focus:outline-none focus:border-[#00e0fe]/50"
             autoFocus
           />
         </div>
@@ -137,7 +136,7 @@ function MaterialCombobox({ materials, value, onChange, onOpenChange }) {
   ) : null;
 
   return (
-    <div ref={rootRef} className="relative w-full min-w-[420px]" onClick={(e) => e.stopPropagation()}>
+    <div ref={rootRef} className="relative w-full min-w-[300px] max-w-[380px]" onClick={(e) => e.stopPropagation()}>
       <button
         ref={buttonRef}
         type="button"
@@ -174,53 +173,53 @@ function DespieceTabs({ despieces, activeDespieceId, onChangeName, onSelect, onA
     <div className="relative overflow-visible mt-[3px] pb-1">
       <div className="flex gap-1.5 overflow-x-auto items-start">
         {despieces.map((despiece) => {
-        const isActive = activeDespieceId === despiece.id;
-        const materialLabel = getInactiveLabel(despiece.material_id);
+          const isActive = activeDespieceId === despiece.id;
+          const materialLabel = getInactiveLabel(despiece.material_id);
 
-        return (
-          <div
-            key={despiece.id}
-            onClick={() => onSelect(despiece.id)}
-            className={`flex items-center gap-1 px-1.5 py-1 rounded-md border cursor-pointer transition-all ${
-              isActive
-                ? 'bg-[#121b31] text-[#dee5ff] border-[#00e0fe]/35 shadow-[0_0_0_1px_rgba(0,224,254,0.05)] min-w-[460px]'
-                : 'bg-[#0d1528] text-[#a3aac4] border-[#1a233a] hover:text-[#dee5ff] hover:bg-[#162038] min-w-[170px]'
-            }`}
-          >
-            {isActive ? (
-              <MaterialCombobox
-                materials={materialOptions}
-                value={materialValue || ''}
-                onChange={(materialId) => onMaterialChange?.(materialId || null)}
-                onOpenChange={(isOpen) => setOpenComboboxId(isOpen ? despiece.id : null)}
-              />
-            ) : (
-              <div className="bg-transparent border border-[#40485d]/30 rounded-md px-2 py-1 text-inherit font-semibold min-w-[130px] text-[13px] leading-none truncate flex-1">
-                {materialLabel}
-              </div>
-            )}
+          return (
+            <div
+              key={despiece.id}
+              onClick={() => onSelect(despiece.id)}
+              className={`flex items-center gap-1 px-1.5 py-1 rounded-md border cursor-pointer transition-all ${
+                isActive
+                  ? 'bg-[#121b31] text-[#dee5ff] border-[#00e0fe]/35 shadow-[0_0_0_1px_rgba(0,224,254,0.05)] min-w-[340px]'
+                  : 'bg-[#0d1528] text-[#a3aac4] border-[#1a233a] hover:text-[#dee5ff] hover:bg-[#162038] min-w-[170px]'
+              }`}
+            >
+              {isActive ? (
+                <MaterialCombobox
+                  materials={materialOptions}
+                  value={materialValue || ''}
+                  onChange={(materialId) => onMaterialChange?.(materialId || null)}
+                  onOpenChange={(isOpen) => setOpenComboboxId(isOpen ? despiece.id : null)}
+                />
+              ) : (
+                <div className="bg-transparent border border-[#40485d]/30 rounded-md px-2 py-1 text-inherit font-semibold min-w-[130px] text-[13px] leading-none truncate flex-1">
+                  {materialLabel}
+                </div>
+              )}
 
-            {despieces.length > 1 && openComboboxId !== despiece.id && (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRemove(despiece.id);
-                }}
-                className={`w-5 h-5 inline-flex items-center justify-center rounded text-[11px] font-bold ${isActive ? 'text-red-300' : 'text-red-400'} hover:text-red-200 hover:bg-red-500/10 transition-colors shrink-0`}
-                title="Eliminar pestaña"
-              >
-                ×
-              </button>
-            )}
-          </div>
-        );
-      })}
+              {despieces.length > 1 && openComboboxId !== despiece.id && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemove(despiece.id);
+                  }}
+                  className={`w-5 h-5 inline-flex items-center justify-center rounded text-[11px] font-bold ${isActive ? 'text-red-300' : 'text-red-400'} hover:text-red-200 hover:bg-red-500/10 transition-colors shrink-0`}
+                  title="Eliminar pestaña"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         <button
           type="button"
           onClick={onAdd}
-          className="h-[34px] px-3 rounded-md bg-[#0f8b5f] hover:bg-[#0c6c49] text-white font-bold transition-colors inline-flex items-center justify-center shrink-0"
+          className="h-[44px] px-4 rounded-md bg-[#0f8b5f] hover:bg-[#0c6c49] text-white font-bold transition-colors inline-flex items-center justify-center shrink-0"
           title="Agregar nuevo despiece"
         >
           +

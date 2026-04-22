@@ -79,21 +79,21 @@ export default function ProjectWorkspace() {
     <div className="flex flex-col h-full">
       {/* Header Fijo del Workspace */}
       <header className="shrink-0 bg-[#060e20] border-b border-[#1a233a] sticky top-0 z-10">
-        <div className="p-6 pb-0">
+        <div className="px-5 pt-4 pb-0">
           
-          <div className="flex items-start justify-between mb-6">
-            <div className="flex items-center gap-4">
+          <div className="flex items-start justify-between mb-4 gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <button 
                 onClick={() => navigate('/dashboard')}
-                className="group w-10 h-10 flex items-center justify-center rounded-full bg-[#1a233a]/50 text-[#a3aac4] hover:text-[#99f7ff] border border-[#40485d]/30 transition-all"
+                className="group w-9 h-9 flex items-center justify-center rounded-full bg-[#1a233a]/50 text-[#a3aac4] hover:text-[#99f7ff] border border-[#40485d]/30 transition-all shrink-0"
                 title="Volver a Proyectos"
               >
-                <span className="material-symbols-outlined text-[20px] group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
+                <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
               </button>
               
-              <div>
-                <h1 className="font-['Space_Grotesk'] text-2xl font-bold text-[#dee5ff] flex items-center gap-2">
-                  {projectName}
+              <div className="min-w-0">
+                <h1 className="font-['Space_Grotesk'] text-[26px] font-bold text-[#dee5ff] flex items-center gap-2 min-w-0">
+                  <span className="truncate">{projectName}</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border align-middle ${
                     state === 'APROBADA' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
                     state === 'RECHAZADA' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
@@ -102,7 +102,7 @@ export default function ProjectWorkspace() {
                     {state}
                   </span>
                 </h1>
-                <p className="text-[#a3aac4] text-sm mt-1 flex items-center gap-1.5">
+                <p className="text-[#a3aac4] text-sm mt-0.5 flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px]">person</span>
                   Cliente: <strong className="text-[#dee5ff]">{clientName}</strong>
                 </p>
@@ -113,7 +113,7 @@ export default function ProjectWorkspace() {
               <button 
                 onClick={handleSave}
                 disabled={isSaving}
-                className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#202b46] transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#202b46] transition-colors flex items-center gap-2 disabled:opacity-50 shrink-0"
               >
                 {isSaving ? (
                   <span className="material-symbols-outlined text-[18px] animate-spin text-[#00e0fe]">progress_activity</span>
@@ -131,7 +131,7 @@ export default function ProjectWorkspace() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-[#00e0fe] text-[#00e0fe]'
                     : 'border-transparent text-[#a3aac4] hover:text-[#dee5ff] hover:bg-[#1a233a]/20 rounded-t-lg'
@@ -148,7 +148,7 @@ export default function ProjectWorkspace() {
       </header>
 
       {/* Main Content Area para las pestañas */}
-      <div className="flex-1 overflow-y-auto p-6 bg-[#0a1122]">
+      <div className="flex-1 overflow-y-auto p-4 bg-[#0a1122]">
         {loading ? (
            <div className="flex h-full items-center justify-center text-[#00e0fe]">
              <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
