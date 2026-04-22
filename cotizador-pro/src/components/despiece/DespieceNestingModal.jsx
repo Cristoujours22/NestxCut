@@ -1,7 +1,13 @@
-function SheetPreview({ sheet, boardWidth, boardHeight }) {
-  const scale = Math.min(1, 520 / Math.max(boardWidth, boardHeight, 1));
+import { useState } from 'react';
+
+function SheetPreview({ sheet, boardWidth, boardHeight, zoom = 1 }) {
+  const scale = Math.min(1, 520 / Math.max(boardWidth, boardHeight, 1)) * zoom;
   const previewWidth = Math.max(260, Math.round(boardWidth * scale));
   const previewHeight = Math.max(180, Math.round(boardHeight * scale));
+
+  const usedArea = sheet.pieces.reduce((total, piece) => total + (piece.width * piece.height), 0);
+  const boardArea = boardWidth * boardHeight;
+  const utilization = boardArea > 0 ? (usedArea / boardArea) * 100 : 0;
 
   return (
     <div className="bg-[#0f172b] border border-[#1a233a] rounded-2xl p-4 space-y-3">
@@ -34,13 +40,14 @@ function SheetPreview({ sheet, boardWidth, boardHeight }) {
 
       <div className="flex items-center justify-between gap-3 text-[11px] text-[#6f7a97]">
         <span>Área visible: {Math.round((boardWidth * boardHeight) / 1000000 * 100) / 100} m²</span>
-        <span>{sheet.pieces.filter((piece) => piece.rotated).length} rotadas</span>
+        <span>{sheet.pieces.filter((piece) => piece.rotated).length} rotadas · {utilization.toFixed(1)}% uso</span>
       </div>
     </div>
   );
 }
 
 export default function DespieceNestingModal({ isOpen, onClose, boardName, boardDimensions, estimatedSheets, pieceCount, estimate, preview, rows = [], onRowsChange }) {
+  const [zoom, setZoom] = useState(1);
   if (!isOpen) return null;
 
   const handleToggleRotate = (rowId) => {
@@ -131,7 +138,18 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
               <div className="space-y-4 text-left">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-[#dee5ff] font-bold">Visual preliminar de láminas</h3>
-                  <div className="text-sm text-[#a3aac4]">{preview.sheets.length} láminas generadas</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-[#a3aac4]">{preview.sheets.length} láminas generadas</div>
+                    <div className="flex items-center gap-1 rounded-lg border border-[#1a233a] bg-[#0f172b] px-2 py-1">
+                      <button type="button" onClick={() => setZoom((prev) => Math.max(0.5, +(prev - 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
+                        <span className="material-symbols-outlined text-[16px]">remove</span>
+                      </button>
+                      <span className="text-[11px] text-[#dee5ff] w-12 text-center">{Math.round(zoom * 100)}%</span>
+                      <button type="button" onClick={() => setZoom((prev) => Math.min(2, +(prev + 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
+                        <span className="material-symbols-outlined text-[16px]">add</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 justify-items-start">
@@ -141,13 +159,21 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                       sheet={sheet}
                       boardWidth={estimate?.usableAncho || 0}
                       boardHeight={estimate?.usableLargo || 0}
+                      zoom={zoom}
                     />
                   ))}
                 </div>
 
                 {preview.unplaced?.length ? (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                    {preview.unplaced.length} piezas no pudieron ubicarse en la vista preliminar.
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 space-y-2">
+                    <div>{preview.unplaced.length} piezas no pudieron ubicarse en la vista preliminar.</div>
+                    <div className="flex flex-wrap gap-2">
+                      {preview.unplaced.map((piece) => (
+                        <span key={piece.instanceId} className="px-2.5 py-1 rounded-lg bg-[#0f172b] border border-amber-500/20 text-[11px] text-amber-100">
+                          {piece.label} · {piece.width}×{piece.height}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
 
