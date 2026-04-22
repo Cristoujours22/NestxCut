@@ -19,6 +19,73 @@ function normalizePiece(row, index) {
   };
 }
 
+function createSheet(index, boardWidth, boardHeight) {
+  return {
+    index,
+    pieces: [],
+    freeRects: [{ x: 0, y: 0, width: boardWidth, height: boardHeight }],
+  };
+}
+
+function canFit(rect, width, height) {
+  return width <= rect.width && height <= rect.height;
+}
+
+function scoreFit(rect, width, height) {
+  const waste = (rect.width * rect.height) - (width * height);
+  const shortSide = Math.min(rect.width - width, rect.height - height);
+  return { waste, shortSide };
+}
+
+function pickBestFreeRect(freeRects, piece) {
+  let best = null;
+
+  freeRects.forEach((rect, rectIndex) => {
+    const options = [
+      { rotated: false, width: piece.width, height: piece.height },
+      ...(piece.canRotate ? [{ rotated: true, width: piece.height, height: piece.width }] : []),
+    ];
+
+    options.forEach((option) => {
+      if (!canFit(rect, option.width, option.height)) return;
+      const fit = scoreFit(rect, option.width, option.height);
+      if (!best || fit.waste < best.fit.waste || (fit.waste === best.fit.waste && fit.shortSide < best.fit.shortSide)) {
+        best = { rect, rectIndex, option, fit };
+      }
+    });
+  });
+
+  return best;
+}
+
+function splitFreeRect(sheet, rectIndex, placed) {
+  const rect = sheet.freeRects[rectIndex];
+  const rightWidth = rect.width - placed.width - 0;
+  const bottomHeight = rect.height - placed.height - 0;
+
+  const nextRects = sheet.freeRects.filter((_, index) => index !== rectIndex);
+
+  if (rightWidth > 0) {
+    nextRects.push({
+      x: rect.x + placed.width,
+      y: rect.y,
+      width: rightWidth,
+      height: placed.height,
+    });
+  }
+
+  if (bottomHeight > 0) {
+    nextRects.push({
+      x: rect.x,
+      y: rect.y + placed.height,
+      width: rect.width,
+      height: bottomHeight,
+    });
+  }
+
+  sheet.freeRects = nextRects.filter((candidate) => candidate.width > 0 && candidate.height > 0);
+}
+
 export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5 }) {
   const pieces = rows
     .map(normalizePiece)
@@ -33,75 +100,62 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
   }
 
   const sheets = [];
-  let currentSheet = { index: 1, pieces: [] };
-  let cursorX = 0;
-  let cursorY = 0;
-  let rowHeight = 0;
-
-  const pushSheet = () => {
-    if (currentSheet.pieces.length > 0) sheets.push(currentSheet);
-    currentSheet = { index: sheets.length + 1, pieces: [] };
-    cursorX = 0;
-    cursorY = 0;
-    rowHeight = 0;
-  };
-
-  const placePiece = (piece, rotated = false) => {
-    const pieceWidth = rotated ? piece.height : piece.width;
-    const pieceHeight = rotated ? piece.width : piece.height;
-
-    if (cursorX + pieceWidth > boardWidth) {
-      cursorX = 0;
-      cursorY += rowHeight + kerf;
-      rowHeight = 0;
-    }
-
-    if (cursorY + pieceHeight > boardHeight) {
-      pushSheet();
-    }
-
-    if (pieceWidth > boardWidth || pieceHeight > boardHeight) {
-      return false;
-    }
-
-    if (cursorX + pieceWidth > boardWidth) {
-      cursorX = 0;
-      cursorY += rowHeight + kerf;
-      rowHeight = 0;
-    }
-
-    if (cursorY + pieceHeight > boardHeight) {
-      pushSheet();
-    }
-
-    currentSheet.pieces.push({
-      ...piece,
-      rotated,
-      x: cursorX,
-      y: cursorY,
-      width: pieceWidth,
-      height: pieceHeight,
-    });
-
-    cursorX += pieceWidth + kerf;
-    rowHeight = Math.max(rowHeight, pieceHeight);
-    return true;
-  };
+  const boardUsableWidth = Math.max(0, boardWidth - kerf);
+  const boardUsableHeight = Math.max(0, boardHeight - kerf);
 
   const unplaced = [];
 
   pieces
     .sort((a, b) => (b.width * b.height) - (a.width * a.height))
     .forEach((piece) => {
-      const placed = placePiece(piece, false)
-        || (piece.canRotate ? placePiece(piece, true) : false);
+      let placed = false;
+
+      for (const sheet of sheets) {
+        const best = pickBestFreeRect(sheet.freeRects, piece);
+        if (!best) continue;
+
+        const placedPiece = {
+          ...piece,
+          rotated: best.option.rotated,
+          x: best.rect.x,
+          y: best.rect.y,
+          width: best.option.width,
+          height: best.option.height,
+        };
+
+        sheet.pieces.push(placedPiece);
+        splitFreeRect(sheet, best.rectIndex, placedPiece);
+        placed = true;
+        break;
+      }
+
+      if (!placed) {
+        const newSheet = createSheet(sheets.length + 1, boardUsableWidth, boardUsableHeight);
+        const best = pickBestFreeRect(newSheet.freeRects, piece);
+        if (!best) {
+          unplaced.push(piece);
+          return;
+        }
+
+        const placedPiece = {
+          ...piece,
+          rotated: best.option.rotated,
+          x: best.rect.x,
+          y: best.rect.y,
+          width: best.option.width,
+          height: best.option.height,
+        };
+
+        newSheet.pieces.push(placedPiece);
+        splitFreeRect(newSheet, best.rectIndex, placedPiece);
+        sheets.push(newSheet);
+        placed = true;
+      }
 
       if (!placed) {
         unplaced.push(piece);
       }
     });
-
-  if (currentSheet.pieces.length > 0) sheets.push(currentSheet);
 
   return { sheets, unplaced };
 }
