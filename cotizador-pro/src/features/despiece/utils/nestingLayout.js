@@ -3,11 +3,11 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function normalizePiece(row, index) {
+function normalizePiece(row, index, allowGlobalRotation = false) {
   const width = toNumber(row?.ancho);
   const height = toNumber(row?.largo);
   const quantity = Math.max(0, toNumber(row?.cantidad ?? row?.cant));
-  const canRotate = String(row?.rotar || '').trim() === '1';
+  const canRotate = allowGlobalRotation || String(row?.rotar || '').trim() === '1';
 
   return {
     id: row?.id || `piece_${index}`,
@@ -34,7 +34,8 @@ function canFit(rect, width, height) {
 function scoreFit(rect, width, height) {
   const waste = (rect.width * rect.height) - (width * height);
   const shortSide = Math.min(rect.width - width, rect.height - height);
-  return { waste, shortSide };
+  const longSide = Math.max(rect.width - width, rect.height - height);
+  return { waste, shortSide, longSide };
 }
 
 function pickBestFreeRect(freeRects, piece) {
@@ -49,13 +50,29 @@ function pickBestFreeRect(freeRects, piece) {
     options.forEach((option) => {
       if (!canFit(rect, option.width, option.height)) return;
       const fit = scoreFit(rect, option.width, option.height);
-      if (!best || fit.waste < best.fit.waste || (fit.waste === best.fit.waste && fit.shortSide < best.fit.shortSide)) {
+      if (!best
+        || fit.waste < best.fit.waste
+        || (fit.waste === best.fit.waste && fit.shortSide < best.fit.shortSide)
+        || (fit.waste === best.fit.waste && fit.shortSide === best.fit.shortSide && fit.longSide < best.fit.longSide)) {
         best = { rect, rectIndex, option, fit };
       }
     });
   });
 
   return best;
+}
+
+function isContained(inner, outer) {
+  return inner.x >= outer.x
+    && inner.y >= outer.y
+    && inner.x + inner.width <= outer.x + outer.width
+    && inner.y + inner.height <= outer.y + outer.height;
+}
+
+function pruneFreeRects(freeRects) {
+  return freeRects.filter((rect, index) => !freeRects.some((other, otherIndex) => (
+    index !== otherIndex && isContained(rect, other)
+  )));
 }
 
 function splitFreeRect(sheet, rectIndex, placed, kerf) {
@@ -72,7 +89,7 @@ function splitFreeRect(sheet, rectIndex, placed, kerf) {
       x: rightX,
       y: rect.y,
       width: rightWidth,
-      height: placed.height,
+      height: rect.height,
     });
   }
 
@@ -80,17 +97,19 @@ function splitFreeRect(sheet, rectIndex, placed, kerf) {
     nextRects.push({
       x: rect.x,
       y: bottomY,
-      width: rect.width,
+      width: placed.width,
       height: bottomHeight,
     });
   }
 
-  sheet.freeRects = nextRects.filter((candidate) => candidate.width > 0 && candidate.height > 0);
+  sheet.freeRects = pruneFreeRects(
+    nextRects.filter((candidate) => candidate.width > 0 && candidate.height > 0)
+  );
 }
 
-export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5 }) {
+export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5, allowGlobalRotation = false }) {
   const pieces = rows
-    .map(normalizePiece)
+    .map((row, index) => normalizePiece(row, index, allowGlobalRotation))
     .filter((piece) => piece.width > 0 && piece.height > 0 && piece.quantity > 0)
     .flatMap((piece) => Array.from({ length: piece.quantity }, (_, index) => ({
       ...piece,
@@ -108,7 +127,11 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
   const unplaced = [];
 
   pieces
-    .sort((a, b) => (b.width * b.height) - (a.width * a.height))
+    .sort((a, b) => {
+      const areaDiff = (b.width * b.height) - (a.width * a.height);
+      if (areaDiff !== 0) return areaDiff;
+      return Math.max(b.width, b.height) - Math.max(a.width, a.height);
+    })
     .forEach((piece) => {
       let placed = false;
 

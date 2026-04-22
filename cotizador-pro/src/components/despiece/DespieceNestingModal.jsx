@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { buildNestingPreview } from '../../features/despiece/utils/nestingLayout';
 
 function SheetPreview({ sheet, boardWidth, boardHeight, zoom = 1 }) {
   const scale = Math.min(1, 520 / Math.max(boardWidth, boardHeight, 1)) * zoom;
@@ -46,26 +47,28 @@ function SheetPreview({ sheet, boardWidth, boardHeight, zoom = 1 }) {
   );
 }
 
-export default function DespieceNestingModal({ isOpen, onClose, boardName, boardDimensions, estimatedSheets, pieceCount, estimate, preview, rows = [], onRowsChange }) {
+export default function DespieceNestingModal({ isOpen, onClose, boardName, boardDimensions, estimatedSheets, pieceCount, estimate, preview, rows = [] }) {
   const [zoom, setZoom] = useState(1);
+  const [ignoreBeta, setIgnoreBeta] = useState(false);
   if (!isOpen) return null;
 
-  const placedPiecesCount = preview?.sheets?.reduce((total, sheet) => total + sheet.pieces.length, 0) || 0;
-  const unplacedPiecesCount = preview?.unplaced?.length || 0;
-  const totalBoardArea = (estimate?.usableAncho || 0) * (estimate?.usableLargo || 0) * (preview?.sheets?.length || 0);
-  const placedArea = preview?.sheets?.reduce((total, sheet) => total + sheet.pieces.reduce((sheetTotal, piece) => sheetTotal + (piece.width * piece.height), 0), 0) || 0;
-  const globalUtilization = totalBoardArea > 0 ? (placedArea / totalBoardArea) * 100 : 0;
+  const effectivePreview = useMemo(() => (
+    ignoreBeta
+      ? buildNestingPreview({
+          rows,
+          boardWidth: estimate?.usableAncho || 0,
+          boardHeight: estimate?.usableLargo || 0,
+          kerf: estimate?.settings?.sawKerf || 5,
+          allowGlobalRotation: true,
+        })
+      : preview
+  ), [ignoreBeta, rows, estimate, preview]);
 
-  const handleToggleRotate = (rowId) => {
-    if (!onRowsChange) return;
-    onRowsChange((prevRows) => prevRows.map((row) => {
-      if (row.id !== rowId) return row;
-      return {
-        ...row,
-        rotar: String(row.rotar || '').trim() === '1' ? '' : '1',
-      };
-    }));
-  };
+  const placedPiecesCount = effectivePreview?.sheets?.reduce((total, sheet) => total + sheet.pieces.length, 0) || 0;
+  const unplacedPiecesCount = effectivePreview?.unplaced?.length || 0;
+  const totalBoardArea = (estimate?.usableAncho || 0) * (estimate?.usableLargo || 0) * (effectivePreview?.sheets?.length || 0);
+  const placedArea = effectivePreview?.sheets?.reduce((total, sheet) => total + sheet.pieces.reduce((sheetTotal, piece) => sheetTotal + (piece.width * piece.height), 0), 0) || 0;
+  const globalUtilization = totalBoardArea > 0 ? (placedArea / totalBoardArea) * 100 : 0;
 
   return (
     <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -124,43 +127,26 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
             </div>
           </div>
 
-          <div className="bg-[#0f172b] border border-[#1a233a] rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[#dee5ff] font-bold">Orientación de piezas</h3>
-              <div className="text-sm text-[#6f7a97]">Doble fase: toggle por fila del despiece activo</div>
-            </div>
-
-            <div className="max-h-56 overflow-auto space-y-2 pr-1">
-              {rows.filter((row) => Number(row?.largo || 0) > 0 && Number(row?.ancho || 0) > 0).length === 0 ? (
-                <div className="text-sm text-[#6f7a97]">No hay piezas válidas para orientar todavía.</div>
-              ) : rows.filter((row) => Number(row?.largo || 0) > 0 && Number(row?.ancho || 0) > 0).map((row, index) => {
-                const rotated = String(row.rotar || '').trim() === '1';
-                return (
-                  <div key={row.id || index} className="flex items-center justify-between gap-3 rounded-xl border border-[#1a233a] bg-[#060e20] px-3 py-2.5">
-                    <div className="min-w-0">
-                      <div className="text-[#dee5ff] text-sm font-semibold truncate">{row.detalle?.trim() || `Pieza ${index + 1}`}</div>
-                      <div className="text-[#6f7a97] text-xs mt-0.5">{row.largo || 0} x {row.ancho || 0} · Cantidad {row.cantidad || row.cant || 0}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleRotate(row.id)}
-                      className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors shrink-0 ${rotated ? 'bg-[#00e0fe] text-[#002f33]' : 'bg-[#1a233a] text-[#dee5ff] border border-[#40485d]/50 hover:bg-[#202b46]'}`}
-                    >
-                      {rotated ? 'Rotada 90°' : 'Sin rotar'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="bg-[#0f172b] border border-[#1a233a] rounded-2xl p-4">
+            <label className="flex items-center gap-3 text-sm text-[#dee5ff] font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ignoreBeta}
+                onChange={(e) => setIgnoreBeta(e.target.checked)}
+                className="w-4 h-4 rounded border-[#40485d] bg-[#060e20] text-[#00e0fe] focus:ring-[#00e0fe]/40"
+              />
+              <span>No respetar veta</span>
+              <span className="text-[#6f7a97] text-xs">Permite rotar libremente las piezas para optimizar mejor.</span>
+            </label>
           </div>
 
           <div className="border border-dashed border-[#1a233a] rounded-2xl p-8 text-center bg-[#060e20]/40">
-            {preview?.sheets?.length ? (
+            {effectivePreview?.sheets?.length ? (
               <div className="space-y-4 text-left">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-[#dee5ff] font-bold">Visual preliminar de láminas</h3>
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-[#a3aac4]">{preview.sheets.length} láminas generadas</div>
+                    <div className="text-sm text-[#a3aac4]">{effectivePreview.sheets.length} láminas generadas</div>
                     <div className="flex items-center gap-1 rounded-lg border border-[#1a233a] bg-[#0f172b] px-2 py-1">
                       <button type="button" onClick={() => setZoom((prev) => Math.max(0.5, +(prev - 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
                         <span className="material-symbols-outlined text-[16px]">remove</span>
@@ -174,7 +160,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 justify-items-start">
-                  {preview.sheets.map((sheet) => (
+                  {effectivePreview.sheets.map((sheet) => (
                     <SheetPreview
                       key={sheet.index}
                       sheet={sheet}
@@ -185,11 +171,11 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                   ))}
                 </div>
 
-                {preview.unplaced?.length ? (
+                {effectivePreview.unplaced?.length ? (
                   <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 space-y-2">
-                    <div>{preview.unplaced.length} piezas no pudieron ubicarse en la vista preliminar.</div>
+                    <div>{effectivePreview.unplaced.length} piezas no pudieron ubicarse en la vista preliminar.</div>
                     <div className="flex flex-wrap gap-2">
-                      {preview.unplaced.map((piece) => (
+                      {effectivePreview.unplaced.map((piece) => (
                         <span key={piece.instanceId} className="px-2.5 py-1 rounded-lg bg-[#0f172b] border border-amber-500/20 text-[11px] text-amber-100">
                           {piece.label} · {piece.width}×{piece.height}
                         </span>
