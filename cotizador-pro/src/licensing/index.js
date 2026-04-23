@@ -2,5 +2,3 @@
 
 export * from './licenseManager';
 export * from './promoCodes';
-export * from './paddleIntegration';
-export * from './paddleIntegration';

@@ -5,6 +5,7 @@ import InventoryTable from './InventoryTable';
 import InventoryFormModal from './InventoryFormModal';
 import InventoryAlertsPanel from './InventoryAlertsPanel';
 import InventoryDeleteModal from './InventoryDeleteModal';
+import InventoryStockEntryModal from './InventoryStockEntryModal';
 import { CANTO_COLUMNS } from '../../features/inventory/config/cantoColumns';
 import { TABLERO_COLUMNS } from '../../features/inventory/config/tableroColumns';
 import { HERRAJE_COLUMNS } from '../../features/inventory/config/herrajeColumns';
@@ -55,6 +56,9 @@ export default function InventoryPage() {
   const [specificFilter, setSpecificFilter] = useState('todos');
   const [modalState, setModalState] = useState({ open: false, type: 'tablero', item: null });
   const [deleteState, setDeleteState] = useState({ open: false, item: null });
+  const [stockEntryState, setStockEntryState] = useState({ open: false, item: null });
+  const [submitError, setSubmitError] = useState('');
+  const [stockEntryError, setStockEntryError] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -112,36 +116,75 @@ export default function InventoryPage() {
   };
 
   const handleSubmit = async (payload) => {
-    const previousItem = payload.id ? items.find((item) => item.id === payload.id) : null;
-    const previousQuantity = Number(previousItem?.cantidad_disponible || 0);
-    const nextQuantity = Number(payload.cantidad_disponible || 0);
+    setSubmitError('');
+    try {
+      const previousItem = payload.id ? items.find((item) => item.id === payload.id) : null;
+      const previousQuantity = Number(previousItem?.cantidad_disponible || 0);
+      const nextQuantity = Number(payload.cantidad_disponible || 0);
 
-    if (payload.id) {
-      await API.updateInventoryItem(payload);
+      if (payload.id) {
+        await API.updateInventoryItem(payload);
 
-      if (API?.addInventoryMovement && previousQuantity !== nextQuantity) {
-        await API.addInventoryMovement({
-          item_id: payload.id,
-          movement_type: 'ajuste',
-          cantidad: Math.abs(nextQuantity - previousQuantity),
-          motivo: `Ajuste manual de stock (${previousQuantity} → ${nextQuantity})`,
-        });
+        if (API?.addInventoryMovement && previousQuantity !== nextQuantity) {
+          await API.addInventoryMovement({
+            item_id: payload.id,
+            movement_type: 'ajuste',
+            cantidad: Math.abs(nextQuantity - previousQuantity),
+            motivo: `Ajuste manual de stock (${previousQuantity} → ${nextQuantity})`,
+          });
+        }
+      } else {
+        const result = await API.addInventoryItem(payload);
+
+        if (API?.addInventoryMovement && result?.id && nextQuantity > 0) {
+          await API.addInventoryMovement({
+            item_id: result.id,
+            movement_type: 'entrada',
+            cantidad: nextQuantity,
+            motivo: 'Carga inicial del item en inventario',
+          });
+        }
       }
-    } else {
-      const result = await API.addInventoryItem(payload);
 
-      if (API?.addInventoryMovement && result?.id && nextQuantity > 0) {
-        await API.addInventoryMovement({
-          item_id: result.id,
-          movement_type: 'entrada',
-          cantidad: nextQuantity,
-          motivo: 'Carga inicial del item en inventario',
-        });
-      }
+      setModalState({ open: false, type: itemType, item: null });
+      await load();
+    } catch (error) {
+      console.error('Error saving inventory item:', error);
+      setSubmitError(error?.message || 'No se pudo guardar el item del inventario.');
     }
+  };
 
-    setModalState({ open: false, type: itemType, item: null });
-    await load();
+  const handleStockEntry = async ({ itemId, cantidad, motivo }) => {
+    setStockEntryError('');
+    try {
+      const item = items.find((item) => item.id === itemId);
+      if (!item) throw new Error('Item no encontrado');
+
+      const currentQuantity = Number(item.cantidad_disponible || 0);
+      const newQuantity = currentQuantity + cantidad;
+
+      await API.updateInventoryItem({
+        ...item,
+        cantidad_disponible: newQuantity,
+      });
+
+      if (API?.addInventoryMovement) {
+        await API.addInventoryMovement({
+          item_id: itemId,
+          movement_type: 'entrada',
+          cantidad: cantidad,
+          motivo: motivo || 'Entrada rápida de stock',
+        });
+      }
+
+      setStockEntryState({ open: false, item: null });
+      await load();
+    } catch (error) {
+      console.error('Error en entrada de stock:', error);
+      const message = error?.message || 'No se pudo registrar la entrada de stock';
+      setStockEntryError(message);
+      throw error;
+    }
   };
 
   return (
@@ -172,7 +215,10 @@ export default function InventoryPage() {
           specificFilter={specificFilter}
           specificFilterOptions={specificFilterOptions}
           onSpecificFilterChange={setSpecificFilter}
-          onNewItem={() => setModalState({ open: true, type: itemType, item: null })}
+          onNewItem={() => {
+            setSubmitError('');
+            setModalState({ open: true, type: itemType, item: null });
+          }}
         />
 
         {loading ? (
@@ -185,22 +231,44 @@ export default function InventoryPage() {
         ) : activeTab === 'movimientos' ? (
           <MovementsView movements={movements} items={items} />
         ) : (
-            <InventoryTable
-              columns={columns}
-              items={filteredItems}
-              onEdit={(item) => setModalState({ open: true, type: item.item_type, item })}
-              onDelete={(item) => setDeleteState({ open: true, item })}
-            />
+                <InventoryTable
+                  columns={columns}
+                  items={filteredItems}
+                  onEdit={(item) => {
+                    setSubmitError('');
+                    setModalState({ open: true, type: item.item_type, item });
+                  }}
+                  onDelete={(item) => setDeleteState({ open: true, item })}
+                  onStockEntry={(item) => {
+                    setStockEntryError('');
+                    setStockEntryState({ open: true, item });
+                  }}
+                />
           )}
         </section>
+
+      <InventoryStockEntryModal
+        isOpen={stockEntryState.open}
+        item={stockEntryState.item}
+        onClose={() => {
+          setStockEntryError('');
+          setStockEntryState({ open: false, item: null });
+        }}
+        onSubmit={handleStockEntry}
+        error={stockEntryError}
+      />
 
       <InventoryFormModal
         isOpen={modalState.open}
         type={modalState.type}
         item={modalState.item}
         existingItems={items}
-        onClose={() => setModalState({ open: false, type: itemType, item: null })}
+        onClose={() => {
+          setSubmitError('');
+          setModalState({ open: false, type: itemType, item: null });
+        }}
         onSubmit={handleSubmit}
+        submitError={submitError}
       />
     </div>
   );

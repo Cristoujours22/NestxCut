@@ -156,6 +156,18 @@ export const getSubscriptionStatus = (userData) => {
     return { hasAccess: false, status: 'unknown', daysLeft: 0 };
   }
   
+  // Admin siempre tiene acceso ilimitado
+  if (userData.role === 'admin') {
+    return { 
+      hasAccess: true, 
+      status: 'admin', 
+      daysLeft: null, 
+      type: 'admin', 
+      endDate: null,
+      isUnlimited: true
+    };
+  }
+  
   const now = new Date();
   let daysLeft = 0;
   let activeDate = null;
@@ -166,7 +178,7 @@ export const getSubscriptionStatus = (userData) => {
     if (trialEnd > now) {
       activeDate = trialEnd;
       daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
-      return { hasAccess: true, status: 'trial', daysLeft, type: 'trial', endDate: trialEnd };
+      return { hasAccess: true, status: 'trial', daysLeft, type: 'trial', endDate: trialEnd, isUnlimited: false };
     }
   }
   
@@ -176,12 +188,65 @@ export const getSubscriptionStatus = (userData) => {
     if (subscriptionEnd > now) {
       activeDate = subscriptionEnd;
       daysLeft = Math.ceil((subscriptionEnd - now) / (1000 * 60 * 60 * 24));
-      return { hasAccess: true, status: 'premium', daysLeft, type: 'subscription', endDate: subscriptionEnd };
+      return { hasAccess: true, status: 'premium', daysLeft, type: 'subscription', endDate: subscriptionEnd, isUnlimited: false };
     }
   }
   
   // Vencido
-  return { hasAccess: false, status: 'expired', daysLeft: 0, type: null, endDate: null };
+  return { hasAccess: false, status: 'expired', daysLeft: 0, type: null, endDate: null, isUnlimited: false };
+};
+
+/**
+ * Calcula los días restantes de suscripción
+ * @param {Object} userData - Datos del usuario
+ * @returns {number|null} - Días restantes o null si es admin
+ */
+export const getDaysRemaining = (userData) => {
+  if (!userData) return 0;
+  
+  // Admin tiene ilimitado
+  if (userData.role === 'admin') return null;
+  
+  const now = new Date();
+  
+  if (userData.trialEnd) {
+    const trialEnd = userData.trialEnd.toDate ? userData.trialEnd.toDate() : new Date(userData.trialEnd);
+    if (trialEnd > now) {
+      return Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
+    }
+  }
+  
+  if (userData.subscriptionEnd) {
+    const subscriptionEnd = userData.subscriptionEnd.toDate ? userData.subscriptionEnd.toDate() : new Date(userData.subscriptionEnd);
+    if (subscriptionEnd > now) {
+      return Math.ceil((subscriptionEnd - now) / (1000 * 60 * 60 * 24));
+    }
+  }
+  
+  return 0;
+};
+
+/**
+ * Actualiza los días restantes en Firestore
+ * @param {string} uid - UID del usuario
+ * @returns {Promise<void>}
+ */
+export const updateDaysRemaining = async (uid) => {
+  const userRef = doc(db, 'users', uid);
+  const userSnap = await getDoc(userRef);
+  
+  if (!userSnap.exists()) return;
+  
+  const userData = userSnap.data();
+  
+  // Admin no necesita actualizar
+  if (userData.role === 'admin') return;
+  
+  const daysRemaining = getDaysRemaining(userData);
+  
+  await updateDoc(userRef, {
+    daysRemaining: daysRemaining
+  });
 };
 
 /**

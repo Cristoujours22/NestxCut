@@ -1,21 +1,26 @@
-export function DespieceStatsBar({ laminaCount, piezaCount, cantoRigido, cantoFlexible }) {
+export function DespieceStatsBar({ laminaCount, piezaCount, onOpenNesting }) {
   const stats = [
-    { icon: 'layers', label: 'Láminas', value: laminaCount },
+    { icon: 'layers', label: 'Láminas', value: laminaCount, clickable: true },
     { icon: 'grid_on', label: 'Piezas', value: piezaCount },
-    { icon: 'straighten', label: 'Canto rígido', value: `${cantoRigido.toFixed(2)}m` },
-    { icon: 'gesture', label: 'Canto flexible', value: `${cantoFlexible.toFixed(2)}m` },
   ];
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-1.5 w-full xl:w-auto">
+    <div className="grid grid-cols-2 gap-2 w-full">
       {stats.map((stat) => (
-        <div key={stat.label} className="bg-[#0f172b] border border-[#1a233a] rounded-lg px-2.5 py-2 min-w-0 xl:min-w-[120px]">
-          <div className="flex items-center gap-1.5 text-[#a3aac4] text-[9px] uppercase tracking-wide mb-0.5 leading-none">
-            <span className={`material-symbols-outlined text-[13px] ${stat.accent || 'text-[#00e0fe]'}`}>{stat.icon}</span>
-            <span className="truncate">{stat.label}</span>
+        <button
+          key={stat.label}
+          type="button"
+          onClick={stat.clickable ? onOpenNesting : undefined}
+          className={`bg-[#0f172b] border border-[#1a233a] rounded-xl px-3 py-2 min-w-0 text-left ${stat.clickable ? 'hover:border-[#00e0fe]/40 hover:bg-[#121b31] transition-colors cursor-pointer' : 'cursor-default'}`}
+        >
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-1.5 text-[#a3aac4] text-[10px] uppercase tracking-wide leading-none min-w-0">
+              <span className={`material-symbols-outlined text-[14px] shrink-0 ${stat.accent || 'text-[#00e0fe]'}`}>{stat.icon}</span>
+              <span className="truncate">{stat.label}</span>
+            </div>
+            <div className="text-[28px] font-bold text-[#dee5ff] truncate leading-none shrink-0">{stat.value}</div>
           </div>
-          <div className="text-base font-bold text-[#dee5ff] truncate leading-none">{stat.value}</div>
-        </div>
+        </button>
       ))}
     </div>
   );

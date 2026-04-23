@@ -1,4 +1,4 @@
-import DespieceTable from './DespieceTable';
+import DespieceTable from './despiece/DespieceTable';
 
 export default function Home() {
   return (

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { applyClipboardToRows } from '../../utils/sheet/applyClipboardToRows';
 
 function TableSheet({
@@ -10,333 +10,360 @@ function TableSheet({
   onRemoveRow,
   headerGroups = [],
   actionsColumn,
-  activeCell: controlledActiveCell,
-  onActiveCellChange,
-  isEditing: controlledIsEditing,
-  onEditingChange,
-  selection: controlledSelection,
-  onSelectionChange,
+  onUndo,
+  onRedo,
 }) {
-  const [uncontrolledActiveCell, setUncontrolledActiveCell] = useState(null);
-  const [uncontrolledIsEditing, setUncontrolledIsEditing] = useState(false);
-  const [uncontrolledSelection, setUncontrolledSelection] = useState(null);
+  // Estado: celda activa = { rowIndex, field }
+  const [activePos, setActivePos] = useState(null);
+  const [editMode, setEditMode] = useState('selection');
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const inputRefs = useRef({});
+  const pendingFocusRef = useRef(null);
 
-  const activeCell = controlledActiveCell ?? uncontrolledActiveCell;
-  const isEditing = controlledIsEditing ?? uncontrolledIsEditing;
-  const selection = controlledSelection ?? uncontrolledSelection;
-
-  const setActiveCell = (value) => {
-    if (onActiveCellChange) onActiveCellChange(value);
-    else setUncontrolledActiveCell(value);
-  };
-
-  const setIsEditing = (value) => {
-    if (onEditingChange) onEditingChange(value);
-    else setUncontrolledIsEditing(value);
-  };
-
-  const setSelection = (value) => {
-    if (onSelectionChange) onSelectionChange(value);
-    else setUncontrolledSelection(value);
-  };
-
-  const fieldOrder = useMemo(() => columns.map((column) => column.key), [columns]);
-  const columnsByKey = useMemo(
-    () => Object.fromEntries(columns.map((column) => [column.key, column])),
-    [columns]
-  );
+  const fieldOrder = useMemo(() => columns.map(c => c.key), [columns]);
   const lastField = fieldOrder[fieldOrder.length - 1];
+  const activeRow = activePos?.rowIndex;
+  const activeField = activePos?.field;
+  const isEditing = editMode !== 'selection';
 
-  const focusCell = (rowIndex, field) => {
-    const input = inputRefs.current[`${rowIndex}-${field}`];
-    if (!input) return;
-    input.focus();
-    input.select?.();
+  const focusInput = (rowIndex, field, { selectAll = true, cursorToEnd = false } = {}) => {
+    setTimeout(() => {
+      const input = inputRefs.current[`${rowIndex}-${field}`];
+      if (input) {
+        input.focus();
+        if (selectAll && typeof input.select === 'function') {
+          input.select();
+        }
+        if (cursorToEnd && typeof input.setSelectionRange === 'function') {
+          const end = String(input.value ?? '').length;
+          input.setSelectionRange(end, end);
+        }
+      }
+    }, 10);
   };
 
-  const sanitizeValue = (field, value) => {
+  const focusCell = (rowIndex, field, mode = 'selection', focusOptions = undefined) => {
+    setActivePos({ rowIndex, field });
+    setEditMode(mode);
+    if (mode !== 'selection') {
+      focusInput(rowIndex, field, focusOptions);
+    } else {
+      focusSelectedCell(rowIndex, field);
+    }
+  };
+
+  const focusSelectedCell = (rowIndex, field) => {
+    setTimeout(() => {
+      const input = inputRefs.current[`${rowIndex}-${field}`];
+      if (input) {
+        input.focus();
+      }
+    }, 10);
+  };
+
+  // Undo/Redo
+  const saveHistory = useCallback(() => {
+    const state = JSON.stringify(rows);
+    setHistory(prev => {
+      const h = prev.slice(0, historyIndex + 1);
+      h.push(state);
+      return h.length > 50 ? h.slice(1) : h;
+    });
+    setHistoryIndex(prev => Math.min(prev + 1, 49));
+  }, [rows, historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      onRowsChange(() => JSON.parse(history[historyIndex - 1]));
+      setHistoryIndex(prev => prev - 1);
+    }
+  }, [history, historyIndex, onRowsChange]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      onRowsChange(() => JSON.parse(history[historyIndex + 1]));
+      setHistoryIndex(prev => prev + 1);
+    }
+  }, [history, historyIndex, onRowsChange]);
+
+  useEffect(() => {
+    if (onUndo) onUndo(undo);
+    if (onRedo) onRedo(redo);
+  }, [undo, redo, onUndo, onRedo]);
+
+  useEffect(() => {
+    if (!pendingFocusRef.current) return;
+    const { rowIndex, field, mode = 'selection' } = pendingFocusRef.current;
+    if (rowIndex >= rows.length) return;
+
+    pendingFocusRef.current = null;
+    if (mode === 'selection') {
+      focusSelectedCell(rowIndex, field);
+    } else {
+      focusInput(rowIndex, field, { selectAll: false, cursorToEnd: true });
+    }
+  }, [rows.length]);
+
+  const sanitize = (field, value) => {
     if (['l1', 'l2', 'a1', 'a2'].includes(field)) {
       if (value === '') return '';
       if (!/^\d+$/.test(value)) return null;
-      const numeric = Number(value);
-      if (numeric < 1 || numeric > 8) return null;
-      const allowedValues = columnsByKey[field]?.allowedValues || [];
-      const normalized = String(numeric);
-      if (allowedValues.length > 0 && !allowedValues.includes(normalized)) return null;
-      return normalized;
+      const n = Number(value);
+      if (n < 1 || n > 8) return null;
+      return String(n);
     }
-
-    if (field === 'rotar') {
-      if (value === '') return '';
-      if (value === '1') return '1';
-      return null;
-    }
-
+    if (field === 'rotar') return value === '1' ? '1' : '';
     return value;
   };
 
-  const handleCellChange = (rowIndex, field, value) => {
-    const sanitizedValue = sanitizeValue(field, value);
-    if (sanitizedValue === null) return;
-
-    onRowsChange((prevRows) => prevRows.map((row, index) => (
-      index === rowIndex ? { ...row, [field]: sanitizedValue } : row
-    )));
+  // Handle cambio - activa celda y guarda
+  const handleChange = (rowIndex, field, value) => {
+    const v = sanitize(field, value);
+    if (v === null) return;
+    saveHistory();
+    setActivePos({ rowIndex, field });
+    onRowsChange(prev => prev.map((r, i) => i === rowIndex ? { ...r, [field]: v } : r));
   };
 
-  const handleAddRow = () => {
-    onRowsChange((prevRows) => [...prevRows, createRow()]);
-    setTimeout(() => focusCell(rows.length, fieldOrder[0]), 0);
-  };
+  const handleQuickEdit = (rowIndex, field, event) => {
+    const isActiveCell = activeRow === rowIndex && activeField === field;
+    if (!isActiveCell || isEditing) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
 
-  const moveFocus = (event, rowIndex, fieldIndex) => {
-    if (rowIndex >= 0 && rowIndex < rows.length && fieldIndex >= 0 && fieldIndex < fieldOrder.length) {
+    if (event.key === 'Backspace' || event.key === 'Delete') {
       event.preventDefault();
-      focusCell(rowIndex, fieldOrder[fieldIndex]);
+      handleChange(rowIndex, field, '');
+      setEditMode('quick');
+      focusInput(rowIndex, field, { selectAll: false, cursorToEnd: true });
       return;
     }
 
-    if (rowIndex === rows.length && fieldIndex === 0) {
+    if (event.key.length === 1) {
       event.preventDefault();
-      handleAddRow();
+      handleChange(rowIndex, field, event.key);
+      setEditMode('quick');
+      focusInput(rowIndex, field, { selectAll: false, cursorToEnd: true });
     }
   };
 
-  const handleKeyDown = (event, rowIndex, field) => {
-    const currentFieldIndex = fieldOrder.indexOf(field);
-    const currentInput = inputRefs.current[`${rowIndex}-${field}`];
+  const addRow = () => {
+    const nextRowIndex = rows.length;
+    saveHistory();
+    onRowsChange(prev => [...prev, createRow()]);
+    setActivePos({ rowIndex: nextRowIndex, field: fieldOrder[0] });
+    setEditMode('selection');
+    pendingFocusRef.current = { rowIndex: nextRowIndex, field: fieldOrder[0], mode: 'selection' };
+  };
 
-    switch (event.key) {
-      case 'F2':
-        event.preventDefault();
-        setActiveCell({ rowIndex, field });
-        setIsEditing(true);
-        return;
-      case 'Escape':
-        setIsEditing(false);
-        return;
-      case 'Enter':
-        if (rowIndex === rows.length - 1 && field === lastField) {
-          event.preventDefault();
-          handleAddRow();
-          return;
-        }
-        moveFocus(event, rowIndex + 1, 0);
-        return;
-      case 'Tab':
-        event.preventDefault();
-        if (event.shiftKey) {
-          if (currentFieldIndex > 0) moveFocus(event, rowIndex, currentFieldIndex - 1);
-          else if (rowIndex > 0) moveFocus(event, rowIndex - 1, fieldOrder.length - 1);
-          return;
-        }
+  const handleKeyDown = (e, rowIndex, field) => {
+    const fieldIdx = fieldOrder.indexOf(field);
 
-        if (currentFieldIndex < fieldOrder.length - 1) moveFocus(event, rowIndex, currentFieldIndex + 1);
-        else moveFocus(event, rowIndex + 1, 0);
-        return;
+    // Undo/Redo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Z')) { redo(); return; }
+
+    if (e.key === 'F2') {
+      e.preventDefault();
+      focusCell(rowIndex, field, 'immersive', { selectAll: false, cursorToEnd: true });
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setEditMode('selection');
+      return;
+    }
+
+    if (editMode === 'immersive') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setEditMode('selection');
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (!isEditing) {
+      handleQuickEdit(rowIndex, field, e);
+      if (e.defaultPrevented) return;
+    }
+
+    // Navigation - siempre funciona
+    switch (e.key) {
       case 'ArrowUp':
-        moveFocus(event, rowIndex - 1, currentFieldIndex);
-        return;
+        e.preventDefault();
+        if (rowIndex > 0) {
+          focusCell(rowIndex - 1, field, 'selection');
+        }
+        break;
       case 'ArrowDown':
-        moveFocus(event, rowIndex + 1, currentFieldIndex);
-        return;
+        e.preventDefault();
+        if (rowIndex < rows.length - 1) {
+          focusCell(rowIndex + 1, field, 'selection');
+        }
+        break;
       case 'ArrowLeft':
-        if (currentInput && currentInput.selectionStart === 0) {
-          moveFocus(event, rowIndex, currentFieldIndex - 1);
+        e.preventDefault();
+        if (fieldIdx > 0) {
+          focusCell(rowIndex, fieldOrder[fieldIdx - 1], 'selection');
         }
-        return;
+        break;
       case 'ArrowRight':
-        if (currentInput && currentInput.selectionStart === currentInput.value.length) {
-          moveFocus(event, rowIndex, currentFieldIndex + 1);
+        e.preventDefault();
+        if (fieldIdx < fieldOrder.length - 1) {
+          focusCell(rowIndex, fieldOrder[fieldIdx + 1], 'selection');
         }
-        return;
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (rowIndex < rows.length - 1) {
+          focusCell(rowIndex + 1, field, 'selection');
+        } else if (field === lastField) {
+          addRow();
+        }
+        break;
+      case 'Tab':
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (fieldIdx > 0) {
+            focusCell(rowIndex, fieldOrder[fieldIdx - 1], 'selection');
+          } else if (rowIndex > 0) {
+            focusCell(rowIndex - 1, lastField, 'selection');
+          }
+        } else {
+          if (fieldIdx < fieldOrder.length - 1) {
+            focusCell(rowIndex, fieldOrder[fieldIdx + 1], 'selection');
+          } else {
+            addRow();
+          }
+        }
+        break;
       default:
-        return;
+        break;
     }
   };
 
-  const handlePaste = (event, startRowIndex, startField) => {
-    event.preventDefault();
+  // Click = selecciona celda (sin enfocar, sin editar)
+  const handleClick = (rowIndex, field, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActivePos({ rowIndex, field });
+    setEditMode('selection');
+    focusSelectedCell(rowIndex, field);
+  };
 
-    onRowsChange((prevRows) => {
-      const { rows: nextRows, nextFocus } = applyClipboardToRows({
-        clipboardText: event.clipboardData.getData('text/plain'),
-        rows: prevRows,
+  // Doble click = enfoca y permite editar
+  const handleDblClick = (rowIndex, field, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    focusCell(rowIndex, field, 'immersive', { selectAll: false, cursorToEnd: true });
+  };
+
+  const handlePaste = (e, rowIdx, fld) => {
+    if (editMode === 'immersive') {
+      return;
+    }
+    e.preventDefault();
+    onRowsChange(prev => {
+      const { rows: r } = applyClipboardToRows({
+        clipboardText: e.clipboardData.getData('text/plain'),
+        rows: prev,
         createRow,
         fieldOrder,
-        startRowIndex,
-        startField,
+        startRowIndex: rowIdx,
+        startField: fld,
       });
-
-      if (nextFocus) {
-        setTimeout(() => focusCell(nextFocus.rowIndex, nextFocus.field), 0);
-      }
-
-      return nextRows;
+      return r;
     });
   };
 
-  const renderHeaderGroups = () => {
+  const renderHeaders = () => {
     if (!headerGroups.length) return null;
-
     return (
       <tr>
-        {headerGroups.map((group) => (
-          <th
-            key={`${group.label}-${group.colSpan}`}
-            colSpan={group.colSpan}
-            className="border-b border-r border-gray-600 p-1 font-semibold text-center text-xs uppercase tracking-wider"
-          >
-            {group.label}
+        {headerGroups.map(g => (
+          <th key={g.label} colSpan={g.colSpan} className="border-b border-r border-gray-600 p-2 font-bold text-xs uppercase text-center">
+            {g.label}
           </th>
         ))}
-        <th rowSpan={2} className="border-b border-gray-600 p-1 font-semibold text-xs uppercase tracking-wider col-actions" />
+        <th rowSpan={2} className="border-b border-gray-600 p-2 font-bold text-xs uppercase" />
       </tr>
     );
   };
 
   return (
-    <div className="align-middle inline-block min-w-full overflow-x-auto shadow sm:rounded-lg">
-      <table id={tableId} className="sheet-table min-w-full divide-y divide-gray-600 bg-gray-800 border border-gray-600">
+    <div className="overflow-x-auto">
+      <table id={tableId} className="w-full bg-gray-800 border border-gray-600">
         <colgroup>
-          {columns.map((column) => (
-            <col
-              key={`col-${column.key}`}
-              style={{
-                width: column.width,
-                minWidth: column.minWidth,
-              }}
-            />
-          ))}
-          <col
-            key="col-actions"
-            style={{
-              width: actionsColumn?.width,
-              minWidth: actionsColumn?.minWidth,
-            }}
-          />
+          {columns.map(c => <col key={c.key} style={{ width: c.width }} />)}
+          <col style={{ width: actionsColumn?.width }} />
         </colgroup>
-        <thead className="bg-gray-700 text-gray-200 sticky top-0 z-10">
-          {renderHeaderGroups()}
+        <thead className="bg-gray-700 text-gray-200 sticky top-0">
+          {renderHeaders()}
           <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                className={`border-b border-r border-gray-600 p-1 font-semibold text-xs uppercase tracking-wider ${column.className || ''}`}
-              >
-                {column.label}
+            {columns.map(c => (
+              <th key={c.key} className="border-b border-r border-gray-600 p-2 text-xs font-bold uppercase">
+                {c.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-600">
-          {rows.map((row, rowIndex) => (
-            <tr key={row.id || rowIndex} className="group hover:bg-gray-700/70">
-              {columns.map((column) => {
-                const value = row[column.key] ?? '';
-                const columnIndex = fieldOrder.indexOf(column.key);
-                const alignment = column.align === 'right'
-                  ? 'text-right'
-                  : column.align === 'center'
-                    ? 'text-center'
-                    : 'text-left';
-                const isActive = activeCell?.rowIndex === rowIndex && activeCell?.field === column.key;
-                let isSelected = false;
-
-                if (selection?.start && selection?.end) {
-                  const startRow = Math.min(selection.start.rowIndex, selection.end.rowIndex);
-                  const endRow = Math.max(selection.start.rowIndex, selection.end.rowIndex);
-                  const startColumn = Math.min(fieldOrder.indexOf(selection.start.field), fieldOrder.indexOf(selection.end.field));
-                  const endColumn = Math.max(fieldOrder.indexOf(selection.start.field), fieldOrder.indexOf(selection.end.field));
-                  isSelected = rowIndex >= startRow && rowIndex <= endRow && columnIndex >= startColumn && columnIndex <= endColumn;
-                }
+          {rows.map((row, rowIdx) => (
+            <tr key={row.id || rowIdx} className="hover:bg-gray-700/70">
+              {columns.map(col => {
+                const isActive = activeRow === rowIdx && activeField === col.key;
+                const cellId = `${rowIdx}-${col.key}`;
+                const alignment = col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left';
 
                 return (
-                  <td key={column.key} className={`border-b border-r border-gray-600 p-0 relative ${column.className || ''}`}>
-                    {column.inputType === 'select' ? (
+                  <td key={col.key} className="border-b border-r border-gray-600 p-0" style={{ height: '36px' }}>
+                    {col.inputType === 'select' ? (
                       <select
-                        ref={(el) => {
-                          inputRefs.current[`${rowIndex}-${column.key}`] = el;
-                        }}
-                        value={value}
-                        onChange={(event) => handleCellChange(rowIndex, column.key, event.target.value)}
-                        onKeyDown={(event) => handleKeyDown(event, rowIndex, column.key)}
-                        onFocus={() => setActiveCell({ rowIndex, field: column.key })}
-                        onMouseDown={() => setIsEditing(true)}
-                        onBlur={() => setIsEditing(false)}
-                        onClick={(event) => {
-                          setActiveCell({ rowIndex, field: column.key });
-                          setIsEditing(true);
-                          if (event.shiftKey && selection?.start) {
-                            setSelection({ start: selection.start, end: { rowIndex, field: column.key } });
-                          } else {
-                            setSelection({ start: { rowIndex, field: column.key }, end: { rowIndex, field: column.key } });
-                          }
-                        }}
-                        title={column.options?.find((option) => String(option.value) === String(value))?.title || ''}
-                        style={{
-                          backgroundColor: isSelected && !isActive ? '#15213b' : undefined,
-                        }}
-                        className={`input-cell h-full w-full p-1 bg-transparent border-none outline-none focus:outline-none focus:ring-2 focus:ring-[#00e0fe] focus:z-10 focus:relative text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe] z-10 relative' : ''}`}
+                        id={cellId}
+                        ref={el => inputRefs.current[cellId] = el}
+                        value={row[col.key] || ''}
+                        onChange={e => handleChange(rowIdx, col.key, e.target.value)}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={e => handleClick(rowIdx, col.key, e)}
+                        onDoubleClick={e => handleDblClick(rowIdx, col.key, e)}
+                        onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
+                        style={{ width: '100%', height: '100%', cursor: isActive ? 'pointer' : 'pointer' }}
+                        className={`w-full h-full px-2 bg-transparent border-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       >
-                        {(column.options || []).map((option) => (
-                          <option key={`${column.key}-${option.value}`} value={option.value} title={option.title || ''}>
-                            {option.label}
-                          </option>
+                        {(col.options || []).map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>
                     ) : (
                       <input
-                        ref={(el) => {
-                          inputRefs.current[`${rowIndex}-${column.key}`] = el;
+                        id={cellId}
+                        ref={el => inputRefs.current[cellId] = el}
+                        value={row[col.key] || ''}
+                        onChange={e => handleChange(rowIdx, col.key, e.target.value)}
+                        onMouseDown={e => editMode === 'selection' && e.preventDefault()}
+                        onClick={e => handleClick(rowIdx, col.key, e)}
+                        onDoubleClick={e => handleDblClick(rowIdx, col.key, e)}
+                        onKeyDown={e => handleKeyDown(e, rowIdx, col.key)}
+                        onPaste={e => handlePaste(e, rowIdx, col.key)}
+                        readOnly={!isActive || editMode === 'selection'}
+                        style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          cursor: isActive && editMode !== 'selection' ? 'text' : 'pointer',
+                          caretColor: isActive && editMode !== 'selection' ? 'auto' : 'transparent'
                         }}
-                        type={column.inputType || 'text'}
-                        inputMode={column.inputMode}
-                        maxLength={column.maxLength}
-                        step={column.step}
-                        min={column.min}
-                        value={value}
-                        onChange={(event) => handleCellChange(rowIndex, column.key, event.target.value)}
-                        onKeyDown={(event) => handleKeyDown(event, rowIndex, column.key)}
-                        onPaste={(event) => handlePaste(event, rowIndex, column.key)}
-                        onFocus={() => {
-                          setActiveCell({ rowIndex, field: column.key });
-                          setIsEditing(true);
-                        }}
-                        onMouseDown={() => setIsEditing(true)}
-                        onBlur={() => setIsEditing(false)}
-                        onClick={(event) => {
-                          setActiveCell({ rowIndex, field: column.key });
-                          setIsEditing(true);
-                          if (event.shiftKey && selection?.start) {
-                            setSelection({ start: selection.start, end: { rowIndex, field: column.key } });
-                          } else {
-                            setSelection({ start: { rowIndex, field: column.key }, end: { rowIndex, field: column.key } });
-                          }
-                        }}
-                        onDoubleClick={() => {
-                          setActiveCell({ rowIndex, field: column.key });
-                          setIsEditing(true);
-                        }}
-                        placeholder={column.placeholder || ''}
-                        style={{
-                          backgroundColor: isSelected && !isActive ? '#15213b' : undefined,
-                        }}
-                        className={`input-cell h-full w-full p-1 bg-transparent border-none outline-none focus:outline-none focus:ring-2 focus:ring-[#00e0fe] focus:z-10 focus:relative text-white ${alignment} ${isActive ? 'ring-2 ring-[#00e0fe] z-10 relative' : ''}`}
+                        className={`w-full h-full px-2 bg-transparent border-none outline-none text-white ${alignment} ${isActive ? 'ring-2 ring-cyan-400' : ''}`}
                       />
                     )}
                   </td>
                 );
               })}
-              <td className="border-b border-gray-600 p-0 text-center align-middle col-actions">
+              <td className="border-b border-gray-600 p-0 text-center w-16">
                 {rows.length > 1 && (
-                  <button
-                    onClick={() => onRemoveRow(rowIndex)}
-                    className="text-red-400 hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-red-500 rounded"
-                    title="Eliminar fila"
-                    aria-label={`Eliminar fila ${rowIndex + 1}`}
-                  >
+                  <button onClick={() => { saveHistory(); onRemoveRow(rowIdx); }} className="text-red-400 hover:text-red-300 p-2">
                     X
                   </button>
                 )}

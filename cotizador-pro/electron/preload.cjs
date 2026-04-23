@@ -27,7 +27,13 @@ const validInvokeChannels = [
   'get-projects',
   'get-project',
   'save-project',
-  'delete-project'
+  'delete-project',
+  'get-inventory-items',
+  'add-inventory-item',
+  'update-inventory-item',
+  'delete-inventory-item',
+  'get-inventory-movements',
+  'add-inventory-movement'
 ]; // Add other DB channels
 const validSendChannels = []; // Channels for sending one-way messages to main
 const validOnChannels = [];   // Channels for receiving messages from main
@@ -83,6 +89,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getProject: (id) => ipcRenderer.invoke('get-project', id),
   saveProject: (project) => ipcRenderer.invoke('save-project', project),
   deleteProject: (id) => ipcRenderer.invoke('delete-project', id),
+
+  // Inventory API
+  getInventoryItems: () => ipcRenderer.invoke('get-inventory-items'),
+  addInventoryItem: (item) => ipcRenderer.invoke('add-inventory-item', item),
+  updateInventoryItem: (item) => ipcRenderer.invoke('update-inventory-item', item),
+  deleteInventoryItem: (id) => ipcRenderer.invoke('delete-inventory-item', id),
+  getInventoryMovements: () => ipcRenderer.invoke('get-inventory-movements'),
+  addInventoryMovement: (movement) => ipcRenderer.invoke('add-inventory-movement', movement),
 
   // Function to send one-way messages to the main process (using ipcMain.on)
   send: (channel, data) => {
