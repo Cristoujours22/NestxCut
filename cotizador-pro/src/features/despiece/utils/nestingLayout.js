@@ -4,8 +4,8 @@ function toNumber(value) {
 }
 
 function normalizePiece(row, index, allowGlobalRotation = false) {
-  const width = toNumber(row?.ancho);
-  const height = toNumber(row?.largo);
+  const width = toNumber(row?.largo);
+  const height = toNumber(row?.ancho);
   const quantity = Math.max(0, toNumber(row?.cantidad ?? row?.cant));
   const canRotate = allowGlobalRotation || String(row?.rotar || '').trim() === '1';
 
@@ -35,7 +35,8 @@ function scoreFit(rect, width, height) {
   const waste = (rect.width * rect.height) - (width * height);
   const shortSide = Math.min(rect.width - width, rect.height - height);
   const longSide = Math.max(rect.width - width, rect.height - height);
-  return { waste, shortSide, longSide };
+  const longSideFree = Math.max(rect.width - width, rect.height - height);
+  return { waste, shortSide, longSide, longSideFree };
 }
 
 function pickBestFreeRect(freeRects, piece) {
@@ -84,7 +85,7 @@ function splitFreeRect(sheet, rectIndex, placed, kerf) {
 
   const nextRects = sheet.freeRects.filter((_, index) => index !== rectIndex);
 
-  if (rightWidth > 0) {
+  if (rightWidth > 0 && rect.width > 0) {
     nextRects.push({
       x: rightX,
       y: rect.y,
@@ -93,7 +94,7 @@ function splitFreeRect(sheet, rectIndex, placed, kerf) {
     });
   }
 
-  if (bottomHeight > 0) {
+  if (bottomHeight > 0 && rect.height > 0) {
     nextRects.push({
       x: rect.x,
       y: bottomY,
@@ -102,8 +103,17 @@ function splitFreeRect(sheet, rectIndex, placed, kerf) {
     });
   }
 
+  if (rightWidth > 0 && bottomHeight > 0) {
+    nextRects.push({
+      x: rightX,
+      y: bottomY,
+      width: rightWidth,
+      height: bottomHeight,
+    });
+  }
+
   sheet.freeRects = pruneFreeRects(
-    nextRects.filter((candidate) => candidate.width > 0 && candidate.height > 0)
+    nextRects.filter((candidate) => candidate.width > kerf && candidate.height > kerf)
   );
 }
 
@@ -121,16 +131,17 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
   }
 
   const sheets = [];
-  const boardUsableWidth = Math.max(0, boardWidth - kerf);
-  const boardUsableHeight = Math.max(0, boardHeight - kerf);
 
   const unplaced = [];
 
-  pieces
+pieces
     .sort((a, b) => {
-      const areaDiff = (b.width * b.height) - (a.width * a.height);
-      if (areaDiff !== 0) return areaDiff;
-      return Math.max(b.width, b.height) - Math.max(a.width, a.height);
+      // Priorizar piezas más largas (max dimension) para que no queden atrapadas
+      const maxA = Math.max(a.width, a.height);
+      const maxB = Math.max(b.width, b.height);
+      if (maxB - maxA !== 0) return maxB - maxA;
+      // Luego por área descendente
+      return (b.width * b.height) - (a.width * a.height);
     })
     .forEach((piece) => {
       let placed = false;
@@ -155,7 +166,7 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
       }
 
       if (!placed) {
-        const newSheet = createSheet(sheets.length + 1, boardUsableWidth, boardUsableHeight);
+        const newSheet = createSheet(sheets.length + 1, boardWidth, boardHeight);
         const best = pickBestFreeRect(newSheet.freeRects, piece);
         if (!best) {
           unplaced.push(piece);

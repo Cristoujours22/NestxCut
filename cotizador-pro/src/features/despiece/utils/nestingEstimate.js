@@ -9,11 +9,22 @@ function toNumber(value) {
 }
 
 export function calculateEstimatedSheets({ rows = [], material }) {
-  const largoTablero = toNumber(material?.largo_mm);
-  const anchoTablero = toNumber(material?.ancho_mm);
+  return calculateEstimatedSheetsWithSettings({ rows, material });
+}
 
-  const usableLargo = Math.max(0, largoTablero - (DEFAULT_REFILADO_X * 2) - DEFAULT_SAW_KERF);
-  const usableAncho = Math.max(0, anchoTablero - (DEFAULT_REFILADO_Y * 2) - DEFAULT_SAW_KERF);
+export function calculateEstimatedSheetsWithSettings({ rows = [], material, settings = {}, boardMode = 'full' }) {
+  const fullLargo = toNumber(material?.largo_mm);
+  const fullAncho = toNumber(material?.ancho_mm);
+  const largoTablero = fullLargo;
+  const anchoTablero = boardMode === 'half' ? fullAncho / 2 : fullAncho;
+
+  const refiladoX = toNumber(settings.refiladoX ?? DEFAULT_REFILADO_X);
+  const refiladoY = toNumber(settings.refiladoY ?? DEFAULT_REFILADO_Y);
+  const sawKerf = toNumber(settings.sawKerf ?? DEFAULT_SAW_KERF);
+  const edgeAllowance = toNumber(settings.edgeAllowance ?? DEFAULT_EDGE_ALLOWANCE);
+
+  const usableLargo = Math.max(0, largoTablero - refiladoX);
+  const usableAncho = Math.max(0, anchoTablero - refiladoY);
   const boardArea = usableLargo * usableAncho;
 
   const piecesArea = rows.reduce((total, row) => {
@@ -22,8 +33,8 @@ export function calculateEstimatedSheets({ rows = [], material }) {
     const ancho = Math.max(0, toNumber(row?.ancho));
     if (!cantidad || !largo || !ancho) return total;
 
-    const largoConMargen = largo + DEFAULT_EDGE_ALLOWANCE;
-    const anchoConMargen = ancho + DEFAULT_EDGE_ALLOWANCE;
+    const largoConMargen = largo + edgeAllowance;
+    const anchoConMargen = ancho + edgeAllowance;
     return total + (cantidad * largoConMargen * anchoConMargen);
   }, 0);
 
@@ -36,14 +47,17 @@ export function calculateEstimatedSheets({ rows = [], material }) {
     estimatedSheets,
     boardArea,
     piecesArea,
+    boardLargo: largoTablero,
+    boardAncho: anchoTablero,
     usableLargo,
     usableAncho,
     utilization,
     settings: {
-      refiladoX: DEFAULT_REFILADO_X,
-      refiladoY: DEFAULT_REFILADO_Y,
-      sawKerf: DEFAULT_SAW_KERF,
-      edgeAllowance: DEFAULT_EDGE_ALLOWANCE,
+      refiladoX,
+      refiladoY,
+      sawKerf,
+      edgeAllowance,
     },
+    boardMode,
   };
 }

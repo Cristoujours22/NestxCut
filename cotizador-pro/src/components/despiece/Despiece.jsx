@@ -102,19 +102,19 @@ export default function Despiece({ initialData = [], onChange }) {
     [activeDespiece, materialOptions]
   );
 
-  const nestingPreview = useMemo(
-    () => buildNestingPreview({
-      rows: activeDespiece?.filas || [],
-      boardWidth: nestingEstimate.usableAncho,
-      boardHeight: nestingEstimate.usableLargo,
-      kerf: nestingEstimate.settings?.sawKerf || 5,
-    }),
-    [activeDespiece, nestingEstimate]
-  );
-
   const activeMaterial = useMemo(
     () => materialOptions.find((item) => item.id === activeDespiece?.material_id) || null,
     [materialOptions, activeDespiece]
+  );
+
+  const nestingPreview = useMemo(
+    () => buildNestingPreview({
+      rows: activeDespiece?.filas || [],
+      boardWidth: nestingEstimate.usableLargo || Number(activeMaterial?.largo_mm || 0),
+      boardHeight: nestingEstimate.usableAncho || Number(activeMaterial?.ancho_mm || 0),
+      kerf: nestingEstimate.settings?.sawKerf ?? 5,
+    }),
+    [activeDespiece, nestingEstimate, activeMaterial]
   );
 
   const boardDimensions = activeMaterial
@@ -147,8 +147,8 @@ export default function Despiece({ initialData = [], onChange }) {
         onClose={() => setShowNestingModal(false)}
         boardName={activeMaterial?.nombre || ''}
         boardDimensions={boardDimensions}
-        boardWidth={Number(activeMaterial?.ancho_mm || 0)}
-        boardHeight={Number(activeMaterial?.largo_mm || 0)}
+        boardWidth={Number(activeMaterial?.largo_mm || 0)}
+        boardHeight={Number(activeMaterial?.ancho_mm || 0)}
         estimatedSheets={nestingEstimate.estimatedSheets}
         pieceCount={piezaCount}
         estimate={nestingEstimate}
