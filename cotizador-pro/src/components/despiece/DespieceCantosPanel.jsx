@@ -25,10 +25,10 @@ export default function DespieceCantosPanel({ cantos, inventoryCantos, onChange,
           {tabsSlot}
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={() => setAssignmentOpen(true)} className="bg-[#00e0fe] text-[#002f33] px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#99f7ff] transition-colors">
-            <span className="material-symbols-outlined text-[18px]">grid_view</span>
-            Cuadrar cantos
-          </button>
+           <button onClick={() => setAssignmentOpen(true)} className="bg-[#00e0fe] text-[#002f33] px-3 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#99f7ff] transition-colors">
+             <span className="material-symbols-outlined text-[16px]">grid_view</span>
+             Cuadrar cantos
+           </button>
         </div>
       </div>
 

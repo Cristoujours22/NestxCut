@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Despiece from '../despiece/Despiece';
+import { DespieceStatsBar } from '../despiece/DespieceSummaryPanel';
 
 // Placeholders temporales para las nuevas pestañas
 const HerrajesPanel = () => (
@@ -26,6 +27,8 @@ export default function ProjectWorkspace() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [despieceData, setDespieceData] = useState([]);
+  const [despieceStats, setDespieceStats] = useState({ laminaCount: 0, piezaCount: 0 });
+  const [openNestingHandler, setOpenNestingHandler] = useState(null);
 
   // Cargar info del proyecto desde la base de datos
   useEffect(() => {
@@ -109,20 +112,32 @@ export default function ProjectWorkspace() {
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <button 
-                onClick={handleSave}
-                disabled={isSaving}
-                className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#202b46] transition-colors flex items-center gap-2 disabled:opacity-50 shrink-0"
-              >
-                {isSaving ? (
-                  <span className="material-symbols-outlined text-[18px] animate-spin text-[#00e0fe]">progress_activity</span>
-                ) : (
-                  <span className="material-symbols-outlined text-[18px]">save</span>
-                )}
-                {isSaving ? "Guardando..." : "Guardar Cambios"}
-              </button>
-            </div>
+             <div className="flex gap-2">
+               <button 
+                 onClick={handleSave}
+                 disabled={isSaving}
+                 className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#202b46] transition-colors flex items-center gap-2 disabled:opacity-50 shrink-0"
+               >
+                 {isSaving ? (
+                   <span className="material-symbols-outlined text-[18px] animate-spin text-[#00e0fe]">progress_activity</span>
+                 ) : (
+                   <span className="material-symbols-outlined text-[18px]">save</span>
+                 )}
+                 {isSaving ? "Guardando..." : "Guardar Cambios"}
+               </button>
+             </div>
+            
+             {/* Compact Stats - Moved from Despiece body */}
+             {activeTab === 'despiece' && (
+               <div className="flex gap-2">
+                  <DespieceStatsBar 
+                    laminaCount={despieceStats.laminaCount}
+                    piezaCount={despieceStats.piezaCount}
+                    onOpenNesting={openNestingHandler}
+                    compact={true}
+                  />
+               </div>
+             )}
           </div>
 
           {/* Nav Tabs */}
@@ -156,13 +171,17 @@ export default function ProjectWorkspace() {
            </div>
         ) : (
           <>
-            {activeTab === 'despiece' && (
-              <Despiece 
-                initialData={despieceData} 
-                onChange={setDespieceData} 
-                isNested={true} 
-              />
-            )}
+             {activeTab === 'despiece' && (
+                <Despiece 
+                  initialData={despieceData} 
+                  onChange={setDespieceData}
+                  onStatsChange={setDespieceStats}
+                  onOpenNesting={setOpenNestingHandler}
+                  isNested={true} 
+                  projectName={projectName}
+                  clientName={clientName}
+                />
+             )}
             {activeTab === 'herrajes' && <HerrajesPanel />}
             {activeTab === 'resumen' && <ResumenPanel />}
           </>

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { buildNestingPreview } from '../../features/despiece/utils/nestingLayout';
 import { calculateEstimatedSheetsWithSettings } from '../../features/despiece/utils/nestingEstimate';
+import { groupIdenticalSheets, generateNestingPDF } from '../../features/despiece/utils/pdfExport';
 
 function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1 }) {
   const framePadding = 28;
@@ -126,6 +127,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
             const scaledHeight = Math.max(2, Math.min(Math.round(piece.height * scale), usablePreviewHeight - Math.round(piece.y * scale)));
             const showWidthLabel = scaledWidth >= 44 && scaledHeight >= 16;
             const showHeightLabel = scaledHeight >= 44 && scaledWidth >= 16;
+            const showDetailLabel = scaledWidth >= 80 && scaledHeight >= 24;
 
             return (
               <div
@@ -139,6 +141,12 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                 }}
                 title={`${piece.label} · ${piece.width}x${piece.height}${piece.rotated ? ' · rotada' : ''}`}
               >
+                {showDetailLabel ? (
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] text-[#dee5ff] bg-[#060e20]/90 px-1.5 py-0.5 rounded-sm border border-[#00e0fe]/30 pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[calc(100%-8px)]">
+                    {piece.label}
+                  </div>
+                ) : null}
+
                 {showHeightLabel ? (
                   <div className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-center text-[8px] text-[#99f7ff] bg-[#060e20]/80 px-1 py-0.5 rounded-sm border border-[#1a233a] pointer-events-none whitespace-nowrap">
                     {piece.height}
@@ -177,11 +185,14 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
   );
 }
 
-export default function DespieceNestingModal({ isOpen, onClose, boardName, boardDimensions, estimatedSheets, pieceCount, estimate, preview, rows = [], boardWidth = 0, boardHeight = 0 }) {
+export default function DespieceNestingModal({ isOpen, onClose, boardName, boardDimensions, estimatedSheets, pieceCount, estimate, preview, rows = [], cantos = [], boardWidth = 0, boardHeight = 0, projectName = 'Proyecto sin título', clientName = 'Cliente sin nombre' }) {
   const [zoom, setZoom] = useState(1);
   const [ignoreBeta, setIgnoreBeta] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [boardMode, setBoardMode] = useState('full');
+  const [paperSize, setPaperSize] = useState('Carta');
+  const [isExporting, setIsExporting] = useState(false);
+  const pdfPreviewRef = useRef(null);
   const [settings, setSettings] = useState(() => ({
     refiladoX: estimate?.settings?.refiladoX ?? 20,
     refiladoY: estimate?.settings?.refiladoY ?? 20,
@@ -217,6 +228,37 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
     gridTemplateColumns: `repeat(${previewColumns}, minmax(320px, max-content))`,
   };
 
+  const handleExportPDF = async () => {
+    if (!effectivePreview?.sheets?.length) return;
+    
+    setIsExporting(true);
+    
+    try {
+      const doc = await generateNestingPDF({
+        sheets: effectivePreview.sheets,
+        unplacedPieces: effectivePreview.unplaced,
+        projectName,
+        clientName,
+        materialName: boardName,
+        paperSize,
+        boardWidth: modalEstimate.boardLargo || boardWidth || 0,
+        boardHeight: modalEstimate.boardAncho || boardHeight || 0,
+        usableWidth: modalEstimate.usableLargo || 0,
+        usableHeight: modalEstimate.usableAncho || 0,
+        cantos: cantos,
+        rows: rows
+      });
+      
+      // Save the PDF
+      doc.save(`Nesting_${projectName.replace(/\s+/g, '_')}_${clientName.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error al generar PDF: ' + error.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-7xl bg-[#0a1122] border border-[#1a233a] rounded-2xl shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
@@ -226,11 +268,30 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
             <p className="text-sm text-[#a3aac4] mt-1">{boardName || 'Sin material seleccionado'}{boardDimensions ? ` · ${boardDimensions}` : ''}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowSettings((prev) => !prev)} className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-3 py-2 bg-[#0f172b]">
-              <span className="material-symbols-outlined text-[18px]">tune</span>
-              Ajustes
-            </button>
-            <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
+             <button onClick={() => setShowSettings((prev) => !prev)} className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-3 py-2 bg-[#0f172b]">
+               <span className="material-symbols-outlined text-[18px]">tune</span>
+               Ajustes
+             </button>
+             <div className="flex items-center gap-2">
+               <select
+                 value={paperSize}
+                 onChange={(e) => setPaperSize(e.target.value)}
+                 className="text-sm bg-[#060e20] border border-[#1a233a] rounded-lg px-2 py-1 text-[#dee5ff] focus:outline-none focus:border-[#00e0fe]/50"
+               >
+                 <option value="Carta">Carta</option>
+                 <option value="A4">A4</option>
+                 <option value="Oficio">Oficio</option>
+               </select>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting || !effectivePreview?.sheets?.length}
+                  className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-2 py-1.5 bg-[#0f172b] disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                  {isExporting ? 'Generando...' : 'Exportar PDF'}
+                </button>
+             </div>
+             <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
           </div>
         </div>
 

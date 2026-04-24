@@ -136,7 +136,7 @@ function MaterialCombobox({ materials, value, onChange, onOpenChange }) {
   ) : null;
 
   return (
-    <div ref={rootRef} className="relative w-full min-w-[300px] max-w-[380px]" onClick={(e) => e.stopPropagation()}>
+      <div ref={rootRef} className="relative w-full min-w-[240px] max-w-[320px]" onClick={(e) => e.stopPropagation()}>
       <button
         ref={buttonRef}
         type="button"
@@ -180,11 +180,11 @@ function DespieceTabs({ despieces, activeDespieceId, onChangeName, onSelect, onA
             <div
               key={despiece.id}
               onClick={() => onSelect(despiece.id)}
-              className={`flex items-center gap-1 px-1.5 py-1 rounded-md border cursor-pointer transition-all ${
-                isActive
-                  ? 'bg-[#121b31] text-[#dee5ff] border-[#00e0fe]/35 shadow-[0_0_0_1px_rgba(0,224,254,0.05)] min-w-[340px]'
-                  : 'bg-[#0d1528] text-[#a3aac4] border-[#1a233a] hover:text-[#dee5ff] hover:bg-[#162038] min-w-[170px]'
-              }`}
+               className={`flex items-center gap-1 px-1.5 py-1 rounded-md border cursor-pointer transition-all ${
+                 isActive
+                   ? 'bg-[#121b31] text-[#dee5ff] border-[#00e0fe]/35 shadow-[0_0_0_1px_rgba(0,224,254,0.05)] min-w-[280px]'
+                   : 'bg-[#0d1528] text-[#a3aac4] border-[#1a233a] hover:text-[#dee5ff] hover:bg-[#162038] min-w-[170px]'
+               }`}
             >
               {isActive ? (
                 <MaterialCombobox

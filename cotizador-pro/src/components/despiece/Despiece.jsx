@@ -41,7 +41,7 @@ function normalizeDespieces(initialData) {
   }));
 }
 
-export default function Despiece({ initialData = [], onChange }) {
+export default function Despiece({ initialData = [], onChange, projectName = 'Proyecto sin título', clientName = 'Cliente sin nombre', onStatsChange, onOpenNesting }) {
   const [despieces, setDespieces] = useState(() => normalizeDespieces(initialData));
   const [activeDespieceId, setActiveDespieceId] = useState(() => normalizeDespieces(initialData)[0].id);
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -117,6 +117,25 @@ export default function Despiece({ initialData = [], onChange }) {
     [activeDespiece, nestingEstimate, activeMaterial]
   );
 
+  const laminaCount = useMemo(() => {
+    if (!activeMaterial) return nestingEstimate.estimatedSheets;
+    return nestingPreview?.sheets?.length ?? 0;
+  }, [activeMaterial, nestingEstimate.estimatedSheets, nestingPreview]);
+
+  // Pass stats to parent component
+  useEffect(() => {
+    if (onStatsChange) {
+      onStatsChange({ laminaCount, piezaCount });
+    }
+  }, [laminaCount, piezaCount, onStatsChange]);
+
+  // Expose the nesting modal control to parent
+  useEffect(() => {
+    if (onOpenNesting) {
+      onOpenNesting(() => () => setShowNestingModal(true));
+    }
+  }, [onOpenNesting]);
+
   const boardDimensions = activeMaterial
     ? `${activeMaterial.largo_mm || 0} x ${activeMaterial.ancho_mm || 0} mm`
     : '';
@@ -142,27 +161,28 @@ export default function Despiece({ initialData = [], onChange }) {
 
   return (
     <div className="space-y-3">
-      <DespieceNestingModal
+       <DespieceNestingModal
         isOpen={showNestingModal}
         onClose={() => setShowNestingModal(false)}
         boardName={activeMaterial?.nombre || ''}
         boardDimensions={boardDimensions}
         boardWidth={Number(activeMaterial?.largo_mm || 0)}
         boardHeight={Number(activeMaterial?.ancho_mm || 0)}
-        estimatedSheets={nestingEstimate.estimatedSheets}
+        estimatedSheets={laminaCount}
         pieceCount={piezaCount}
         estimate={nestingEstimate}
         preview={nestingPreview}
         rows={activeDespiece?.filas || []}
+        cantos={activeDespiece?.cantos || []}
+        projectName={projectName}
+        clientName={clientName}
         onRowsChange={(updater) => {
           const nextRows = typeof updater === 'function' ? updater(activeDespiece.filas || []) : updater;
           patchActiveDespiece({ filas: nextRows });
         }}
       />
 
-      <div className="bg-[#0a1122] border border-[#1a233a] rounded-2xl p-3 space-y-4">
-        <DespieceStatsBar laminaCount={nestingEstimate.estimatedSheets} piezaCount={piezaCount} onOpenNesting={() => setShowNestingModal(true)} />
-      </div>
+
 
         <DespieceCantosPanel
           cantos={activeDespiece.cantos || []}

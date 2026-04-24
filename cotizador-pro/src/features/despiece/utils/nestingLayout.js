@@ -119,11 +119,15 @@ function splitFreeRect(sheet, rectIndex, placed, kerf) {
 
 export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5, allowGlobalRotation = false }) {
   const pieces = rows
-    .map((row, index) => normalizePiece(row, index, allowGlobalRotation))
-    .filter((piece) => piece.width > 0 && piece.height > 0 && piece.quantity > 0)
-    .flatMap((piece) => Array.from({ length: piece.quantity }, (_, index) => ({
+    .map((row, originalIndex) => ({
+      piece: normalizePiece(row, originalIndex, allowGlobalRotation),
+      originalRowIndex: originalIndex
+    }))
+    .filter(({ piece }) => piece.width > 0 && piece.height > 0 && piece.quantity > 0)
+    .flatMap(({ piece, originalRowIndex }) => Array.from({ length: piece.quantity }, (_, index) => ({
       ...piece,
       instanceId: `${piece.id}_${index}`,
+      originalRowIndex: originalRowIndex // Preserve reference to original row
     })));
 
   if (!boardWidth || !boardHeight || pieces.length === 0) {

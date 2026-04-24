@@ -1,8 +1,29 @@
-export function DespieceStatsBar({ laminaCount, piezaCount, onOpenNesting }) {
+export function DespieceStatsBar({ laminaCount, piezaCount, onOpenNesting, compact = false }) {
   const stats = [
     { icon: 'layers', label: 'Láminas', value: laminaCount, clickable: true },
     { icon: 'grid_on', label: 'Piezas', value: piezaCount },
   ];
+
+  if (compact) {
+    return (
+      <div className="flex gap-2">
+        {stats.map((stat) => (
+          <button
+            key={stat.label}
+            type="button"
+            onClick={stat.clickable ? onOpenNesting : undefined}
+            className={`bg-[#0f172b] border border-[#1a233a] rounded-xl px-3 py-1.5 text-xs ${stat.clickable ? 'hover:border-[#00e0fe]/40 hover:bg-[#121b31] transition-colors cursor-pointer' : 'cursor-default'}`}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className={`material-symbols-outlined text-[14px] ${stat.accent || 'text-[#00e0fe]'}`}>{stat.icon}</span>
+              <span className="text-[#a3aac4] font-medium">{stat.label}</span>
+              <span className="bg-[#1a233a] text-[#dee5ff] px-2 py-0.5 rounded-lg font-bold ml-1">{stat.value}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 gap-2 w-full">
