@@ -31,6 +31,11 @@
       "sourceType": "github",
       "computedHash": "f71138e885d3e0df8c78b4814554ae146a1a6dbe76bafcc32e95f2ba6d4073c9"
     },
+    "effective-print-design": {
+      "source": "sebastian-software/effective-print-design",
+      "sourceType": "github",
+      "computedHash": "c2f8ac43551bd97d14fd3d0816555e1959deea829b50c69774fd0f11a1bf4989"
+    },
     "electron-best-practices": {
       "source": "jwynia/agent-skills",
       "sourceType": "github",
