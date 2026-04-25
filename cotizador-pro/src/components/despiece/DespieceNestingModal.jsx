@@ -1,17 +1,15 @@
 import { useMemo, useState, useRef } from 'react';
 import { buildNestingPreview } from '../../features/despiece/utils/nestingLayout';
 import { calculateEstimatedSheetsWithSettings } from '../../features/despiece/utils/nestingEstimate';
-import { groupIdenticalSheets, generateNestingPDF } from '../../features/despiece/utils/pdfExport';
+import { groupIdenticalSheets, generateNestingPDF, getPieceCantoInfo } from '../../features/despiece/utils/pdfExport';
+import { toJpeg } from 'html-to-image';
 
-function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1 }) {
-  const framePadding = 28;
+function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1, rows = [], cantos = [], id }) {
   const boardInset = 3;
   const baseScale = Math.min(1, 640 / Math.max(boardWidth, boardHeight, 1));
   const scale = baseScale * zoom;
   const previewWidth = Math.round(boardWidth * scale);
   const previewHeight = Math.round(boardHeight * scale);
-  const frameWidth = previewWidth + (framePadding * 2);
-  const frameHeight = previewHeight + (framePadding * 2);
   const usableLeft = boardInset;
   const usableTop = boardInset;
   const usablePreviewWidth = Math.max(0, Math.round(usableWidth * scale));
@@ -35,135 +33,172 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
       </div>
 
       <div className="w-full overflow-x-auto flex justify-center">
-        <div className="relative rounded-2xl border border-[#1a233a] bg-[#060e20]/70 inline-block shadow-inner" style={{ width: frameWidth, height: frameHeight, padding: framePadding }}>
-        <div className="absolute rounded-xl border border-[#2a3552] bg-[#060e20]" style={{ width: previewWidth, height: previewHeight, inset: framePadding }}>
-        <div className="absolute inset-[3px] rounded-[10px] border border-white/12 pointer-events-none z-40" />
-        <div className="absolute inset-0 rounded-xl overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 to-amber-500/10 pointer-events-none" />
-        <div
-          className="absolute border border-[#99f7ff]/80 bg-[#00e0fe]/[0.04] rounded-sm pointer-events-none z-20 shadow-[inset_0_0_0_1px_rgba(153,247,255,0.08)]"
-          style={{
-            left: usableLeft,
-            top: usableTop,
-            width: usablePreviewWidth,
-            height: usablePreviewHeight,
-          }}
-        />
-        {insetY > 0 ? (
-          <div
-            className="absolute left-0 bottom-0 bg-rose-500/28 border-t-2 border-rose-300/60 pointer-events-none z-10"
-            style={{ left: boardInset, width: innerBoardWidth, height: refiladoBottomHeight }}
-            title={`Refilado Y: ${insetY} mm`}
-          />
-        ) : null}
-        {insetX > 0 ? (
-          <div
-            className="absolute right-0 top-0 bg-amber-500/28 border-l-2 border-amber-300/60 pointer-events-none z-10"
-            style={{ right: boardInset, top: boardInset, width: refiladoRightWidth, height: innerBoardHeight }}
-            title={`Refilado X: ${insetX} mm`}
-          />
-        ) : null}
-        {refiladoRightWidth > 0 ? (
-          <div
-            className="absolute top-0 bottom-0 pointer-events-none z-30 bg-amber-200/70"
-            style={{ left: usableLeft + usablePreviewWidth - 1, top: boardInset, height: innerBoardHeight, width: 2 }}
-          />
-        ) : null}
-        {refiladoBottomHeight > 0 ? (
-          <div
-            className="absolute left-0 right-0 pointer-events-none z-30 bg-rose-200/70"
-            style={{ left: boardInset, top: usableTop + usablePreviewHeight - 1, width: innerBoardWidth, height: 2 }}
-          />
-        ) : null}
-        {refiladoRightWidth > 0 && refiladoBottomHeight > 0 ? (
-          <div
-            className="absolute pointer-events-none z-30 bg-gradient-to-br from-amber-300/45 to-rose-300/45 border-l-2 border-t-2 border-white/25"
-            style={{
-              left: usableLeft + usablePreviewWidth,
-              top: usableTop + usablePreviewHeight,
-              width: refiladoRightWidth,
-              height: refiladoBottomHeight,
-            }}
-          />
-        ) : null}
-        {(sheet.freeRects || []).map((rect, index) => {
-          const rectLeft = usableLeft + Math.round(rect.x * scale);
-          const rectTop = usableTop + Math.round(rect.y * scale);
-          const rectWidth = Math.max(1, Math.round(rect.width * scale));
-          const rectHeight = Math.max(1, Math.round(rect.height * scale));
-          const showRectWidthLabel = rectWidth >= 44 && rectHeight >= 16;
-          const showRectHeightLabel = rectHeight >= 44 && rectWidth >= 16;
-
-          return (
-            <div
-              key={`free_${sheet.index}_${index}`}
-              className="absolute pointer-events-none z-[5] rounded-sm border border-dashed border-emerald-300/30 bg-emerald-300/[0.05]"
-              style={{
-                left: rectLeft,
-                top: rectTop,
-                width: rectWidth,
-                height: rectHeight,
-              }}
-              title={`Área libre ${rect.width}x${rect.height}`}
-            >
-              {showRectHeightLabel ? (
-                <div className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-center text-[8px] text-emerald-200 bg-[#060e20]/80 px-1 py-0.5 rounded-sm border border-emerald-300/20 whitespace-nowrap">
-                  {rect.height}
-                </div>
-              ) : null}
-              {showRectWidthLabel ? (
-                <div className="absolute left-1/2 bottom-1 -translate-x-1/2 text-[8px] text-emerald-200 bg-[#060e20]/80 px-1 py-0.5 rounded-sm border border-emerald-300/20 pointer-events-none">
-                  {rect.width}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-        {sheet.pieces.map((piece) => (
-          (() => {
-            const scaledLeft = usableLeft + Math.round(piece.x * scale);
-            const scaledTop = usableTop + Math.round(piece.y * scale);
-            const scaledWidth = Math.max(2, Math.min(Math.round(piece.width * scale), usablePreviewWidth - Math.round(piece.x * scale)));
-            const scaledHeight = Math.max(2, Math.min(Math.round(piece.height * scale), usablePreviewHeight - Math.round(piece.y * scale)));
-            const showWidthLabel = scaledWidth >= 44 && scaledHeight >= 16;
-            const showHeightLabel = scaledHeight >= 44 && scaledWidth >= 16;
-            const showDetailLabel = scaledWidth >= 80 && scaledHeight >= 24;
-
-            return (
+        <div id={id} className="relative rounded-2xl border border-[#1a233a] bg-[#060e20b3] inline-block shadow-inner" style={{ padding: '3px 7px 7px 3px' }}>
+          <div className="relative rounded-xl border border-[#2a3552] bg-[#060e20]" style={{ width: previewWidth, height: previewHeight }}>
+            <div className="absolute inset-[3px] rounded-[10px] border border-[#ffffff1f] pointer-events-none z-40" />
+            <div className="absolute inset-0 rounded-xl overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-[#f43f5e1a] to-[#f59e0b1a] pointer-events-none" />
               <div
-                key={piece.instanceId}
-                className="absolute border border-[#00e0fe]/50 bg-[#00e0fe]/8 text-[#dee5ff] text-[10px] rounded-sm overflow-hidden z-10"
+                className="absolute border border-[#99f7ffcc] bg-[#00e0fe0a] rounded-sm pointer-events-none z-20 shadow-[inset_0_0_0_1px_rgba(153,247,255,0.08)]"
                 style={{
-                  left: scaledLeft,
-                  top: scaledTop,
-                  width: scaledWidth,
-                  height: scaledHeight,
+                  left: usableLeft,
+                  top: usableTop,
+                  width: usablePreviewWidth,
+                  height: usablePreviewHeight,
                 }}
-                title={`${piece.label} · ${piece.width}x${piece.height}${piece.rotated ? ' · rotada' : ''}`}
-              >
-                {showDetailLabel ? (
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] text-[#dee5ff] bg-[#060e20]/90 px-1.5 py-0.5 rounded-sm border border-[#00e0fe]/30 pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[calc(100%-8px)]">
-                    {piece.label}
-                  </div>
-                ) : null}
+              />
+              {insetY > 0 ? (
+                <div
+                  className="absolute left-0 bottom-0 bg-[#f43f5e47] border-t-2 border-[#fda4af99] pointer-events-none z-10"
+                  style={{ left: boardInset, width: innerBoardWidth, height: refiladoBottomHeight }}
+                  title={`Refilado Y: ${insetY} mm`}
+                />
+              ) : null}
+              {insetX > 0 ? (
+                <div
+                  className="absolute right-0 top-0 bg-[#f59e0b47] border-l-2 border-[#fcd34d99] pointer-events-none z-10"
+                  style={{ right: boardInset, top: boardInset, width: refiladoRightWidth, height: innerBoardHeight }}
+                  title={`Refilado X: ${insetX} mm`}
+                />
+              ) : null}
+              {refiladoRightWidth > 0 ? (
+                <div
+                  className="absolute top-0 bottom-0 pointer-events-none z-30 bg-[#fde68ab3]"
+                  style={{ left: usableLeft + usablePreviewWidth - 1, top: boardInset, height: innerBoardHeight, width: 2 }}
+                />
+              ) : null}
+              {refiladoBottomHeight > 0 ? (
+                <div
+                  className="absolute left-0 right-0 pointer-events-none z-30 bg-[#fecdd3b3]"
+                  style={{ left: boardInset, top: usableTop + usablePreviewHeight - 1, width: innerBoardWidth, height: 2 }}
+                />
+              ) : null}
+              {refiladoRightWidth > 0 && refiladoBottomHeight > 0 ? (
+                <div
+                  className="absolute pointer-events-none z-30 bg-gradient-to-br from-[#fcd34d73] to-[#fda4af73] border-l-2 border-t-2 border-[#ffffff40]"
+                  style={{
+                    left: usableLeft + usablePreviewWidth,
+                    top: usableTop + usablePreviewHeight,
+                    width: refiladoRightWidth,
+                    height: refiladoBottomHeight,
+                  }}
+                />
+              ) : null}
+              {(sheet.freeRects || []).map((rect, index) => {
+                const rectLeft = usableLeft + Math.round(rect.x * scale);
+                const rectTop = usableTop + Math.round(rect.y * scale);
+                const rectWidth = Math.max(1, Math.round(rect.width * scale));
+                const rectHeight = Math.max(1, Math.round(rect.height * scale));
+                const showRectWidthLabel = rectWidth >= 44 && rectHeight >= 16;
+                const showRectHeightLabel = rectHeight >= 44 && rectWidth >= 16;
 
-                {showHeightLabel ? (
-                  <div className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-center text-[8px] text-[#99f7ff] bg-[#060e20]/80 px-1 py-0.5 rounded-sm border border-[#1a233a] pointer-events-none whitespace-nowrap">
-                    {piece.height}
+                return (
+                  <div
+                    key={`free_${sheet.index}_${index}`}
+                    className="absolute pointer-events-none z-[5] rounded-sm border border-dashed border-[#6ee7b74d] bg-[#6ee7b70d]"
+                    style={{
+                      left: rectLeft,
+                      top: rectTop,
+                      width: rectWidth,
+                      height: rectHeight,
+                    }}
+                    title={`Área libre ${rect.width}x${rect.height}`}
+                  >
+                    {showRectHeightLabel ? (
+                      <div className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-center text-[8px] text-[#a7f3d0] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#6ee7b733] whitespace-nowrap">
+                        {rect.height}
+                      </div>
+                    ) : null}
+                    {showRectWidthLabel ? (
+                      <div className="absolute left-1/2 bottom-1 -translate-x-1/2 text-[8px] text-[#a7f3d0] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#6ee7b733] pointer-events-none">
+                        {rect.width}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                );
+              })}
+              {sheet.pieces.map((piece) => (
+                (() => {
+                  const scaledLeft = usableLeft + Math.round(piece.x * scale);
+                  const scaledTop = usableTop + Math.round(piece.y * scale);
+                  const scaledWidth = Math.max(2, Math.min(Math.round(piece.width * scale), usablePreviewWidth - Math.round(piece.x * scale)));
+                  const scaledHeight = Math.max(2, Math.min(Math.round(piece.height * scale), usablePreviewHeight - Math.round(piece.y * scale)));
+                  const showWidthLabel = scaledWidth >= 44 && scaledHeight >= 16;
+                  const showHeightLabel = scaledHeight >= 44 && scaledWidth >= 16;
+                  const showDetailLabel = scaledWidth >= 80 && scaledHeight >= 24;
+                  const cantoInfo = getPieceCantoInfo(piece, rows, cantos);
 
-                {showWidthLabel ? (
-                  <div className="absolute left-1/2 bottom-1 -translate-x-1/2 text-[8px] text-[#99f7ff] bg-[#060e20]/80 px-1 py-0.5 rounded-sm border border-[#1a233a] pointer-events-none">
-                    {piece.width}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })()
-        ))}
-        </div>
-        </div>
+                  const bottomCanto = piece.rotated ? cantoInfo?.a1 : cantoInfo?.l1;
+                  const topCanto = piece.rotated ? cantoInfo?.a2 : cantoInfo?.l2;
+                  const leftCanto = piece.rotated ? cantoInfo?.l1 : cantoInfo?.a1;
+                  const rightCanto = piece.rotated ? cantoInfo?.l2 : cantoInfo?.a2;
+
+                  return (
+                    <div
+                      key={piece.instanceId}
+                      className="absolute border border-[#00e0fe80] bg-[#00e0fe14] text-[#dee5ff] text-[10px] rounded-sm overflow-hidden z-10"
+                      style={{
+                        left: scaledLeft,
+                        top: scaledTop,
+                        width: scaledWidth,
+                        height: scaledHeight,
+                      }}
+                      title={`${piece.label} · ${piece.width}x${piece.height}${piece.rotated ? ' · rotada' : ''}`}
+                    >
+                      {showDetailLabel ? (
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] text-[#dee5ff] bg-[#060e20e6] px-1.5 py-0.5 rounded-sm border border-[#00e0fe4d] pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[calc(100%-8px)]">
+                          {piece.label}
+                        </div>
+                      ) : null}
+
+                      {showHeightLabel ? (
+                        <div className="absolute text-[8px] text-[#99f7ff] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#1a233a] pointer-events-none whitespace-nowrap z-10"
+                          style={{ left: '16px', top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)' }}>
+                          {piece.height}
+                        </div>
+                      ) : null}
+
+                      {showWidthLabel ? (
+                        <div className="absolute left-1/2 bottom-[14px] -translate-x-1/2 text-[8px] text-[#99f7ff] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#1a233a] pointer-events-none z-10">
+                          {piece.width}
+                        </div>
+                      ) : null}
+
+                      {/* BOTTOM CANTO */}
+                      {bottomCanto && showWidthLabel ? (
+                        <div className="absolute left-1/2 bottom-[1px] -translate-x-1/2 text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20">
+                          {`${bottomCanto.codigo} ${bottomCanto.calibre}`.trim()}
+                        </div>
+                      ) : null}
+
+                      {/* TOP CANTO */}
+                      {topCanto && showWidthLabel ? (
+                        <div className="absolute left-1/2 top-[1px] -translate-x-1/2 text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20">
+                          {`${topCanto.codigo} ${topCanto.calibre}`.trim()}
+                        </div>
+                      ) : null}
+
+                      {/* LEFT CANTO */}
+                      {leftCanto && showHeightLabel ? (
+                        <div className="absolute text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20"
+                          style={{ left: '4px', top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)' }}>
+                          {`${leftCanto.codigo} ${leftCanto.calibre}`.trim()}
+                        </div>
+                      ) : null}
+
+                      {/* RIGHT CANTO */}
+                      {rightCanto && showHeightLabel ? (
+                        <div className="absolute text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20"
+                          style={{ right: '4px', top: '50%', transform: 'translate(50%, -50%) rotate(90deg)' }}>
+                          {`${rightCanto.codigo} ${rightCanto.calibre}`.trim()}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })()
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -230,12 +265,50 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
 
   const handleExportPDF = async () => {
     if (!effectivePreview?.sheets?.length) return;
-    
+
     setIsExporting(true);
-    
+
     try {
+      // Capture each sheet preview as an image
+      const sheetImages = {};
+      for (const sheet of effectivePreview.sheets) {
+        const element = document.getElementById(`sheet-preview-${sheet.index}`);
+        if (element) {
+          const originalStyle = element.style.cssText;
+          element.style.maxHeight = 'none';
+          element.style.maxWidth = 'none';
+
+          try {
+            // Utilizamos dimensiones del elemento original
+            const rect = element.getBoundingClientRect();
+
+            const dataUrl = await toJpeg(element, {
+              quality: 0.9,
+              backgroundColor: '#0f172b',
+              pixelRatio: 2, // Equivale al scale: 2 de html2canvas
+              skipFonts: true, // Evita que lea webfonts remotas (Google Fonts) que tiran error de CORS
+              style: {
+                transform: 'scale(1)',
+                transformOrigin: 'top left'
+              }
+            });
+
+            sheetImages[sheet.index] = {
+              data: dataUrl,
+              width: rect.width,
+              height: rect.height
+            };
+          } catch (err) {
+            console.error('Error renderizando imagen de lamina:', err);
+          } finally {
+            element.style.cssText = originalStyle;
+          }
+        }
+      }
+
       const doc = await generateNestingPDF({
         sheets: effectivePreview.sheets,
+        sheetImages: sheetImages,
         unplacedPieces: effectivePreview.unplaced,
         projectName,
         clientName,
@@ -248,7 +321,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
         cantos: cantos,
         rows: rows
       });
-      
+
       // Save the PDF
       doc.save(`Nesting_${projectName.replace(/\s+/g, '_')}_${clientName.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
@@ -268,30 +341,30 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
             <p className="text-sm text-[#a3aac4] mt-1">{boardName || 'Sin material seleccionado'}{boardDimensions ? ` · ${boardDimensions}` : ''}</p>
           </div>
           <div className="flex items-center gap-2">
-             <button onClick={() => setShowSettings((prev) => !prev)} className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-3 py-2 bg-[#0f172b]">
-               <span className="material-symbols-outlined text-[18px]">tune</span>
-               Ajustes
-             </button>
-             <div className="flex items-center gap-2">
-               <select
-                 value={paperSize}
-                 onChange={(e) => setPaperSize(e.target.value)}
-                 className="text-sm bg-[#060e20] border border-[#1a233a] rounded-lg px-2 py-1 text-[#dee5ff] focus:outline-none focus:border-[#00e0fe]/50"
-               >
-                 <option value="Carta">Carta</option>
-                 <option value="A4">A4</option>
-                 <option value="Oficio">Oficio</option>
-               </select>
-                <button
-                  onClick={handleExportPDF}
-                  disabled={isExporting || !effectivePreview?.sheets?.length}
-                  className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-2 py-1.5 bg-[#0f172b] disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-                  {isExporting ? 'Generando...' : 'Exportar PDF'}
-                </button>
-             </div>
-             <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
+            <button onClick={() => setShowSettings((prev) => !prev)} className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-3 py-2 bg-[#0f172b]">
+              <span className="material-symbols-outlined text-[18px]">tune</span>
+              Ajustes
+            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={paperSize}
+                onChange={(e) => setPaperSize(e.target.value)}
+                className="text-sm bg-[#060e20] border border-[#1a233a] rounded-lg px-2 py-1 text-[#dee5ff] focus:outline-none focus:border-[#00e0fe]/50"
+              >
+                <option value="Carta">Carta</option>
+                <option value="A4">A4</option>
+                <option value="Oficio">Oficio</option>
+              </select>
+              <button
+                onClick={handleExportPDF}
+                disabled={isExporting || !effectivePreview?.sheets?.length}
+                className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-2 py-1.5 bg-[#0f172b] disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                {isExporting ? 'Generando...' : 'Exportar PDF'}
+              </button>
+            </div>
+            <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
           </div>
         </div>
 
@@ -384,6 +457,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                   {effectivePreview.sheets.map((sheet) => (
                     <SheetPreview
                       key={sheet.index}
+                      id={`sheet-preview-${sheet.index}`}
                       sheet={sheet}
                       boardWidth={modalEstimate.boardLargo || boardWidth || 0}
                       boardHeight={modalEstimate.boardAncho || boardHeight || 0}
@@ -392,6 +466,8 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                       insetX={modalEstimate.settings?.refiladoX || 0}
                       insetY={modalEstimate.settings?.refiladoY || 0}
                       zoom={zoom}
+                      rows={rows}
+                      cantos={cantos}
                     />
                   ))}
                 </div>

@@ -47,6 +47,7 @@ export function groupIdenticalSheets(sheets) {
 // Generate PDF from sheet preview
 export async function generateNestingPDF({
   sheets,
+  sheetImages, // Imagenes bitmap si fueron proveidas
   unplacedPieces,
   projectName,
   clientName,
@@ -94,25 +95,52 @@ export async function generateNestingPDF({
       doc.text(`Lámina ${indices[0]}`, 15, 65);
     }
 
-    // Add sheet visualization inside bordered box
-    addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableWidth, usableHeight, cantos, rows, variant);
+    let imageEndY = null;
+
+    // Add sheet visualization inside bordered box or image if available
+    if (sheetImages && sheetImages[sheet.index]) {
+      const imgInfo = sheetImages[sheet.index];
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      const maxVisWidth = pageWidth - 10; 
+      const maxVisHeight = (pageHeight / 2) + 10; // Allow more height for bigger images
+      
+      const scale = Math.min(
+        maxVisWidth / imgInfo.width,
+        maxVisHeight / imgInfo.height
+      );
+      
+      const finalWidth = imgInfo.width * scale;
+      const finalHeight = imgInfo.height * scale;
+      const startX = (pageWidth - finalWidth) / 2;
+      const startY = 75;
+      
+      // Draw a subtle border frame to match UI
+      doc.setDrawColor(26, 35, 58);
+      doc.setLineWidth(0.3);
+      doc.rect(startX, startY, finalWidth, finalHeight);
+      
+      // Embed high-res screenshot
+      doc.addImage(imgInfo.data, 'JPEG', startX, startY, finalWidth, finalHeight);
+      
+      imageEndY = startY + finalHeight + 15;
+    } else {
+      addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableWidth, usableHeight, cantos, rows, variant);
+    }
 
     // V9: Layout-safe implementation - check if table fits on current page
     if (variant === 'v9') {
-      // Calculate available space after visualization
-      const currentYPosition = doc.internal.getCurrentPageInfo().autoTable ? 
-        doc.internal.getCurrentPageInfo().autoTable.finalY + 10 : 220;
-      
-      // Check if we have enough space for table (minimum 60mm needed)
+      const currentYPosition = imageEndY || (doc.internal.getCurrentPageInfo().autoTable ? doc.internal.getCurrentPageInfo().autoTable.finalY + 10 : 220);
       const pageHeight = doc.internal.pageSize.getHeight();
       const spaceAvailable = pageHeight - currentYPosition;
       
       if (spaceAvailable < 60) {
-        // Not enough space - move table to new page
         doc.addPage();
         addProfessionalHeader(doc, projectName, clientName, materialName);
         doc.setFontSize(12);
         doc.text('Tabla de piezas (continuación)', 15, 65);
+        imageEndY = 75;
       }
     }
 
@@ -122,14 +150,13 @@ export async function generateNestingPDF({
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
       doc.text(`Lámina ${count > 1 ? indices.join('/') : indices[0]} - Detalles`, 15, 65);
-      addPiecesTable(doc, sheet.pieces, cantos, rows, variant);
-      addFinalSummary(doc, sheet.pieces, variant);
+      const finalY = addPiecesTable(doc, sheet.pieces, cantos, rows, variant, 80);
+      addFinalSummary(doc, sheet.pieces, variant, finalY);
     } else {
-      // Add pieces table (removed the "DETALLES DE PIEZAS Y RESUMEN" section title as requested)
-      addPiecesTable(doc, sheet.pieces, cantos, rows, variant);
-
-      // Add final summary block
-      addFinalSummary(doc, sheet.pieces, variant);
+      // Si usamos imagenes, la tabla empieza dinamico debajo de la imagen
+      const tableStartY = imageEndY || null;
+      const finalY = addPiecesTable(doc, sheet.pieces, cantos, rows, variant, tableStartY);
+      addFinalSummary(doc, sheet.pieces, variant, finalY);
     }
 
     // Add page break if not last group
@@ -804,7 +831,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
 
 
 // Helper function to resolve canto information
-function resolveCantoInfo(ref, cantos) {
+export function resolveCantoInfo(ref, cantos) {
   if (!ref || !cantos || !Array.isArray(cantos)) return null;
   
   const canto = cantos.find(c => Number(c.ref) === Number(ref));
@@ -818,7 +845,7 @@ function resolveCantoInfo(ref, cantos) {
 }
 
 // Helper function to get canto info for a piece based on original row data
-function getPieceCantoInfo(piece, rows, cantos) {
+export function getPieceCantoInfo(piece, rows, cantos) {
   if (!rows || !Array.isArray(rows) || piece.originalRowIndex === undefined || piece.originalRowIndex === null) return null;
   
   const row = rows[piece.originalRowIndex];
@@ -859,69 +886,88 @@ function formatCantoInfo(cantoInfo) {
   return uniqueParts.join(' ');
 }
 
-function addPiecesTable(doc, pieces, cantos = [], rows = [], variant = 'default') {
-  const startY = (variant === 'v16' || variant === 'v17' || variant === 'v17b' || variant === 'v17c' || variant === 'v17d' || variant === 'v18' || variant === 'v20') ? 80 : (variant === 'v15' ? 246 : (variant === 'v14' ? 238 : (variant === 'v13' ? 245 : (variant === 'v11' ? 230 : (variant === 'v9' || variant === 'v10' ? 220 : 210)))));
+function addPiecesTable(doc, pieces, cantos = [], rows = [], variant = 'default', customStartY = null) {
+  const startY = customStartY || ((variant === 'v16' || variant === 'v17' || variant === 'v17b' || variant === 'v17c' || variant === 'v17d' || variant === 'v18' || variant === 'v20') ? 80 : (variant === 'v15' ? 246 : (variant === 'v14' ? 238 : (variant === 'v13' ? 245 : (variant === 'v11' ? 230 : (variant === 'v9' || variant === 'v10' ? 220 : 210))))));
   const startX = 15;
   const columnWidths = [10, 40, 25, 25, 25, 40]; // ID, Label, Width, Height, Rotated, Canto
   const rowHeight = (variant === 'v16' || variant === 'v17' || variant === 'v17b' || variant === 'v17c' || variant === 'v17d' || variant === 'v18' || variant === 'v20') ? 10 : (variant === 'v15' ? 8 : (variant === 'v14' ? 8 : (variant === 'v13' ? 9 : (variant === 'v11' ? 10 : (variant === 'v9' || variant === 'v10' ? 9 : 8)))));
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginBottom = 30; // Deja margen para el pie / total
   
-  // Table header
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
+  // Table header function
+  const drawHeader = (yPos) => {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('ID', startX, yPos);
+    doc.text('Pieza', startX + 10, yPos);
+    doc.text('Ancho (mm)', startX + 50, yPos);
+    doc.text('Alto (mm)', startX + 75, yPos);
+    doc.text('Rotada', startX + 100, yPos);
+    doc.text('Canto', startX + 125, yPos);
+    
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.1);
+    doc.line(startX, yPos + 3, startX + 165, yPos + 3);
+  };
   
-  doc.text('ID', startX, startY);
-  doc.text('Pieza', startX + 10, startY);
-  doc.text('Ancho (mm)', startX + 50, startY);
-  doc.text('Alto (mm)', startX + 75, startY);
-  doc.text('Rotada', startX + 100, startY);
-  doc.text('Canto', startX + 125, startY);
-  
-  // Table header line - more subtle
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.1);
-  doc.line(startX, startY + 3, startX + 165, startY + 3);
+  drawHeader(startY);
   
   // Table rows
   doc.setFont('helvetica', 'normal');
+  let currentY = startY + rowHeight;
+  
   pieces.forEach((piece, index) => {
-    const yPos = startY + rowHeight * (index + 1);
-    
-     if (yPos > ((variant === 'v16' || variant === 'v17' || variant === 'v17b' || variant === 'v17c' || variant === 'v17d' || variant === 'v18' || variant === 'v20') ? 250 : (variant === 'v15' ? 262 : (variant === 'v14' ? 262 : (variant === 'v13' ? 255 : (variant === 'v11' ? 250 : (variant === 'v9' || variant === 'v10' ? 260 : 270))))))) {
+    // Si la siguiente fila excede la pagina
+    if (currentY > (pageHeight - marginBottom)) {
       doc.addPage();
-      // Add simple continuation header
       doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
       doc.text('Tabla de piezas (continuación)', startX, 20);
-      return; // Skip this piece, will be on next page
+      currentY = 35;
+      drawHeader(currentY);
+      currentY += rowHeight;
+      doc.setFont('helvetica', 'normal');
     }
   
-    doc.text((index + 1).toString(), startX, yPos);
-    doc.text(piece.label, startX + 10, yPos);
-    doc.text(piece.width.toString(), startX + 50, yPos);
-    doc.text(piece.height.toString(), startX + 75, yPos);
-    doc.text(piece.rotated ? 'Sí' : 'No', startX + 100, yPos);
+    doc.text((index + 1).toString(), startX, currentY);
+    doc.text(piece.label, startX + 10, currentY);
+    doc.text(piece.width.toString(), startX + 50, currentY);
+    doc.text(piece.height.toString(), startX + 75, currentY);
+    doc.text(piece.rotated ? 'Sí' : 'No', startX + 100, currentY);
   
     // Add canto information
     const cantoInfo = getPieceCantoInfo(piece, rows, cantos);
     const cantoText = formatCantoInfo(cantoInfo);
     if (cantoText) {
-      // Truncate if too long for the column
       const maxCantoLength = 35;
       const displayText = cantoText.length > maxCantoLength  
         ? cantoText.substring(0, maxCantoLength) + '...'  
         : cantoText;
-      doc.text(displayText, startX + 125, yPos);
+      doc.text(displayText, startX + 125, currentY);
     }
+    
+    currentY += rowHeight;
   });
+  
+  return currentY;
 }
 
-function addFinalSummary(doc, pieces, variant = 'default') {
+function addFinalSummary(doc, pieces, variant = 'default', customStartY = null) {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const totalPieces = pieces.length;
   const totalArea = pieces.reduce((sum, piece) => sum + (piece.width * piece.height), 0);
   
-  // Draw summary box at bottom
-  const summaryBoxY = (variant === 'v16' || variant === 'v17' || variant === 'v18') ? 260 : 285;
+  // Draw summary box at bottom or exactly after the table if provided
+  let summaryBoxY = customStartY ? customStartY + 10 : ((variant === 'v16' || variant === 'v17' || variant === 'v18') ? 260 : 285);
+  
+  // Ensure it doesn't overflow
+  if (summaryBoxY > (pageHeight - 20)) {
+    doc.addPage();
+    summaryBoxY = 20;
+  }
+  
   const summaryBoxHeight = 15;
   
   doc.setDrawColor(0, 0, 0);
