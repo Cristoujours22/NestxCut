@@ -1,6 +1,5 @@
 // src/components/ServicesModal.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import DEFAULT_SERVICIOS from '../data/defaultServicios';
 
 const API = window.electronAPI;
 
@@ -31,14 +30,11 @@ const LADOS_CANTO = [
   { value: 'A2', label: 'A2' },
 ];
 
-// Convertir servicios default al nuevo formato
-const convertDefaultServicios = () => {
-  return DEFAULT_SERVICIOS.map(s => ({
-    nombre: s.nombre,
-    descripcion: s.descripcion,
-    atributos: s.atributos
-  }));
-};
+const MODOS_ORIGEN = [
+  { value: 'despiece', label: 'Automático desde despiece', desc: 'Se detecta desde el detalle de las piezas.' },
+  { value: 'manual', label: 'Manual en herrajes y extras', desc: 'Se agrega manualmente en la cotización.' },
+  { value: 'mixto', label: 'Mixto', desc: 'Puede venir desde despiece o agregarse manualmente; luego se consolida.' },
+];
 
 export default function ServicesModal({ isOpen, onClose }) {
   const [servicios, setServicios] = useState([]);
@@ -53,6 +49,7 @@ export default function ServicesModal({ isOpen, onClose }) {
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
+    modo_origen: 'despiece',
     atributos: [{ tipo: 'cantidad', precio: '', medida: 'largo', lados: [] }]
   });
 
@@ -107,18 +104,11 @@ export default function ServicesModal({ isOpen, onClose }) {
             attrs = [{ tipo: 'cantidad', precio: 0, medida: 'largo', lados: [] }];
           }
           
-          return { ...s, atributos: attrs };
+          return { ...s, atributos: attrs, modo_origen: s.modo_origen || 'despiece' };
         });
         
         setServicios(converted);
         
-        if (!data || data.length === 0) {
-          setMsg({ 
-            ok: true, 
-            text: 'No hay servicios. ¿Deseas cargar los servicios por defecto?',
-            showDefaults: true 
-          });
-        }
       }
     } catch (e) {
       console.error('Error loading servicios:', e);
@@ -127,26 +117,11 @@ export default function ServicesModal({ isOpen, onClose }) {
     }
   };
 
-  const loadDefaultServicios = async () => {
-    setSaving(true);
-    try {
-      const defaults = convertDefaultServicios();
-      for (const servicio of defaults) {
-        await API.addServicio(servicio);
-      }
-      setMsg({ ok: true, text: 'Servicios por defecto cargados' });
-      loadServicios();
-    } catch (e) {
-      setMsg({ ok: false, text: 'Error al cargar servicios por defecto' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const resetForm = () => {
     setFormData({ 
       nombre: '', 
       descripcion: '', 
+      modo_origen: 'despiece',
       atributos: [{ tipo: 'cantidad', precio: '', medida: 'largo', lados: [] }] 
     });
     setEditing(null);
@@ -157,6 +132,7 @@ export default function ServicesModal({ isOpen, onClose }) {
     setFormData({
       nombre: servicio.nombre,
       descripcion: servicio.descripcion || '',
+      modo_origen: servicio.modo_origen || 'despiece',
       atributos: servicio.atributos && servicio.atributos.length > 0 
         ? servicio.atributos.map(a => ({ 
             tipo: a.tipo, 
@@ -218,6 +194,7 @@ export default function ServicesModal({ isOpen, onClose }) {
       const servicioData = {
         nombre: formData.nombre,
         descripcion: formData.descripcion,
+        modo_origen: formData.modo_origen,
         atributos: formData.atributos
           .filter(a => a.precio && parseFloat(a.precio) > 0)
           .map(a => ({
@@ -297,18 +274,8 @@ export default function ServicesModal({ isOpen, onClose }) {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Message */}
           {msg && (
-            <div className={`text-sm px-3 py-2 rounded-lg flex items-center justify-between ${msg.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+            <div className={`text-sm px-3 py-2 rounded-lg ${msg.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
               <span>{msg.text}</span>
-              {msg.showDefaults && (
-                <button
-                  type="button"
-                  onClick={loadDefaultServicios}
-                  disabled={saving}
-                  className="ml-3 text-[#00d1ed] hover:underline text-xs"
-                >
-                  {saving ? 'Cargando...' : 'Cargar default'}
-                </button>
-              )}
             </div>
           )}
 
@@ -354,6 +321,24 @@ export default function ServicesModal({ isOpen, onClose }) {
                     className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff]"
                     placeholder="Descripción o notas"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2">
+                    Origen del servicio
+                  </label>
+                  <select
+                    value={formData.modo_origen}
+                    onChange={e => setFormData(p => ({ ...p, modo_origen: e.target.value }))}
+                    className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff] appearance-none cursor-pointer"
+                  >
+                    {MODOS_ORIGEN.map((modo) => (
+                      <option key={modo.value} value={modo.value}>{modo.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-[#a3aac4] mt-2">
+                    {MODOS_ORIGEN.find((modo) => modo.value === formData.modo_origen)?.desc}
+                  </p>
                 </div>
 
                 {/* Atributos */}
@@ -492,6 +477,7 @@ export default function ServicesModal({ isOpen, onClose }) {
                     <thead className="bg-[#0f1930] border-b border-[#1a233a]">
                       <tr>
                         <th className="text-left px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Servicio</th>
+                        <th className="text-left px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Origen</th>
                         <th className="text-left px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Atributos</th>
                         <th className="text-right px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Acciones</th>
                       </tr>
@@ -504,6 +490,17 @@ export default function ServicesModal({ isOpen, onClose }) {
                             {s.descripcion && (
                               <div className="text-[#a3aac4] text-xs">{s.descripcion}</div>
                             )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              s.modo_origen === 'manual'
+                                ? 'bg-amber-500/15 text-amber-300'
+                                : s.modo_origen === 'mixto'
+                                  ? 'bg-violet-500/15 text-violet-300'
+                                  : 'bg-cyan-500/15 text-cyan-300'
+                            }`}>
+                              {MODOS_ORIGEN.find((modo) => modo.value === s.modo_origen)?.label || 'Automático desde despiece'}
+                            </span>
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">

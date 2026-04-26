@@ -23,6 +23,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Pegado',
     descripcion: 'Pegado de canto',
+    modo_origen: 'despiece',
     atributos: [
       { tipo: 'ml', precio: 1500, medida: 'largo' },
       { tipo: 'cantidad', precio: 800 }
@@ -31,6 +32,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Nariz',
     descripcion: 'Nariz de recubrimiento',
+    modo_origen: 'despiece',
     atributos: [
       { tipo: 'ml', precio: 1200, medida: 'largo' },
       { tipo: 'lados', precio: 500 }
@@ -39,6 +41,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Caja',
     descripcion: 'Caja básica',
+    modo_origen: 'mixto',
     atributos: [
       { tipo: 'cantidad', precio: 5000 }
     ]
@@ -46,6 +49,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Enchape',
     descripcion: 'Enchape de canto',
+    modo_origen: 'despiece',
     atributos: [
       { tipo: 'ml', precio: 1800, medida: 'largo' },
       { tipo: 'm2', precio: 25000 }
@@ -54,6 +58,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Calado',
     descripcion: 'Corte especial',
+    modo_origen: 'despiece',
     atributos: [
       { tipo: 'escala_60', precio: 800 },
       { tipo: 'escala_120', precio: 1200 }
@@ -62,6 +67,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Ranurado',
     descripcion: 'Ranura para panel',
+    modo_origen: 'despiece',
     atributos: [
       { tipo: 'ml', precio: 1000, medida: 'largo' }
     ]
@@ -69,6 +75,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Canto',
     descripcion: 'Aplicación de canto',
+    modo_origen: 'despiece',
     atributos: [
       { tipo: 'canto', precio: 600, lados: ['L1', 'L2', 'A1', 'A2'] }
     ]
@@ -76,6 +83,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Caja InglESA',
     descripcion: 'Caja inglesa completa',
+    modo_origen: 'manual',
     atributos: [
       { tipo: 'cantidad', precio: 8000 }
     ]
@@ -83,6 +91,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Manija',
     descripcion: 'Instalación de manija',
+    modo_origen: 'manual',
     atributos: [
       { tipo: 'cantidad', precio: 500 }
     ]
@@ -90,6 +99,7 @@ export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Cajón',
     descripcion: 'Cajón completo',
+    modo_origen: 'manual',
     atributos: [
       { tipo: 'cantidad', precio: 6000 }
     ]

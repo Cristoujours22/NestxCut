@@ -21,6 +21,11 @@ const validInvokeChannels = [
   'get-company-settings',
   'save-company-settings',
   'generate-license-key',
+  'get-servicios',
+  'get-servicio',
+  'add-servicio',
+  'update-servicio',
+  'delete-servicio',
   'get-env',
   'open-external',
   'activate-license-after-payment',
@@ -68,6 +73,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
   saveCompanySettings: (settings) => ipcRenderer.invoke('save-company-settings', settings),
   generateLicenseKey: () => ipcRenderer.invoke('generate-license-key'),
+
+  // Services API
+  getServicios: () => ipcRenderer.invoke('get-servicios'),
+  getServicio: (id) => ipcRenderer.invoke('get-servicio', id),
+  addServicio: (servicio) => ipcRenderer.invoke('add-servicio', servicio),
+  updateServicio: (servicio) => ipcRenderer.invoke('update-servicio', servicio),
+  deleteServicio: (id) => ipcRenderer.invoke('delete-servicio', id),
 
   // Get Paddle config from main process
   getPaddleConfig: () => ipcRenderer.invoke('get-env'),

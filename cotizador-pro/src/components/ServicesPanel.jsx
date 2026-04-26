@@ -1,6 +1,5 @@
 // src/components/ServicesPanel.jsx
 import React, { useState, useEffect } from 'react';
-import DEFAULT_SERVICIOS from '../data/defaultServicios';
 
 const API = window.electronAPI;
 
@@ -38,35 +37,11 @@ export default function ServicesPanel() {
       if (API?.getServicios) {
         const data = await API.getServicios();
         setServicios(data || []);
-        
-        // Si no hay servicios, ofrecer cargar los default
-        if (!data || data.length === 0) {
-          setMsg({ 
-            ok: true, 
-            text: 'No hay servicios. ¿Deseas cargar los servicios por defecto?',
-            showDefaults: true 
-          });
-        }
       }
     } catch (e) {
       console.error('Error loading servicios:', e);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadDefaultServicios = async () => {
-    setSaving(true);
-    try {
-      for (const servicio of DEFAULT_SERVICIOS) {
-        await API.addServicio(servicio);
-      }
-      setMsg({ ok: true, text: 'Servicios por defecto cargados' });
-      loadServicios();
-    } catch (e) {
-      setMsg({ ok: false, text: 'Error al cargar servicios por defecto' });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -175,16 +150,6 @@ export default function ServicesPanel() {
       {msg && (
         <div className={`text-sm px-3 py-2 rounded-lg ${msg.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
           {msg.text}
-          {msg.showDefaults && (
-            <button
-              type="button"
-              onClick={loadDefaultServicios}
-              disabled={saving}
-              className="ml-3 text-[#00d1ed] hover:underline"
-            >
-              {saving ? 'Cargando...' : 'Cargar servicios por defecto'}
-            </button>
-          )}
         </div>
       )}
 
@@ -277,7 +242,7 @@ export default function ServicesPanel() {
         <div className="text-center p-8 text-[#a3aac4]">
           <span className="material-symbols-outlined text-4xl mb-2">construction</span>
           <p>No hay servicios registrados</p>
-          <p className="text-sm mt-1">Crea servicios para usarlos en tus despieces</p>
+          <p className="text-sm mt-1">Crea manualmente tus servicios para usarlos en tus despieces</p>
         </div>
       ) : (
         <div className="glass-panel rounded-2xl border border-[#1a233a] overflow-hidden">

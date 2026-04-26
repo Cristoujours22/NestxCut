@@ -32,11 +32,12 @@ function registerServiceHandlers({ ipcMain, getDb }) {
 
       const id = 'srv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
       const atributosJson = JSON.stringify(servicio.atributos || []);
+      const modoOrigen = servicio.modo_origen || 'despiece';
 
       db.run(
-        `INSERT INTO servicios (id, nombre, descripcion, atributos, created_at)
-         VALUES (?, ?, ?, ?, datetime('now'))`,
-        [id, servicio.nombre, servicio.descripcion || '', atributosJson],
+        `INSERT INTO servicios (id, nombre, descripcion, atributos, modo_origen, created_at)
+         VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+        [id, servicio.nombre, servicio.descripcion || '', atributosJson, modoOrigen],
         function(err) {
           if (err) {
             console.error('Error adding servicio:', err.message);
@@ -54,12 +55,13 @@ function registerServiceHandlers({ ipcMain, getDb }) {
       if (!db) return reject(new Error('Database not connected.'));
 
       const atributosJson = JSON.stringify(servicio.atributos || []);
+      const modoOrigen = servicio.modo_origen || 'despiece';
 
       db.run(
         `UPDATE servicios
-         SET nombre = ?, descripcion = ?, atributos = ?
+         SET nombre = ?, descripcion = ?, atributos = ?, modo_origen = ?
          WHERE id = ?`,
-        [servicio.nombre, servicio.descripcion || '', atributosJson, servicio.id],
+        [servicio.nombre, servicio.descripcion || '', atributosJson, modoOrigen, servicio.id],
         function(err) {
           if (err) {
             console.error('Error updating servicio:', err.message);

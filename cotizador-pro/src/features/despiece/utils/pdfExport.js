@@ -79,20 +79,22 @@ export async function generateNestingPDF({
     // Add professional header for each page
     addProfessionalHeader(doc, projectName, clientName, materialName);
     
-    // Section title only for non-V13 variants; V13 uses cleaner single-title hierarchy
-    if (variant !== 'v13' && variant !== 'v14' && variant !== 'v15' && variant !== 'v16' && variant !== 'v17' && variant !== 'v17b' && variant !== 'v17c' && variant !== 'v17d' && variant !== 'v18' && variant !== 'v20') {
-      addSectionTitle(doc, 'PLANO DE CORTE (Vista de Lámina)', 50);
-    }
-    
-    // Add sheet title - simple and clean
+    // Sheet title - positioned after header block
+    const sheetTitleY = 52;
     if (count > 1) {
-      doc.setFontSize(12);
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Lámina ${indices.join('/')} (${count}x idénticas)`, 15, 65);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 40, 40);
+      doc.text(`L\u00e1mina ${indices.join('/')}`, 15, sheetTitleY);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`(${count}x id\u00e9nticas)`, 15 + doc.getTextWidth(`L\u00e1mina ${indices.join('/')}  `), sheetTitleY);
     } else {
-      doc.setFontSize(12);
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Lámina ${indices[0]}`, 15, 65);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 40, 40);
+      doc.text(`L\u00e1mina ${indices[0]}`, 15, sheetTitleY);
     }
 
     let imageEndY = null;
@@ -103,8 +105,8 @@ export async function generateNestingPDF({
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       
-      const maxVisWidth = pageWidth - 10; 
-      const maxVisHeight = (pageHeight / 2) + 10; // Allow more height for bigger images
+      const maxVisWidth = pageWidth - 10;
+      const maxVisHeight = pageHeight * 0.58; // Use ~58% of page for the image
       
       const scale = Math.min(
         maxVisWidth / imgInfo.width,
@@ -114,17 +116,17 @@ export async function generateNestingPDF({
       const finalWidth = imgInfo.width * scale;
       const finalHeight = imgInfo.height * scale;
       const startX = (pageWidth - finalWidth) / 2;
-      const startY = 75;
+      const startY = 57;
       
-      // Draw a subtle border frame to match UI
-      doc.setDrawColor(26, 35, 58);
-      doc.setLineWidth(0.3);
-      doc.rect(startX, startY, finalWidth, finalHeight);
+      // Subtle thin border
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.2);
+      doc.rect(startX - 0.5, startY - 0.5, finalWidth + 1, finalHeight + 1);
       
       // Embed high-res screenshot
       doc.addImage(imgInfo.data, 'JPEG', startX, startY, finalWidth, finalHeight);
       
-      imageEndY = startY + finalHeight + 15;
+      imageEndY = startY + finalHeight + 5;
     } else {
       addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableWidth, usableHeight, cantos, rows, variant);
     }
@@ -213,36 +215,77 @@ function getPaperSizeFormat(paperSize) {
 
 function addProfessionalHeader(doc, projectName, clientName, materialName) {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const leftMargin = 15;
+  const rightMargin = pageWidth - 15;
   
-  // Main document title - simple and clean
-  doc.setFontSize(18);
+  // === TOP LINE (thin rule) ===
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.6);
+  doc.line(leftMargin, 10, rightMargin, 10);
+  
+  // === LOGO AREA (left side - reserved placeholder) ===
+  const logoBoxW = 35;
+  const logoBoxH = 14;
+  const logoBoxX = leftMargin;
+  const logoBoxY = 13;
+  
+  doc.setDrawColor(160, 160, 160);
+  doc.setLineWidth(0.15);
+  doc.setLineDash([2, 2]);
+  doc.rect(logoBoxX, logoBoxY, logoBoxW, logoBoxH);
+  doc.setLineDash([]);
+  
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(160, 160, 160);
+  doc.text('LOGO EMPRESA', logoBoxX + logoBoxW / 2, logoBoxY + logoBoxH / 2 + 1, { align: 'center' });
+  
+  // === TITLE (center) ===
+  doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text('PLANO DE CORTE', pageWidth / 2, 20, { align: 'center' });
+  doc.text('PLANO DE CORTE', pageWidth / 2, 22, { align: 'center' });
   
-  // Generation date - simple
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  const date = new Date().toLocaleDateString();
-  doc.text(`Fecha: ${date}`, pageWidth - 15, 20, { align: 'right' });
+  // === DATE (right aligned) ===
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
+  const date = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  doc.text(date, rightMargin, 16, { align: 'right' });
   
-  // Header info - clean and simple
-  doc.setFontSize(11);
+  // === METADATA ROW (two columns below title) ===
+  const metaY = 32;
+  doc.setFontSize(8);
+  
+  // Left column
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(80, 80, 80);
+  doc.text('Proyecto:', leftMargin, metaY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
+  doc.text(projectName || '—', leftMargin + 20, metaY);
   
-  doc.text('Proyecto:', 20, 35);
-  doc.text(projectName, 50, 35);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(80, 80, 80);
+  doc.text('Cliente:', leftMargin, metaY + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text(clientName || '—', leftMargin + 20, metaY + 6);
   
-  doc.text('Cliente:', 20, 45);
-  doc.text(clientName, 50, 45);
-  
+  // Right column
   if (materialName) {
-    doc.text('Material:', 20, 55);
-    doc.text(materialName, 50, 55);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(80, 80, 80);
+    doc.text('Material:', pageWidth / 2, metaY, { align: 'left' });
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(materialName, pageWidth / 2 + 20, metaY);
   }
   
-  // V13 removes this horizontal rule to avoid crossing the plan area in compact layouts
+  // === BOTTOM SEPARATOR (thin rule under metadata) ===
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(leftMargin, metaY + 12, rightMargin, metaY + 12);
 }
 
 function addSectionTitle(doc, title, yPosition) {
@@ -887,68 +930,119 @@ function formatCantoInfo(cantoInfo) {
 }
 
 function addPiecesTable(doc, pieces, cantos = [], rows = [], variant = 'default', customStartY = null) {
-  const startY = customStartY || ((variant === 'v16' || variant === 'v17' || variant === 'v17b' || variant === 'v17c' || variant === 'v17d' || variant === 'v18' || variant === 'v20') ? 80 : (variant === 'v15' ? 246 : (variant === 'v14' ? 238 : (variant === 'v13' ? 245 : (variant === 'v11' ? 230 : (variant === 'v9' || variant === 'v10' ? 220 : 210))))));
+  const startY = customStartY || 210;
   const startX = 15;
-  const columnWidths = [10, 40, 25, 25, 25, 40]; // ID, Label, Width, Height, Rotated, Canto
-  const rowHeight = (variant === 'v16' || variant === 'v17' || variant === 'v17b' || variant === 'v17c' || variant === 'v17d' || variant === 'v18' || variant === 'v20') ? 10 : (variant === 'v15' ? 8 : (variant === 'v14' ? 8 : (variant === 'v13' ? 9 : (variant === 'v11' ? 10 : (variant === 'v9' || variant === 'v10' ? 9 : 8)))));
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const tableWidth = pageWidth - 30;
+  const colWidths = [12, 45, 28, 28, 22, 45]; // ID, Label, Width, Height, Rotated, Canto
+  const rowHeight = 7;
+  const headerHeight = 9;
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginBottom = 30; // Deja margen para el pie / total
+  const marginBottom = 30;
   
-  // Table header function
+  // Header drawing function
   const drawHeader = (yPos) => {
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('ID', startX, yPos);
-    doc.text('Pieza', startX + 10, yPos);
-    doc.text('Ancho (mm)', startX + 50, yPos);
-    doc.text('Alto (mm)', startX + 75, yPos);
-    doc.text('Rotada', startX + 100, yPos);
-    doc.text('Canto', startX + 125, yPos);
+    // Header background - light gray fill
+    doc.setFillColor(240, 240, 240);
+    doc.rect(startX, yPos - 5, tableWidth, headerHeight, 'F');
     
+    // Header top and bottom lines
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.1);
-    doc.line(startX, yPos + 3, startX + 165, yPos + 3);
+    doc.setLineWidth(0.4);
+    doc.line(startX, yPos - 5, startX + tableWidth, yPos - 5);
+    doc.setLineWidth(0.2);
+    doc.line(startX, yPos + headerHeight - 5, startX + tableWidth, yPos + headerHeight - 5);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 30, 30);
+    
+    let colX = startX + 3;
+    const headers = ['#', 'Pieza', 'Ancho', 'Alto', 'Rot.', 'Canto'];
+    headers.forEach((h, i) => {
+      doc.text(h, colX, yPos + 1);
+      colX += colWidths[i];
+    });
+    
+    return yPos + headerHeight;
   };
   
-  drawHeader(startY);
+  let currentY = drawHeader(startY);
   
   // Table rows
   doc.setFont('helvetica', 'normal');
-  let currentY = startY + rowHeight;
+  doc.setFontSize(8);
   
   pieces.forEach((piece, index) => {
-    // Si la siguiente fila excede la pagina
+    // Page overflow check
     if (currentY > (pageHeight - marginBottom)) {
+      // Bottom line before page break
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.2);
+      doc.line(startX, currentY - 1, startX + tableWidth, currentY - 1);
+      
       doc.addPage();
-      doc.setFontSize(10);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Tabla de piezas (continuaci\u00f3n)', startX, 15);
       doc.setFont('helvetica', 'normal');
-      doc.text('Tabla de piezas (continuación)', startX, 20);
-      currentY = 35;
-      drawHeader(currentY);
-      currentY += rowHeight;
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      currentY = drawHeader(25);
     }
-  
-    doc.text((index + 1).toString(), startX, currentY);
-    doc.text(piece.label, startX + 10, currentY);
-    doc.text(piece.width.toString(), startX + 50, currentY);
-    doc.text(piece.height.toString(), startX + 75, currentY);
-    doc.text(piece.rotated ? 'Sí' : 'No', startX + 100, currentY);
-  
-    // Add canto information
+    
+    // Alternating row fill
+    if (index % 2 === 0) {
+      doc.setFillColor(248, 248, 248);
+      doc.rect(startX, currentY - 4, tableWidth, rowHeight, 'F');
+    }
+    
+    doc.setTextColor(0, 0, 0);
+    let colX = startX + 3;
+    doc.text((index + 1).toString(), colX, currentY);
+    colX += colWidths[0];
+    
+    // Truncate label if too long
+    const maxLabelW = colWidths[1] - 4;
+    let label = piece.label;
+    while (doc.getTextWidth(label) > maxLabelW && label.length > 3) {
+      label = label.slice(0, -1);
+    }
+    if (label !== piece.label) label += '\u2026';
+    doc.text(label, colX, currentY);
+    colX += colWidths[1];
+    
+    doc.text(piece.width.toString(), colX, currentY);
+    colX += colWidths[2];
+    
+    doc.text(piece.height.toString(), colX, currentY);
+    colX += colWidths[3];
+    
+    doc.text(piece.rotated ? 'S\u00ed' : 'No', colX, currentY);
+    colX += colWidths[4];
+    
+    // Canto info
     const cantoInfo = getPieceCantoInfo(piece, rows, cantos);
     const cantoText = formatCantoInfo(cantoInfo);
     if (cantoText) {
-      const maxCantoLength = 35;
-      const displayText = cantoText.length > maxCantoLength  
-        ? cantoText.substring(0, maxCantoLength) + '...'  
-        : cantoText;
-      doc.text(displayText, startX + 125, currentY);
+      doc.setFontSize(7);
+      const maxCantoW = colWidths[5] - 4;
+      let ct = cantoText;
+      while (doc.getTextWidth(ct) > maxCantoW && ct.length > 3) {
+        ct = ct.slice(0, -1);
+      }
+      if (ct !== cantoText) ct += '\u2026';
+      doc.text(ct, colX, currentY);
+      doc.setFontSize(8);
     }
     
     currentY += rowHeight;
   });
+  
+  // Bottom line after last row
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.4);
+  doc.line(startX, currentY - 1, startX + tableWidth, currentY - 1);
   
   return currentY;
 }
@@ -959,29 +1053,40 @@ function addFinalSummary(doc, pieces, variant = 'default', customStartY = null) 
   const totalPieces = pieces.length;
   const totalArea = pieces.reduce((sum, piece) => sum + (piece.width * piece.height), 0);
   
-  // Draw summary box at bottom or exactly after the table if provided
-  let summaryBoxY = customStartY ? customStartY + 10 : ((variant === 'v16' || variant === 'v17' || variant === 'v18') ? 260 : 285);
+  let summaryBoxY = customStartY ? customStartY + 5 : 285;
   
   // Ensure it doesn't overflow
-  if (summaryBoxY > (pageHeight - 20)) {
+  if (summaryBoxY > (pageHeight - 25)) {
     doc.addPage();
     summaryBoxY = 20;
   }
   
-  const summaryBoxHeight = 15;
+  const boxX = 15;
+  const boxW = pageWidth - 30;
+  const boxH = 12;
   
+  // Summary box with double-line top border
   doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.2);
-  doc.rect(15, summaryBoxY, pageWidth - 30, summaryBoxHeight);
+  doc.setLineWidth(0.6);
+  doc.line(boxX, summaryBoxY, boxX + boxW, summaryBoxY);
+  doc.setLineWidth(0.15);
+  doc.line(boxX, summaryBoxY + 1.2, boxX + boxW, summaryBoxY + 1.2);
   
-  // Add summary content
-  doc.setFontSize(12);
+  // Summary content
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
   
-  doc.text('Total de Piezas:', 20, summaryBoxY + 10);
-  doc.text(totalPieces.toString(), 70, summaryBoxY + 10);
+  doc.text('Total Piezas:', boxX + 3, summaryBoxY + 7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(totalPieces.toString(), boxX + 30, summaryBoxY + 7);
   
-  doc.text('Área Total de Corte:', 100, summaryBoxY + 10);
-  doc.text(`${(totalArea / 1000000).toFixed(2)} m²`, 170, summaryBoxY + 10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('\u00c1rea de Corte:', boxX + 55, summaryBoxY + 7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${(totalArea / 1000000).toFixed(3)} m\u00b2`, boxX + 82, summaryBoxY + 7);
+  
+  // Bottom line
+  doc.setLineWidth(0.6);
+  doc.line(boxX, summaryBoxY + boxH, boxX + boxW, summaryBoxY + boxH);
 }

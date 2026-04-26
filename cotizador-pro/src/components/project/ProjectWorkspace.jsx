@@ -2,21 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Despiece from '../despiece/Despiece';
 import { DespieceStatsBar } from '../despiece/DespieceSummaryPanel';
-
-// Placeholders temporales para las nuevas pestañas
-const HerrajesPanel = () => (
-  <div className="flex flex-col items-center justify-center h-64 bg-[#0a1122]/50 border border-[#1a233a] rounded-2xl border-dashed">
-    <span className="material-symbols-outlined text-[#40485d] text-4xl mb-4">home_repair_service</span>
-    <h3 className="text-[#a3aac4] font-medium font-['Space_Grotesk']">Módulo de Herrajes y Servicios Adicionales en construcción</h3>
-  </div>
-);
-
-const ResumenPanel = () => (
-  <div className="flex flex-col items-center justify-center h-64 bg-[#0a1122]/50 border border-[#1a233a] rounded-2xl border-dashed">
-    <span className="material-symbols-outlined text-[#40485d] text-4xl mb-4">request_quote</span>
-    <h3 className="text-[#a3aac4] font-medium font-['Space_Grotesk']">Panel de Resumen y Exportación de Cotización en construcción</h3>
-  </div>
-);
+import HerajesPanel from './HerajesPanel';
+import ResumenPanel from './ResumenPanel';
 
 export default function ProjectWorkspace() {
   const { id } = useParams();
@@ -27,6 +14,9 @@ export default function ProjectWorkspace() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [despieceData, setDespieceData] = useState([]);
+  const [hardwareData, setHardwareData] = useState({ items: [], total: 0 });
+  const [servicios, setServicios] = useState([]);
+  const [cantosInventory, setCantosInventory] = useState([]);
   const [despieceStats, setDespieceStats] = useState({ laminaCount: 0, piezaCount: 0 });
   const [openNestingHandler, setOpenNestingHandler] = useState(null);
 
@@ -42,6 +32,24 @@ export default function ProjectWorkspace() {
           } catch(e) {
             console.error("Error parsing despiece DB data", e);
           }
+          try {
+            const hw = JSON.parse(data.hardware_data || "{}");
+            setHardwareData(hw);
+          } catch(e) {
+            console.error("Error parsing hardware data", e);
+          }
+        }
+        
+        // Cargar servicios para el resumen
+        if (window.electronAPI?.getServicios) {
+          const srv = await window.electronAPI.getServicios();
+          setServicios(srv || []);
+        }
+        
+        // Cargar cantos del inventario para el resumen
+        if (window.electronAPI?.getInventoryItems) {
+          const inv = await window.electronAPI.getInventoryItems() || [];
+          setCantosInventory(inv.filter(item => item.item_type === 'canto'));
         }
       } catch (error) {
         console.error("Error fetching project:", error);
@@ -58,9 +66,9 @@ export default function ProjectWorkspace() {
     try {
       await window.electronAPI.saveProject({
         ...project,
-        despiece_data: JSON.stringify(despieceData)
+        despiece_data: JSON.stringify(despieceData),
+        hardware_data: JSON.stringify(hardwareData)
       });
-      // Optionally show a toast here
     } catch(err) {
       console.error("Error guardando proyecto", err);
     } finally {
@@ -74,7 +82,7 @@ export default function ProjectWorkspace() {
 
   const tabs = [
     { id: 'despiece', label: 'Despiece', icon: 'architecture' },
-    { id: 'herrajes', label: 'Herrajes y Extras', icon: 'hardware' },
+    { id: 'herajes', label: 'Herrajes y Extras', icon: 'hardware' },
     { id: 'resumen', label: 'Cotización', icon: 'receipt_long' }
   ];
 
@@ -113,31 +121,31 @@ export default function ProjectWorkspace() {
             </div>
 
              <div className="flex gap-2">
-               <button 
-                 onClick={handleSave}
-                 disabled={isSaving}
-                 className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#202b46] transition-colors flex items-center gap-2 disabled:opacity-50 shrink-0"
-               >
-                 {isSaving ? (
-                   <span className="material-symbols-outlined text-[18px] animate-spin text-[#00e0fe]">progress_activity</span>
-                 ) : (
-                   <span className="material-symbols-outlined text-[18px]">save</span>
-                 )}
-                 {isSaving ? "Guardando..." : "Guardar Cambios"}
-               </button>
-             </div>
-            
+                <button 
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="bg-[#1a233a] border border-[#40485d]/50 text-[#dee5ff] px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#202b46] transition-colors flex items-center gap-2 disabled:opacity-50 shrink-0"
+                >
+                  {isSaving ? (
+                    <span className="material-symbols-outlined text-[18px] animate-spin text-[#00e0fe]">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">save</span>
+                  )}
+                  {isSaving ? "Guardando..." : "Guardar Cambios"}
+                </button>
+              </div>
+             
              {/* Compact Stats - Moved from Despiece body */}
              {activeTab === 'despiece' && (
-               <div className="flex gap-2">
-                  <DespieceStatsBar 
-                    laminaCount={despieceStats.laminaCount}
-                    piezaCount={despieceStats.piezaCount}
-                    onOpenNesting={openNestingHandler}
-                    compact={true}
-                  />
-               </div>
-             )}
+                <div className="flex gap-2">
+                   <DespieceStatsBar 
+                     laminaCount={despieceStats.laminaCount}
+                     piezaCount={despieceStats.piezaCount}
+                     onOpenNesting={openNestingHandler}
+                     compact={true}
+                   />
+                </div>
+              )}
           </div>
 
           {/* Nav Tabs */}
@@ -182,8 +190,21 @@ export default function ProjectWorkspace() {
                   clientName={clientName}
                 />
              )}
-            {activeTab === 'herrajes' && <HerrajesPanel />}
-            {activeTab === 'resumen' && <ResumenPanel />}
+            {activeTab === 'herajes' && (
+              <HerajesPanel 
+                initialData={hardwareData} 
+                onChange={setHardwareData} 
+              />
+            )}
+            {activeTab === 'resumen' && (
+              <ResumenPanel 
+                despieceData={despieceData}
+                despieceStats={despieceStats}
+                hardwareData={hardwareData}
+                servicios={servicios}
+                cantosInventory={cantosInventory}
+              />
+            )}
           </>
         )}
       </div>

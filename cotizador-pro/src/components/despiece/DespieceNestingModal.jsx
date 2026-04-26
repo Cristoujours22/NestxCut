@@ -4,8 +4,39 @@ import { calculateEstimatedSheetsWithSettings } from '../../features/despiece/ut
 import { groupIdenticalSheets, generateNestingPDF, getPieceCantoInfo } from '../../features/despiece/utils/pdfExport';
 import { toJpeg } from 'html-to-image';
 
-function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1, rows = [], cantos = [], id }) {
+function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1, rows = [], cantos = [], id, isPrintMode = false }) {
   const boardInset = 3;
+
+  // Print Mode color palette (toner-friendly: white bg, black lines, dark text)
+  const colors = isPrintMode ? {
+    cardBg: 'bg-white', cardBorder: 'border-gray-300',
+    frameBg: '#ffffff', frameBorder: '#cccccc',
+    boardBg: '#ffffff', boardBorder: '#333333',
+    innerGlow: 'border-transparent',
+    gradientFrom: 'from-transparent', gradientTo: 'to-transparent',
+    usableBorder: 'border-[#555555]', usableBg: 'bg-transparent',
+    pieceBorder: 'border-[#000000]', pieceBg: 'bg-[#f0f0f0]',
+    pieceText: 'text-black', labelBg: 'bg-white', labelBorder: 'border-[#999999]',
+    labelText: 'text-black', cantoText: 'text-[#333333]', cantoBg: 'bg-white', cantoBorder: 'border-[#999999]',
+    freeBorder: 'border-[#aaaaaa]', freeBg: 'bg-[#f5f5f5]', freeText: 'text-[#666666]', freeLabelBg: 'bg-white',
+    refiladoBg: 'bg-[#e0e0e0]', refiladoBorder: 'border-[#999999]',
+    refiladoXBg: 'bg-[#e8e8e8]', refiladoXBorder: 'border-[#aaaaaa]',
+    dimText: 'text-black', dimBg: 'bg-white', dimBorder: 'border-[#999999]',
+  } : {
+    cardBg: 'bg-[#0f172b]', cardBorder: 'border-[#1a233a]',
+    frameBg: '#060e20b3', frameBorder: '#1a233a',
+    boardBg: '#060e20', boardBorder: '#2a3552',
+    innerGlow: 'border-[#ffffff1f]',
+    gradientFrom: 'from-[#f43f5e1a]', gradientTo: 'to-[#f59e0b1a]',
+    usableBorder: 'border-[#99f7ffcc]', usableBg: 'bg-[#00e0fe0a]',
+    pieceBorder: 'border-[#00e0fe80]', pieceBg: 'bg-[#00e0fe14]',
+    pieceText: 'text-[#dee5ff]', labelBg: 'bg-[#060e20e6]', labelBorder: 'border-[#00e0fe4d]',
+    labelText: 'text-[#dee5ff]', cantoText: 'text-[#facc15]', cantoBg: 'bg-[#060e20e6]', cantoBorder: 'border-[#facc154d]',
+    freeBorder: 'border-[#6ee7b74d]', freeBg: 'bg-[#6ee7b70d]', freeText: 'text-[#a7f3d0]', freeLabelBg: 'bg-[#060e20cc]',
+    refiladoBg: 'bg-[#f43f5e47]', refiladoBorder: 'border-[#fda4af99]',
+    refiladoXBg: 'bg-[#f59e0b47]', refiladoXBorder: 'border-[#fcd34d99]',
+    dimText: 'text-[#99f7ff]', dimBg: 'bg-[#060e20cc]', dimBorder: 'border-[#1a233a]',
+  };
   const baseScale = Math.min(1, 640 / Math.max(boardWidth, boardHeight, 1));
   const scale = baseScale * zoom;
   const previewWidth = Math.round(boardWidth * scale);
@@ -26,20 +57,22 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
   const refiladoArea = Math.max(0, brutoArea - boardArea);
 
   return (
-    <div className="bg-[#0f172b] border border-[#1a233a] rounded-2xl p-4 space-y-3 w-fit max-w-full min-w-[320px] overflow-hidden">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[#dee5ff] font-semibold">Lámina {sheet.index}</div>
-        <div className="text-[11px] uppercase tracking-wide text-[#6f7a97]">{sheet.pieces.length} piezas · {utilization.toFixed(1)}% uso</div>
-      </div>
+    <div className={`${colors.cardBg} border ${colors.cardBorder} rounded-2xl p-4 space-y-3 w-fit max-w-full min-w-[320px] overflow-hidden`}>
+      {!isPrintMode && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[#dee5ff] font-semibold">Lámina {sheet.index}</div>
+          <div className="text-[11px] uppercase tracking-wide text-[#6f7a97]">{sheet.pieces.length} piezas · {utilization.toFixed(1)}% uso</div>
+        </div>
+      )}
 
       <div className="w-full overflow-x-auto flex justify-center">
-        <div id={id} className="relative rounded-2xl border border-[#1a233a] bg-[#060e20b3] inline-block shadow-inner" style={{ padding: '3px 7px 7px 3px' }}>
-          <div className="relative rounded-xl border border-[#2a3552] bg-[#060e20]" style={{ width: previewWidth, height: previewHeight }}>
-            <div className="absolute inset-[3px] rounded-[10px] border border-[#ffffff1f] pointer-events-none z-40" />
+        <div id={id} className={`relative rounded-2xl border inline-block ${isPrintMode ? '' : 'shadow-inner'}`} style={{ padding: '3px 7px 7px 3px', backgroundColor: colors.frameBg, borderColor: colors.frameBorder }}>
+          <div className="relative rounded-xl border" style={{ width: previewWidth, height: previewHeight, backgroundColor: colors.boardBg, borderColor: colors.boardBorder }}>
+            {!isPrintMode && <div className={`absolute inset-[3px] rounded-[10px] border ${colors.innerGlow} pointer-events-none z-40`} />}
             <div className="absolute inset-0 rounded-xl overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#f43f5e1a] to-[#f59e0b1a] pointer-events-none" />
+              {!isPrintMode && <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradientFrom} ${colors.gradientTo} pointer-events-none`} />}
               <div
-                className="absolute border border-[#99f7ffcc] bg-[#00e0fe0a] rounded-sm pointer-events-none z-20 shadow-[inset_0_0_0_1px_rgba(153,247,255,0.08)]"
+                className={`absolute ${colors.usableBorder} ${colors.usableBg} rounded-sm pointer-events-none z-20 ${isPrintMode ? '' : 'shadow-[inset_0_0_0_1px_rgba(153,247,255,0.08)]'}`}
                 style={{
                   left: usableLeft,
                   top: usableTop,
@@ -49,14 +82,14 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
               />
               {insetY > 0 ? (
                 <div
-                  className="absolute left-0 bottom-0 bg-[#f43f5e47] border-t-2 border-[#fda4af99] pointer-events-none z-10"
+                  className={`absolute left-0 bottom-0 ${colors.refiladoBg} border-t-2 ${colors.refiladoBorder} pointer-events-none z-10`}
                   style={{ left: boardInset, width: innerBoardWidth, height: refiladoBottomHeight }}
                   title={`Refilado Y: ${insetY} mm`}
                 />
               ) : null}
               {insetX > 0 ? (
                 <div
-                  className="absolute right-0 top-0 bg-[#f59e0b47] border-l-2 border-[#fcd34d99] pointer-events-none z-10"
+                  className={`absolute right-0 top-0 ${colors.refiladoXBg} border-l-2 ${colors.refiladoXBorder} pointer-events-none z-10`}
                   style={{ right: boardInset, top: boardInset, width: refiladoRightWidth, height: innerBoardHeight }}
                   title={`Refilado X: ${insetX} mm`}
                 />
@@ -95,7 +128,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                 return (
                   <div
                     key={`free_${sheet.index}_${index}`}
-                    className="absolute pointer-events-none z-[5] rounded-sm border border-dashed border-[#6ee7b74d] bg-[#6ee7b70d]"
+                    className={`absolute pointer-events-none z-[5] rounded-sm border border-dashed ${colors.freeBorder} ${colors.freeBg}`}
                     style={{
                       left: rectLeft,
                       top: rectTop,
@@ -105,12 +138,12 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                     title={`Área libre ${rect.width}x${rect.height}`}
                   >
                     {showRectHeightLabel ? (
-                      <div className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-center text-[8px] text-[#a7f3d0] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#6ee7b733] whitespace-nowrap">
+                      <div className={`absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-center text-[8px] ${colors.freeText} ${colors.freeLabelBg} px-1 py-0.5 rounded-sm border border-[#6ee7b733] whitespace-nowrap`}>
                         {rect.height}
                       </div>
                     ) : null}
                     {showRectWidthLabel ? (
-                      <div className="absolute left-1/2 bottom-1 -translate-x-1/2 text-[8px] text-[#a7f3d0] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#6ee7b733] pointer-events-none">
+                      <div className={`absolute left-1/2 bottom-1 -translate-x-1/2 text-[8px] ${colors.freeText} ${colors.freeLabelBg} px-1 py-0.5 rounded-sm border border-[#6ee7b733] pointer-events-none`}>
                         {rect.width}
                       </div>
                     ) : null}
@@ -136,7 +169,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                   return (
                     <div
                       key={piece.instanceId}
-                      className="absolute border border-[#00e0fe80] bg-[#00e0fe14] text-[#dee5ff] text-[10px] rounded-sm overflow-hidden z-10"
+                      className={`absolute border ${colors.pieceBorder} ${colors.pieceBg} ${colors.pieceText} text-[10px] rounded-sm overflow-hidden z-10`}
                       style={{
                         left: scaledLeft,
                         top: scaledTop,
@@ -146,41 +179,41 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                       title={`${piece.label} · ${piece.width}x${piece.height}${piece.rotated ? ' · rotada' : ''}`}
                     >
                       {showDetailLabel ? (
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] text-[#dee5ff] bg-[#060e20e6] px-1.5 py-0.5 rounded-sm border border-[#00e0fe4d] pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[calc(100%-8px)]">
+                        <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] ${colors.labelText} ${colors.labelBg} px-1.5 py-0.5 rounded-sm border ${colors.labelBorder} pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[calc(100%-8px)]`}>
                           {piece.label}
                         </div>
                       ) : null}
 
                       {showHeightLabel ? (
-                        <div className="absolute text-[8px] text-[#99f7ff] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#1a233a] pointer-events-none whitespace-nowrap z-10"
+                        <div className={`absolute text-[8px] ${colors.dimText} ${colors.dimBg} px-1 py-0.5 rounded-sm border ${colors.dimBorder} pointer-events-none whitespace-nowrap z-10`}
                           style={{ left: '16px', top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)' }}>
                           {piece.height}
                         </div>
                       ) : null}
 
                       {showWidthLabel ? (
-                        <div className="absolute left-1/2 bottom-[14px] -translate-x-1/2 text-[8px] text-[#99f7ff] bg-[#060e20cc] px-1 py-0.5 rounded-sm border border-[#1a233a] pointer-events-none z-10">
+                        <div className={`absolute left-1/2 bottom-[14px] -translate-x-1/2 text-[8px] ${colors.dimText} ${colors.dimBg} px-1 py-0.5 rounded-sm border ${colors.dimBorder} pointer-events-none z-10`}>
                           {piece.width}
                         </div>
                       ) : null}
 
                       {/* BOTTOM CANTO */}
                       {bottomCanto && showWidthLabel ? (
-                        <div className="absolute left-1/2 bottom-[1px] -translate-x-1/2 text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20">
+                        <div className={`absolute left-1/2 bottom-[1px] -translate-x-1/2 text-[6px] ${colors.cantoText} ${colors.cantoBg} px-1 py-[1px] rounded-[2px] border ${colors.cantoBorder} pointer-events-none whitespace-nowrap z-20`}>
                           {`${bottomCanto.codigo} ${bottomCanto.calibre}`.trim()}
                         </div>
                       ) : null}
 
                       {/* TOP CANTO */}
                       {topCanto && showWidthLabel ? (
-                        <div className="absolute left-1/2 top-[1px] -translate-x-1/2 text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20">
+                        <div className={`absolute left-1/2 top-[1px] -translate-x-1/2 text-[6px] ${colors.cantoText} ${colors.cantoBg} px-1 py-[1px] rounded-[2px] border ${colors.cantoBorder} pointer-events-none whitespace-nowrap z-20`}>
                           {`${topCanto.codigo} ${topCanto.calibre}`.trim()}
                         </div>
                       ) : null}
 
                       {/* LEFT CANTO */}
                       {leftCanto && showHeightLabel ? (
-                        <div className="absolute text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20"
+                        <div className={`absolute text-[6px] ${colors.cantoText} ${colors.cantoBg} px-1 py-[1px] rounded-[2px] border ${colors.cantoBorder} pointer-events-none whitespace-nowrap z-20`}
                           style={{ left: '4px', top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)' }}>
                           {`${leftCanto.codigo} ${leftCanto.calibre}`.trim()}
                         </div>
@@ -188,7 +221,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
 
                       {/* RIGHT CANTO */}
                       {rightCanto && showHeightLabel ? (
-                        <div className="absolute text-[6px] text-[#facc15] bg-[#060e20e6] px-1 py-[1px] rounded-[2px] border border-[#facc154d] pointer-events-none whitespace-nowrap z-20"
+                        <div className={`absolute text-[6px] ${colors.cantoText} ${colors.cantoBg} px-1 py-[1px] rounded-[2px] border ${colors.cantoBorder} pointer-events-none whitespace-nowrap z-20`}
                           style={{ right: '4px', top: '50%', transform: 'translate(50%, -50%) rotate(90deg)' }}>
                           {`${rightCanto.codigo} ${rightCanto.calibre}`.trim()}
                         </div>
@@ -269,6 +302,9 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
     setIsExporting(true);
 
     try {
+      // Wait for React to re-render in print mode (white bg)
+      await new Promise(resolve => setTimeout(resolve, 150));
+
       // Capture each sheet preview as an image
       const sheetImages = {};
       for (const sheet of effectivePreview.sheets) {
@@ -279,14 +315,13 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
           element.style.maxWidth = 'none';
 
           try {
-            // Utilizamos dimensiones del elemento original
             const rect = element.getBoundingClientRect();
 
             const dataUrl = await toJpeg(element, {
-              quality: 0.9,
-              backgroundColor: '#0f172b',
-              pixelRatio: 2, // Equivale al scale: 2 de html2canvas
-              skipFonts: true, // Evita que lea webfonts remotas (Google Fonts) que tiran error de CORS
+              quality: 0.92,
+              backgroundColor: '#ffffff',
+              pixelRatio: 2,
+              skipFonts: true,
               style: {
                 transform: 'scale(1)',
                 transformOrigin: 'top left'
@@ -468,6 +503,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                       zoom={zoom}
                       rows={rows}
                       cantos={cantos}
+                      isPrintMode={isExporting}
                     />
                   ))}
                 </div>

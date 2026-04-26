@@ -3,6 +3,7 @@ const path = require('path');
 const ipcContract = require('./ipcContract.cjs');
 const LicensingService = require('./licensing/licensingService.cjs');
 const { registerInventoryHandlers } = require('./ipc/inventoryHandlers.cjs');
+const { registerServiceHandlers } = require('./ipc/serviceHandlers.cjs');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
@@ -19,6 +20,7 @@ function defaultState() {
   return {
     users: [],
     productos: [],
+    servicios: [],
     plans: [],
     licenses: [],
     promo_codes: [],
@@ -70,6 +72,7 @@ function createDb() {
         if (q.startsWith('create table if not exists')) {
           if (q.includes('users')) state.users = state.users || [];
           if (q.includes('productos')) state.productos = state.productos || [];
+          if (q.includes('servicios')) state.servicios = state.servicios || [];
           if (q.includes('plans')) state.plans = state.plans || [];
           if (q.includes('licenses')) state.licenses = state.licenses || [];
           if (q.includes('promo_codes')) state.promo_codes = state.promo_codes || [];
@@ -88,6 +91,12 @@ function createDb() {
           const row = { id: nextId(state.productos), nombre, precio: Number(precio) };
           state.productos.push(row);
           lastID = row.id;
+          saveState();
+        } else if (q.startsWith('insert into servicios')) {
+          const [id, nombre, descripcion, atributos, modo_origen] = params;
+          state.servicios = state.servicios || [];
+          state.servicios.push({ id, nombre, descripcion, atributos, modo_origen: modo_origen || 'despiece', created_at: new Date().toISOString() });
+          lastID = id;
           saveState();
         } else if (q.startsWith('insert into plans')) {
           const [name, price, currency, interval, trial_days, features] = params;
@@ -137,6 +146,21 @@ function createDb() {
           const [password, id] = params;
           const u = state.users.find((r) => Number(r.id) === Number(id));
           if (u) { u.password = password; saveState(); }
+        } else if (q.startsWith('update servicios')) {
+          const [nombre, descripcion, atributos, modo_origen, id] = params;
+          state.servicios = state.servicios || [];
+          const servicio = state.servicios.find((r) => r.id === id);
+          if (servicio) {
+            servicio.nombre = nombre;
+            servicio.descripcion = descripcion;
+            servicio.atributos = atributos;
+            servicio.modo_origen = modo_origen || servicio.modo_origen || 'despiece';
+            saveState();
+          }
+        } else if (q.startsWith('delete from servicios')) {
+          const [id] = params;
+          state.servicios = (state.servicios || []).filter((r) => r.id !== id);
+          saveState();
         } else {
           throw new Error(`Unsupported SQL in run(): ${sql}`);
         }
@@ -155,6 +179,9 @@ function createDb() {
           const [username] = params;
           const u = state.users.find((x) => x.username === username);
           row = u ? { id: u.id, username: u.username, password: u.password } : undefined;
+        } else if (q === 'select * from servicios where id = ?') {
+          const [id] = params;
+          row = (state.servicios || []).find((x) => x.id === id) || undefined;
         } else if (q === 'select * from plans order by id limit 1') {
           row = state.plans[0] || undefined;
         } else if (q === 'select * from licenses where license_key = ? and status = ?') {
@@ -197,6 +224,7 @@ function createDb() {
       try {
         let rows = [];
         if (q === 'select * from productos') rows = state.productos;
+        else if (q === 'select * from servicios order by nombre asc') rows = [...(state.servicios || [])].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || '')));
         else if (q === 'select * from plans where 1=1') rows = state.plans;
         else if (q === 'select * from company_settings') rows = state.company_settings;
         else if (q === 'select id, username, password from users') rows = state.users.map(u => ({ id: u.id, username: u.username, password: u.password }));
@@ -283,6 +311,15 @@ function initializeDatabase() {
       nombre TEXT NOT NULL,
       precio REAL NOT NULL
     )`, [], (err) => { if (err) console.error('Error creating productos table:', err.message); });
+
+    db.run(`CREATE TABLE IF NOT EXISTS servicios (
+      id TEXT PRIMARY KEY,
+      nombre TEXT NOT NULL,
+      descripcion TEXT,
+      atributos TEXT,
+      modo_origen TEXT DEFAULT 'despiece',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`, [], (err) => { if (err) console.error('Error creating servicios table:', err.message); });
 
     db.run(`CREATE TABLE IF NOT EXISTS plans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -377,6 +414,10 @@ app.whenReady().then(() => {
     ipcMain,
     getDb: () => db,
     saveState,
+  });
+  registerServiceHandlers({
+    ipcMain,
+    getDb: () => db,
   });
   createWindow();
   licensingService = new LicensingService(db);
