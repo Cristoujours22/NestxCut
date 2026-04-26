@@ -1,5 +1,5 @@
 // src/components/project/ResumenPanel.jsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { formatPrice as formatPriceUtil } from '../../utils/serviceCalculator';
 import { calculateServicesTotal } from '../../features/project/utils/mergeProjectServices';
 
@@ -9,7 +9,9 @@ export default function ResumenPanel({
   hardwareData = { items: [], total: 0 },
   servicios = [],
   cantosInventory = [],
-  onExportPDF
+  onExportPDF,
+  onAddService,
+  onUpdateManualQuantity
 }) {
   // Filtrar items manuales que son servicios (no herajes)
   const serviciosManuales = useMemo(() => {
@@ -37,6 +39,39 @@ export default function ResumenPanel({
   const totalGeneral = totalDespiece + totalHardware;
 
   const formatPrice = (price) => formatPriceUtil(price);
+
+  // Estado para collapse/expand de materiales
+  const [expandedMaterials, setExpandedMaterials] = useState({});
+  const [editingManual, setEditingManual] = useState(null);
+
+  const toggleMaterial = (materialId) => {
+    setExpandedMaterials(prev => ({
+      ...prev,
+      [materialId]: !prev[materialId]
+    }));
+  };
+
+  // Handler para editar cantidad manual (inline)
+  const handleManualCantidadChange = (servicioId, materialId, nuevaCantidad) => {
+    if (onUpdateManualQuantity) {
+      onUpdateManualQuantity(servicioId, materialId, nuevaCantidad);
+    }
+    setEditingManual(null);
+  };
+
+  // Handler para agregar servicio
+  const handleAddService = (materialId) => {
+    if (onAddService) {
+      onAddService(materialId);
+    }
+  };
+
+  // Materiales por defecto expandidos
+  const materialesExpandidos = useMemo(() => {
+    const ids = {};
+    consolidado.porMaterial?.forEach(m => { ids[m.material_id] = true; });
+    return ids;
+  }, [consolidado.porMaterial]);
 
   return (
     <div className="space-y-6">
@@ -147,122 +182,185 @@ export default function ResumenPanel({
         </div>
       </div>
 
-      {/* Materiales (Láminas) con Servicios y Cantos */}
+{/* Materiales (Láminas) con Servicios y Cantos - ESTRUCTURA ORDENADA */}
       {consolidado.porMaterial?.length > 0 && (
         <div className="space-y-4">
-          {consolidado.porMaterial.map((material, idx) => (
-            <div key={material.material_id || idx} className="glass-panel rounded-2xl border border-[#1a233a] p-5">
-              {/* Header del material */}
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-[#1a233a]">
-                <h3 className="text-[#dee5ff] font-bold flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[20px]">layers</span>
-                  {material.material_nombre}
-                </h3>
-                <div className="text-right">
-                  <span className="text-[#6f7a97] text-sm">Piezas: </span>
-                  <span className="text-[#dee5ff] font-semibold">{material.piezaCount}</span>
-                </div>
-              </div>
-              
-              {/* Servicios de este material */}
-              {material.servicios.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-[#a3aac4] text-xs uppercase font-bold mb-3 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">build</span>
-                    Servicios
-                  </h4>
-                  
-                  <table className="w-full">
-                    <thead className="border-b border-[#1a233a]">
-                      <tr>
-                        <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Servicio</th>
-                        <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Vlr Unit.</th>
-                        <th className="text-center text-[#a3aac4] text-xs uppercase font-bold py-2 bg-cyan-500/10">Auto</th>
-                        <th className="text-center text-[#a3aac4] text-xs uppercase font-bold py-2 bg-amber-500/10">Manual</th>
-                        <th className="text-center text-[#a3aac4] text-xs uppercase font-bold py-2">Total</th>
-                        <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1a233a]">
-                      {material.servicios.map((serv) => (
-                        <tr key={serv.servicio_id}>
-                          <td className="py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[#dee5ff] font-medium">{serv.nombre}</span>
-                              {serv.modo_origen === 'mixto' && (
-                                <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-500/15 text-violet-300">mixto</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-2 text-right text-[#a3aac4]">{formatPrice(serv.valorUnitario)}</td>
-                          <td className="py-2 text-center bg-cyan-500/5">
-                            {serv.automatico.cantidad > 0 ? (
-                              <span className="text-cyan-300 font-semibold">x{serv.automatico.cantidad}</span>
-                            ) : <span className="text-[#40485d]">—</span>}
-                          </td>
-                          <td className="py-2 text-center bg-amber-500/5">
-                            {serv.manual.cantidad > 0 ? (
-                              <span className="text-amber-300 font-semibold">x{serv.manual.cantidad}</span>
-                            ) : <span className="text-[#40485d]">—</span>}
-                          </td>
-                          <td className="py-2 text-center text-[#dee5ff] font-bold">x{serv.total.cantidad}</td>
-                          <td className="py-2 text-right text-[#00d1ed] font-bold">{formatPrice(serv.total.subtotal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              
-              {/* Cantos de este material */}
-              {consolidado.cantosPorMaterial?.find(c => c.material_id === material.material_id)?.cantos?.length > 0 && (() => {
-                const cantosMat = consolidado.cantosPorMaterial.find(c => c.material_id === material.material_id);
-                return (
-                  <div>
-                    <h4 className="text-[#a3aac4] text-xs uppercase font-bold mb-3 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">straighten</span>
-                      Cantos
-                    </h4>
-                    
-                    <table className="w-full">
-                      <thead className="border-b border-[#1a233a]">
-                        <tr>
-                          <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Ref</th>
-                          <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Canto</th>
-                          <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Tipo</th>
-                          <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Metros</th>
-                          <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">$/ml</th>
-                          <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#1a233a]">
-                        {cantosMat.cantos.map((canto) => (
-                          <tr key={canto.ref}>
-                            <td className="py-2 text-[#99f7ff] font-bold">#{canto.ref}</td>
-                            <td className="py-2 text-[#dee5ff]">{canto.nombre}</td>
-                            <td className="py-2">
-                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                canto.tipo === 'flexible' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
-                              }`}>{canto.tipo}</span>
-                            </td>
-                            <td className="py-2 text-right text-[#dee5ff]">{canto.metros.toFixed(2)}m</td>
-                            <td className="py-2 text-right text-[#a3aac4]">{formatPrice(canto.precio)}</td>
-                            <td className="py-2 text-right text-[#00d1ed] font-semibold">{formatPrice(canto.costo)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+          {consolidado.porMaterial.map((material, idx) => {
+            const isExpanded = expandedMaterials[material.material_id] !== false;
+            const cantosMat = consolidado.cantosPorMaterial?.find(c => c.material_id === material.material_id);
+            
+            return (
+              <div key={material.material_id || idx} className="glass-panel rounded-2xl border border-[#1a233a] overflow-hidden">
+                {/* Header del material - CLICKABLE */}
+                <div 
+                  className="flex items-center justify-between p-5 cursor-pointer hover:bg-[#1a233a]/30 transition-colors"
+                  onClick={() => toggleMaterial(material.material_id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`material-symbols-outlined text-[20px] text-[#00d1ed] transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                      chevron_right
+                    </span>
+                    <div>
+                      <h3 className="text-[#dee5ff] font-bold flex items-center gap-2">
+                        {material.material_nombre}
+                      </h3>
+                      <span className="text-[#6f7a97] text-xs">
+                        Piezas: {material.piezaCount} • Láminas: {(material.piezaCount > 0 ? Math.ceil(material.piezaCount / 4) : 0)}
+                      </span>
+                    </div>
                   </div>
-                );
-              })()}
-              
-              {/* Subtotal del material */}
-              <div className="flex justify-between items-center mt-4 pt-4 border-t border-[#1a233a]">
-                <span className="text-[#a3aac4] font-bold">Subtotal {material.material_nombre}:</span>
-                <span className="text-[#00d1ed] font-bold text-xl">{formatPrice(material.subtotal)}</span>
+                  <div className="text-right">
+                    <span className="text-[#00d1ed] font-bold text-lg">{formatPrice(material.subtotal)}</span>
+                  </div>
+                </div>
+                
+                {/* Contenido expandible */}
+                {isExpanded && (
+                  <div className="border-t border-[#1a233a]">
+                    {/* Servicios de este material */}
+                    {material.servicios.length > 0 && (
+                      <div className="p-5">
+                        <h4 className="text-[#a3aac4] text-xs uppercase font-bold mb-3 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">build</span>
+                          Servicios
+                        </h4>
+                        
+                        <table className="w-full">
+                          <thead className="border-b border-[#1a233a]">
+                            <tr>
+                              <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Servicio</th>
+                              <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Vlr Unit.</th>
+                              <th className="text-center text-[#a3aac4] text-xs uppercase font-bold py-2 bg-cyan-500/10 w-16">Auto</th>
+                              <th className="text-center text-[#a3aac4] text-xs uppercase font-bold py-2 bg-amber-500/10 w-20">Manual</th>
+                              <th className="text-center text-[#a3aac4] text-xs uppercase font-bold py-2 w-16">Total</th>
+                              <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#1a233a]">
+                            {material.servicios.map((serv) => (
+                              <tr key={serv.servicio_id}>
+                                <td className="py-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[#dee5ff] font-medium">{serv.nombre}</span>
+                                    {serv.modo_origen === 'mixto' && (
+                                      <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-500/15 text-violet-300">mixto</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2 text-right text-[#a3aac4]">{formatPrice(serv.valorUnitario)}</td>
+                                <td className="py-2 text-center bg-cyan-500/5">
+                                  {serv.automatico.cantidad > 0 ? (
+                                    <span className="text-cyan-300 font-semibold">x{serv.automatico.cantidad}</span>
+                                  ) : <span className="text-[#40485d]">—</span>}
+                                </td>
+                                <td className="py-2 text-center bg-amber-500/5">
+                                  {editingManual === `${serv.servicio_id}-${material.material_id}` ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      defaultValue={serv.manual.cantidad}
+                                      className="w-12 bg-[#0d1320] border border-amber-500/50 rounded px-1 py-0.5 text-center text-amber-300 text-sm"
+                                      autoFocus
+                                      onBlur={(e) => handleManualCantidadChange(serv.servicio_id, material.material_id, parseInt(e.target.value) || 0)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleManualCantidadChange(serv.servicio_id, material.material_id, parseInt(e.target.value) || 0);
+                                        if (e.key === 'Escape') setEditingManual(null);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  ) : serv.manual.cantidad > 0 ? (
+                                    <span 
+                                      className="text-amber-300 font-semibold cursor-pointer hover:text-amber-200"
+                                      onClick={(e) => { e.stopPropagation(); setEditingManual(`${serv.servicio_id}-${material.material_id}`); }}
+                                      title="Click para editar"
+                                    >
+                                      x{serv.manual.cantidad}
+                                    </span>
+                                  ) : (
+                                    <span 
+                                      className="text-[#40485d] cursor-pointer hover:text-amber-300"
+                                      onClick={(e) => { e.stopPropagation(); setEditingManual(`${serv.servicio_id}-${material.material_id}`); }}
+                                      title="Click para agregar"
+                                    >
+                                      + agregar
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2 text-center text-[#dee5ff] font-bold">x{serv.total.cantidad}</td>
+                                <td className="py-2 text-right text-[#00d1ed] font-bold">{formatPrice(serv.total.subtotal)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        
+                        {/* Botón agregar servicio */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleAddService(material.material_id); }}
+                          className="mt-3 text-xs text-[#00d1ed] hover:text-[#00e0fe] flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">add</span>
+                          Agregar servicio
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* Cantos de este material */}
+                    {cantosMat?.cantos?.length > 0 && (
+                      <div className="p-5 border-t border-[#1a233a]">
+                        <h4 className="text-[#a3aac4] text-xs uppercase font-bold mb-3 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">straighten</span>
+                          Cantos
+                        </h4>
+                        
+                        <table className="w-full">
+                          <thead className="border-b border-[#1a233a]">
+                            <tr>
+                              <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Ref</th>
+                              <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Canto</th>
+                              <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Tipo</th>
+                              <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Metros</th>
+                              <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">$/ml</th>
+                              <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#1a233a]">
+                            {cantosMat.cantos.map((canto) => (
+                              <tr key={canto.ref}>
+                                <td className="py-2 text-[#99f7ff] font-bold">#{canto.ref}</td>
+                                <td className="py-2 text-[#dee5ff]">{canto.nombre}</td>
+                                <td className="py-2">
+                                  <span className={`text-xs px-2 py-0.5 rounded ${
+                                    canto.tipo === 'flexible' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
+                                  }`}>{canto.tipo}</span>
+                                </td>
+                                <td className="py-2 text-right text-[#dee5ff]">{canto.metros.toFixed(2)}m</td>
+                                <td className="py-2 text-right text-[#a3aac4]">{formatPrice(canto.precio)}</td>
+                                <td className="py-2 text-right text-[#00d1ed] font-semibold">{formatPrice(canto.costo)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    
+                    {/* Si no hay servicios */}
+                    {material.servicios.length === 0 && (
+                      <div className="p-5 border-t border-[#1a233a] text-center">
+                        <p className="text-[#6f7a97] text-sm">Sin servicios para este material</p>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleAddService(material.material_id); }}
+                          className="mt-2 text-xs text-[#00d1ed] hover:text-[#00e0fe] flex items-center gap-1 mx-auto"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">add</span>
+                          Agregar servicio
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
