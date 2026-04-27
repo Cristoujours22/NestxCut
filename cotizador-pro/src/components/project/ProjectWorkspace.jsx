@@ -17,6 +17,7 @@ export default function ProjectWorkspace() {
   const [hardwareData, setHardwareData] = useState({ items: [], total: 0 });
   const [servicios, setServicios] = useState([]);
   const [cantosInventory, setCantosInventory] = useState([]);
+  const [materialesInventory, setMaterialesInventory] = useState([]);
   const [despieceStats, setDespieceStats] = useState({ laminaCount: 0, piezaCount: 0 });
   const [openNestingHandler, setOpenNestingHandler] = useState(null);
 
@@ -50,6 +51,7 @@ export default function ProjectWorkspace() {
         if (window.electronAPI?.getInventoryItems) {
           const inv = await window.electronAPI.getInventoryItems() || [];
           setCantosInventory(inv.filter(item => item.item_type === 'canto'));
+          setMaterialesInventory(inv.filter(item => item.item_type === 'tablero'));
         }
       } catch (error) {
         console.error("Error fetching project:", error);
@@ -203,6 +205,7 @@ export default function ProjectWorkspace() {
                 hardwareData={hardwareData}
                 servicios={servicios}
                 cantosInventory={cantosInventory}
+                inventoryItems={materialesInventory}
               />
             )}
           </>

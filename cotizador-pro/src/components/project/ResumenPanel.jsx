@@ -9,6 +9,7 @@ export default function ResumenPanel({
   hardwareData = { items: [], total: 0 },
   servicios = [],
   cantosInventory = [],
+  inventoryItems = [],
   onExportPDF,
   onAddService,
   onUpdateManualQuantity
@@ -20,7 +21,7 @@ export default function ResumenPanel({
     );
   }, [hardwareData.items]);
 
-  // Usar la utilidad de consolidación (incluye cantos por material)
+  // Usar la utilidad de consolidación (incluye cantos por material + inventario para precios)
   const consolidado = useMemo(() => {
     if (!despieceData || !servicios) return { 
       porMaterial: [], 
@@ -28,8 +29,8 @@ export default function ResumenPanel({
       cantosPorMaterial: [],
       subtotal: 0 
     };
-    return calculateServicesTotal(despieceData, servicios, serviciosManuales);
-  }, [despieceData, servicios, serviciosManuales]);
+    return calculateServicesTotal(despieceData, servicios, serviciosManuales, inventoryItems);
+  }, [despieceData, servicios, serviciosManuales, inventoryItems]);
 
   // Totales generales
   const totalServicios = consolidado.subtotalServicios || 0;
@@ -188,6 +189,9 @@ export default function ResumenPanel({
           {consolidado.porMaterial.map((material, idx) => {
             const isExpanded = expandedMaterials[material.material_id] !== false;
             const cantosMat = consolidado.cantosPorMaterial?.find(c => c.material_id === material.material_id);
+            const cantidadLaminas = material.cantidadLaminas || (material.piezaCount > 0 ? Math.ceil(material.piezaCount / 4) : 0);
+            const valorLaminas = material.valorTotalLaminas || 0;
+            const precioUnitario = material.precioUnitarioLamina || 0;
             
             return (
               <div key={material.material_id || idx} className="glass-panel rounded-2xl border border-[#1a233a] overflow-hidden">
@@ -205,7 +209,8 @@ export default function ResumenPanel({
                         {material.material_nombre}
                       </h3>
                       <span className="text-[#6f7a97] text-xs">
-                        Piezas: {material.piezaCount} • Láminas: {(material.piezaCount > 0 ? Math.ceil(material.piezaCount / 4) : 0)}
+                        {cantidadLaminas} {cantidadLaminas === 1 ? 'lámina' : 'láminas'} • {material.piezaCount} piezas
+                        {precioUnitario > 0 && <span className="text-[#00d1ed] ml-2">@ {formatPrice(precioUnitario)}/u</span>}
                       </span>
                     </div>
                   </div>

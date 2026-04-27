@@ -77,15 +77,24 @@ function calcularCostoAutomatico(servicio, row) {
   return Math.round(costo);
 }
 
-function detectarServiciosPorMaterial(despieceData, servicios) {
+function detectarServiciosPorMaterial(despieceData, servicios, inventoryItems = []) {
   const resultadosPorMaterial = [];
+  const inventoryMap = new Map((inventoryItems || []).map(item => [item.id, item]));
+  
   despieceData.forEach((despiece, idx) => {
     const materialId = despiece.material_id;
     const materialNombre = despiece.material_nombre || `Lámina ${idx + 1}`;
     const filas = despiece?.filas || [];
     const serviciosDetectados = new Map();
-    let laminaTotal = 0;
+    let laminaTotalServicios = 0;
     let piezaCount = 0;
+    
+    // Buscar precio del material en inventario
+    const inventoryMaterial = inventoryMap.get(materialId);
+    const precioUnitarioLamina = Number(despiece.precio_unitario || despiece.costo_unitario || despiece.precio || inventoryMaterial?.precio || 0);
+    const cantidadLaminas = Number(despiece.cantidad || despiece.laminas || Math.ceil(filas.reduce((acc, r) => acc + (parseInt(r.cantidad || 0) || 0), 0) / 4) || 1);
+    const valorTotalLaminas = precioUnitarioLamina * cantidadLaminas;
+    
     filas.forEach((row) => {
       const cantidad = parseInt(row.cantidad || 0) || 0;
       if (cantidad <= 0) return;
@@ -107,16 +116,19 @@ function detectarServiciosPorMaterial(despieceData, servicios) {
         const current = serviciosDetectados.get(servicio.id);
         current.automatico.cantidad += cantidadDetectada * cantidad;
         current.automatico.subtotal += costo * cantidad;
-        laminaTotal += costo * cantidad;
+        laminaTotalServicios += costo * cantidad;
       });
     });
-    if (serviciosDetectados.size > 0 || piezaCount > 0) {
+    if (serviciosDetectados.size > 0 || piezaCount > 0 || valorTotalLaminas > 0) {
       resultadosPorMaterial.push({
         material_id: materialId,
         material_nombre: materialNombre,
         piezaCount,
+        cantidadLaminas,
+        precioUnitarioLamina,
+        valorTotalLaminas,
         servicios: [...serviciosDetectados.values()],
-        subtotalAutomatico: laminaTotal,
+        subtotalAutomatico: laminaTotalServicios,
       });
     }
   });
@@ -187,8 +199,8 @@ function extraerServiciosManuales(manualItems) {
     }));
 }
 
-export function mergeProjectServices(despieceData, servicios, manualItems) {
-  const porMaterial = detectarServiciosPorMaterial(despieceData, servicios);
+export function mergeProjectServices(despieceData, servicios, manualItems, inventoryItems = []) {
+  const porMaterial = detectarServiciosPorMaterial(despieceData, servicios, inventoryItems);
   const cantosPorMaterial = calcularCantosPorMaterial(despieceData);
   const manuales = extraerServiciosManuales(manualItems);
   const manualMap = new Map();
@@ -220,11 +232,13 @@ export function mergeProjectServices(despieceData, servicios, manualItems) {
       }
     });
     const subtotalManual = serviciosConsolidados.reduce((acc, s) => acc + s.manual.subtotal, 0);
+    // El subtotal del material incluye: valor láminas + servicios auto + servicios manuales
+    const subtotalMaterial = (mat.valorTotalLaminas || 0) + mat.subtotalAutomatico + subtotalManual;
     return {
       ...mat,
       servicios: serviciosConsolidados.sort((a, b) => a.nombre.localeCompare(b.nombre)),
       subtotalManual,
-      subtotal: mat.subtotalAutomatico + subtotalManual
+      subtotal: subtotalMaterial
     };
   });
   cantosPorMaterial.forEach(cantoMat => {
@@ -243,7 +257,7 @@ export function mergeProjectServices(despieceData, servicios, manualItems) {
   return resultado;
 }
 
-export function calculateServicesTotal(despieceData, servicios, manualItems) {
+export function calculateServicesTotal(despieceData, servicios, manualItems, inventoryItems = []) {
   const porMaterial = mergeProjectServices(despieceData, servicios, manualItems);
   const cantosPorMaterial = calcularCantosPorMaterial(despieceData);
   const subtotalAuto = porMaterial.reduce((acc, mat) => acc + mat.subtotalAutomatico, 0);
