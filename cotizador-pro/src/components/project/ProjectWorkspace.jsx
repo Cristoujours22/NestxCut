@@ -22,6 +22,7 @@ export default function ProjectWorkspace() {
   const [materialesInventory, setMaterialesInventory] = useState([]);
   const [despieceStats, setDespieceStats] = useState({ laminaCount: 0, piezaCount: 0 });
   const [openNestingHandler, setOpenNestingHandler] = useState(null);
+  const [companySettings, setCompanySettings] = useState(null);
 
   // Cargar info del proyecto desde la base de datos
   useEffect(() => {
@@ -54,6 +55,12 @@ export default function ProjectWorkspace() {
           const inv = await window.electronAPI.getInventoryItems() || [];
           setCantosInventory(inv.filter(item => item.item_type === 'canto'));
           setMaterialesInventory(inv.filter(item => item.item_type === 'tablero'));
+        }
+
+        // Cargar configuración de la empresa
+        if (window.electronAPI?.getCompanySettings) {
+          const settings = await window.electronAPI.getCompanySettings();
+          setCompanySettings(settings || {});
         }
       } catch (error) {
         console.error("Error fetching project:", error);
@@ -102,8 +109,11 @@ export default function ProjectWorkspace() {
         despieceData,
         serviciosData,
         hardwareData,
-        companyName: 'Mi Empresa',
-        companyNit: 'XXX.XXX.XXX-X',
+        companyName: companySettings?.company_name || 'Mi Empresa',
+        companyNit: companySettings?.nit || 'XXX.XXX.XXX-X',
+        companyAddress: companySettings?.address || '',
+        companyEmail: companySettings?.contact_email || '',
+        companyPhone: companySettings?.contact_phone || '',
         conditions: [
           'Validez de la oferta 3 días.',
           'Cotización sujeta a revisión de condiciones.',

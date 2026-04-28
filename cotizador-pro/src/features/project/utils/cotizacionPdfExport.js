@@ -24,6 +24,9 @@ export async function generateCotizacionPDF({
   hardwareData = { items: [], total: 0 }, // { herajes }
   companyName = 'Mi Empresa',
   companyNit = 'XXX.XXX.XXX-X',
+  companyAddress = '',
+  companyEmail = '',
+  companyPhone = '',
   conditions = []
 }) {
   const doc = new jsPDF({
@@ -41,20 +44,35 @@ export async function generateCotizacionPDF({
 
   // === HEADER ===
   doc.setFillColor(0, 209, 237); // Cyan header
-  doc.rect(0, 0, pageWidth, 25, 'F');
+  doc.rect(0, 0, pageWidth, 28, 'F');
   
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('COTIZACIÓN', leftMargin, 16);
+  doc.text('COTIZACIÓN', leftMargin, 10);
   
-  // Company info
+  // Company info - left side
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(companyName, leftMargin, 23);
-  doc.text(`NIT: ${companyNit}`, pageWidth - 60, 23);
+  doc.text(companyName, leftMargin, 18);
+  if (companyNit) {
+    doc.text(`NIT: ${companyNit}`, leftMargin, 24);
+  }
   
-  currentY = 32;
+  // Company info - right side  
+  doc.setFontSize(8);
+  doc.setTextColor(245, 245, 245);
+  if (companyAddress) {
+    doc.text(companyAddress, pageWidth - rightMargin + 3, 14, { maxWidth: 80 });
+  }
+  if (companyPhone) {
+    doc.text(`Tel: ${companyPhone}`, pageWidth - rightMargin + 3, 20);
+  }
+  if (companyEmail) {
+    doc.text(companyEmail, pageWidth - rightMargin + 3, 25);
+  }
+  
+  currentY = 35;
 
   // === PROJECT INFO ===
   doc.setFillColor(240, 240, 245);
