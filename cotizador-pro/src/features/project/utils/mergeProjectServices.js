@@ -268,6 +268,7 @@ export function calculateServicesTotal(despieceData, servicios, manualItems, inv
   const cantosPorMaterial = calcularCantosPorMaterial(despieceData);
   const subtotalAuto = porMaterial.reduce((acc, mat) => acc + mat.subtotalAutomatico, 0);
   const subtotalManual = porMaterial.reduce((acc, mat) => acc + mat.subtotalManual, 0);
+  const subtotalLaminas = porMaterial.reduce((acc, mat) => acc + (mat.valorTotalLaminas || 0), 0);
   const cantosCosto = cantosPorMaterial.reduce((acc, mat) => acc + mat.costoTotal, 0);
   const serviciosUnicos = new Map();
   porMaterial.forEach(mat => {
@@ -293,11 +294,12 @@ export function calculateServicesTotal(despieceData, servicios, manualItems, inv
     porMaterial,
     cantosPorMaterial,
     servicios: [...serviciosUnicos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    subtotalLaminas,
     subtotalAutomatico: subtotalAuto,
     subtotalManual,
     subtotalServicios: subtotalAuto + subtotalManual,
     subtotalCantos: cantosCosto,
-    subtotal: subtotalAuto + subtotalManual + cantosCosto
+    subtotal: subtotalLaminas + subtotalAuto + subtotalManual + cantosCosto
   };
 }
 

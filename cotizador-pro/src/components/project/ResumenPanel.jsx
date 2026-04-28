@@ -33,9 +33,10 @@ export default function ResumenPanel({
   }, [despieceData, servicios, serviciosManuales, inventoryItems]);
 
   // Totales generales
+  const totalLaminas = consolidado.subtotalLaminas || 0;
   const totalServicios = consolidado.subtotalServicios || 0;
   const totalCantos = consolidado.subtotalCantos || 0;
-  const totalDespiece = totalServicios + totalCantos;
+  const totalDespiece = totalLaminas + totalServicios + totalCantos;
   const totalHardware = hardwareData.total || 0;
   const totalGeneral = totalDespiece + totalHardware;
 
