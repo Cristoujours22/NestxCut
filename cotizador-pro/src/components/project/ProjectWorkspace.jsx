@@ -4,6 +4,8 @@ import Despiece from '../despiece/Despiece';
 import { DespieceStatsBar } from '../despiece/DespieceSummaryPanel';
 import HerajesPanel from './HerajesPanel';
 import ResumenPanel from './ResumenPanel';
+import { generateCotizacionPDF } from '../../features/project/utils/cotizacionPdfExport';
+import { calculateServicesTotal } from '../../features/project/utils/mergeProjectServices';
 
 export default function ProjectWorkspace() {
   const { id } = useParams();
@@ -76,7 +78,46 @@ export default function ProjectWorkspace() {
     } finally {
       setIsSaving(false);
     }
-  }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      // Get servicios consolidados
+      const serviciosManuales = (hardwareData.items || []).filter(item => item.servicio_id || item.origen === 'manual');
+      const serviciosData = calculateServicesTotal(despieceData, servicios, serviciosManuales, materialesInventory);
+
+      const validity = new Date();
+      validity.setDate(validity.getDate() + 3);
+      const validez = validity.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      const doc = await generateCotizacionPDF({
+        projectName: project?.name || 'Proyecto',
+        clientName: project?.client_name || '',
+        clientDoc: project?.client_doc || '',
+        clientPhone: project?.client_phone || '',
+        clientEmail: project?.client_email || '',
+        advisorName: project?.advisor_name || '',
+        advisorPhone: project?.advisor_phone || '',
+        validez,
+        despieceData,
+        serviciosData,
+        hardwareData,
+        companyName: 'Mi Empresa',
+        companyNit: 'XXX.XXX.XXX-X',
+        conditions: [
+          'Validez de la oferta 3 días.',
+          'Cotización sujeta a revisión de condiciones.',
+          'Precios incluyen IVA.',
+          'Antes de comprar verifique existencias.'
+        ]
+      });
+
+      doc.save(`${project?.name || 'cotizacion'}_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch(err) {
+      console.error("Error exportando PDF:", err);
+      alert("Error al exportar PDF: " + err.message);
+    }
+  };
 
   const projectName = project?.title || `Proyecto #${id}`;
   const clientName = project?.client || 'Cliente No Asignado';
@@ -206,6 +247,7 @@ export default function ProjectWorkspace() {
                 servicios={servicios}
                 cantosInventory={cantosInventory}
                 inventoryItems={materialesInventory}
+                onExportPDF={handleExportPDF}
               />
             )}
           </>
