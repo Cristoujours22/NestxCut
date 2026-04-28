@@ -385,11 +385,13 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_name TEXT,
       logo_path TEXT,
+      logo_data TEXT,
       currency TEXT DEFAULT 'USD',
       tax_rate REAL DEFAULT 0,
       contact_email TEXT,
       contact_phone TEXT,
       address TEXT,
+      nit TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, [], (err) => { if (err) console.error('Error creating company_settings table:', err.message); });
 
@@ -625,17 +627,19 @@ ipcMain.handle('save-company-settings', async (event, settings) => {
     if (!db) return reject(new Error('Database not connected.'));
     const sql = `
       INSERT OR REPLACE INTO company_settings
-      (company_name, logo_path, currency, tax_rate, contact_email, contact_phone, address, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      (company_name, logo_path, logo_data, currency, tax_rate, contact_email, contact_phone, address, nit, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
     db.run(sql, [
       settings.company_name || '',
       settings.logo_path || '',
+      settings.logo_data || '',
       settings.currency || 'USD',
       settings.tax_rate || 0,
       settings.contact_email || '',
       settings.contact_phone || '',
-      settings.address || ''
+      settings.address || '',
+      settings.nit || ''
     ], function (err) {
       if (err) reject(new Error('Failed to save settings.'));
       else resolve({ success: true, id: this.lastID });

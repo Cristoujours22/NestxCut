@@ -111,6 +111,7 @@ export default function ProjectWorkspace() {
         hardwareData,
         companyName: companySettings?.company_name || 'Mi Empresa',
         companyNit: companySettings?.nit || 'XXX.XXX.XXX-X',
+        companyLogo: companySettings?.logo_data || '',
         companyAddress: companySettings?.address || '',
         companyEmail: companySettings?.contact_email || '',
         companyPhone: companySettings?.contact_phone || '',

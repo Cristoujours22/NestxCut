@@ -11,8 +11,8 @@ export default function Settings() {
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState({
-    company_name: '', logo_path: '', currency: 'USD',
-    tax_rate: 0, contact_email: '', contact_phone: '', address: ''
+    company_name: '', logo_data: '', logo_path: '', currency: 'USD',
+    tax_rate: 0, contact_email: '', contact_phone: '', address: '', nit: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -167,7 +167,73 @@ export default function Settings() {
                     <input type="text" value={company.company_name} onChange={(e) => set('company_name', e.target.value)} className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] font-medium focus:outline-none focus:border-[#99f7ff] transition-all placeholder:text-[#40485d]" placeholder="Mi Carpintería" />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-5 relative z-10">
+                  <div className="relative z-10">
+                    <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-[#99f7ff]">image</span>
+                      Logo de la Empresa
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 h-24 rounded-xl border-2 border-dashed border-[#40485d]/50 bg-[#060e20] overflow-hidden flex items-center justify-center">
+                        {company.logo_data ? (
+                          <img src={company.logo_data} alt="Logo" className="w-full h-full object-contain" />
+                        ) : (
+                          <span className="material-symbols-outlined text-[#40485d] text-3xl">image</span>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                // Resize if too large
+                                const img = new Image();
+                                img.onload = () => {
+                                  const canvas = document.createElement('canvas');
+                                  const maxSize = 200;
+                                  let w = img.width;
+                                  let h = img.height;
+                                  if (w > h) {
+                                    if (w > maxSize) { h = (h * maxSize) / w; w = maxSize; }
+                                  } else {
+                                    if (h > maxSize) { w = (w * maxSize) / h; h = maxSize; }
+                                  }
+                                  canvas.width = w;
+                                  canvas.height = h;
+                                  const ctx = canvas.getContext('2d');
+                                  ctx.drawImage(img, 0, 0, w, h);
+                                  set('logo_data', canvas.toDataURL('image/png'));
+                                };
+                                img.src = reader.result;
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden" 
+                          id="logo-upload"
+                        />
+                        <label htmlFor="logo-upload" className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a233a] border border-[#40485d]/30 rounded-lg text-[#a3aac4] text-sm font-medium cursor-pointer hover:border-[#99f7ff]/50 hover:text-[#99f7ff] transition-all">
+                          <span className="material-symbols-outlined text-[18px]">upload</span>
+                          Elegir imagen
+                        </label>
+                        {company.logo_data && (
+                          <button 
+                            onClick={() => set('logo_data', '')}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">delete</span>
+                            Eliminar
+                          </button>
+                        )}
+                        <p className="text-[#6f7a97] text-xs">PNG, JPG. Máximo 200x200px</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-5 relative z-10">
                     <div>
                       <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2 flex items-center gap-2">
                         <span className="material-symbols-outlined text-[16px] text-[#99f7ff]">payments</span>
@@ -193,6 +259,13 @@ export default function Settings() {
                         <input type="number" step="0.1" value={company.tax_rate} onChange={(e) => set('tax_rate', parseFloat(e.target.value) || 0)} className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg pl-4 pr-8 py-2.5 text-[#dee5ff] font-medium focus:outline-none focus:border-[#99f7ff] transition-all placeholder:text-[#40485d]" placeholder="0" />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#a3aac4] font-bold">%</span>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[16px] text-[#99f7ff]">badge</span>
+                        NIT
+                      </label>
+                      <input type="text" value={company.nit || ''} onChange={(e) => set('nit', e.target.value)} className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] font-medium focus:outline-none focus:border-[#99f7ff] transition-all placeholder:text-[#40485d]" placeholder="XXX.XXX.XXX-X" />
                     </div>
                   </div>
 

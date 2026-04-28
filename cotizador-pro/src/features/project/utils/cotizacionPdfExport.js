@@ -24,6 +24,7 @@ export async function generateCotizacionPDF({
   hardwareData = { items: [], total: 0 }, // { herajes }
   companyName = 'Mi Empresa',
   companyNit = 'XXX.XXX.XXX-X',
+  companyLogo = '',
   companyAddress = '',
   companyEmail = '',
   companyPhone = '',
@@ -46,17 +47,33 @@ export async function generateCotizacionPDF({
   doc.setFillColor(0, 209, 237); // Cyan header
   doc.rect(0, 0, pageWidth, 28, 'F');
   
+  // Logo - left side
+  if (companyLogo) {
+    try {
+      doc.addImage(companyLogo, 'PNG', leftMargin, 4, 20, 20);
+    } catch(e) {
+      // If logo fails, use text
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('COTIZACIÓN', leftMargin, 10);
+    }
+  }
+  
+  const logoEndX = companyLogo ? leftMargin + 25 : leftMargin;
+  
+  // Title
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('COTIZACIÓN', leftMargin, 10);
+  doc.text('COTIZACIÓN', logoEndX, 10);
   
   // Company info - left side
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(companyName, leftMargin, 18);
+  doc.text(companyName, logoEndX, 18);
   if (companyNit) {
-    doc.text(`NIT: ${companyNit}`, leftMargin, 24);
+    doc.text(`NIT: ${companyNit}`, logoEndX, 24);
   }
   
   // Company info - right side  
