@@ -48,6 +48,14 @@ export default function Settings() {
     setSaving(true);
     setMsg(null);
     try {
+      // If there's a preview URL (new logo), save it to file first
+      if (previewUrl && previewUrl.startsWith('data:')) {
+        try {
+          await API.saveCompanyLogo(previewUrl);
+        } catch(err) {
+          console.error('Error saving logo:', err);
+        }
+      }
       const r = await API?.saveCompanySettings(company);
       if (r?.success) setMsg({ ok: true, text: 'Guardado correctamente' });
       else setMsg({ ok: false, text: 'Error al guardar' });
@@ -198,19 +206,40 @@ export default function Settings() {
                           accept="image/*"
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file && file.size <= 500000) { // Max 500KB
+                            // Allow up to 2MB, auto-resize if larger
+                            if (file && file.size <= 2000000) {
                               try {
-                                // Save file and get preview URL
-                                const dataUrl = await API.saveCompanyLogo(file);
-                                if (dataUrl) {
-                                  setPreviewUrl(dataUrl);
-                                  set('logo_path', file.name);
-                                }
+                                // Resize to max 200x200 automatically
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  const img = new Image();
+                                  img.onload = () => {
+                                    const canvas = document.createElement('canvas');
+                                    const maxSize = 200;
+                                    let w = img.width;
+                                    let h = img.height;
+                                    // Maintain aspect ratio
+                                    if (w > h) {
+                                      if (w > maxSize) { h = (h * maxSize) / w; w = maxSize; }
+                                    } else {
+                                      if (h > maxSize) { w = (w * maxSize) / h; h = maxSize; }
+                                    }
+                                    canvas.width = w;
+                                    canvas.height = h;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0, w, h);
+                                    const dataUrl = canvas.toDataURL('image/png', 0.8);
+                                    setPreviewUrl(dataUrl);
+                                    set('logo_path', file.name);
+                                  };
+                                  img.src = reader.result;
+                                };
+                                reader.readAsDataURL(file);
                               } catch(err) {
-                                console.error('Error saving logo:', err);
+                                console.error('Error processing logo:', err);
                               }
                             } else {
-                              alert('Imagen muy grande. Máximo 500KB');
+                              alert('Imagen muy grande. Máximo 2MB');
                             }
                           }}
                           className="hidden" 
@@ -229,7 +258,7 @@ export default function Settings() {
                             Eliminar
                           </button>
                         )}
-                        <p className="text-[#6f7a97] text-xs">PNG, JPG. Máximo 500KB</p>
+                        <p className="text-[#6f7a97] text-xs">PNG, JPG. Se redimensiona automáticamente a 200px</p>
                       </div>
                     </div>
                   </div>
