@@ -70,8 +70,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLicenseStatus: (userId) => ipcRenderer.invoke('get-license-status', userId),
   activateLicense: (userId, licenseKey) => ipcRenderer.invoke('activate-license', userId, licenseKey),
   applyPromoCode: (code, planId) => ipcRenderer.invoke('apply-promo-code', code, planId),
-  getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
+getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
   saveCompanySettings: (settings) => ipcRenderer.invoke('save-company-settings', settings),
+  saveCompanyLogo: (fileData) => ipcRenderer.invoke('save-company-logo', fileData),
+  getFileData: (filename) => ipcRenderer.invoke('get-file-data', filename),
   generateLicenseKey: () => ipcRenderer.invoke('generate-license-key'),
 
   // Services API

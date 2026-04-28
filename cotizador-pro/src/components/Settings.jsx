@@ -11,9 +11,10 @@ export default function Settings() {
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState({
-    company_name: '', logo_data: '', logo_path: '', currency: 'USD',
+    company_name: '', logo_path: '', currency: 'USD',
     tax_rate: 0, contact_email: '', contact_phone: '', address: '', nit: ''
   });
+  const [previewUrl, setPreviewUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -25,7 +26,16 @@ export default function Settings() {
     try {
       if (API?.getCompanySettings) {
         const s = await API.getCompanySettings();
-        if (s) setCompany(s);
+        if (s) {
+          setCompany(s);
+          // Load preview from logo_path if exists
+          if (s.logo_path) {
+            try {
+              const data = await API.getFileData(s.logo_path);
+              if (data) setPreviewUrl(data);
+            } catch(e) { console.log('No preview:', e); }
+          }
+        }
       }
     } catch (e) {
       console.error(e);
@@ -174,8 +184,10 @@ export default function Settings() {
                     </label>
                     <div className="flex items-center gap-4">
                       <div className="w-24 h-24 rounded-xl border-2 border-dashed border-[#40485d]/50 bg-[#060e20] overflow-hidden flex items-center justify-center">
-                        {company.logo_data ? (
-                          <img src={company.logo_data} alt="Logo" className="w-full h-full object-contain" />
+                        {previewUrl ? (
+                          <img src={previewUrl} alt="Logo" className="w-full h-full object-contain" />
+                        ) : company.logo_path ? (
+                          <span className="material-symbols-outlined text-[#40485d] text-3xl">check_circle</span>
                         ) : (
                           <span className="material-symbols-outlined text-[#40485d] text-3xl">image</span>
                         )}
@@ -186,30 +198,19 @@ export default function Settings() {
                           accept="image/*"
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = () => {
-                                // Resize if too large
-                                const img = new Image();
-                                img.onload = () => {
-                                  const canvas = document.createElement('canvas');
-                                  const maxSize = 200;
-                                  let w = img.width;
-                                  let h = img.height;
-                                  if (w > h) {
-                                    if (w > maxSize) { h = (h * maxSize) / w; w = maxSize; }
-                                  } else {
-                                    if (h > maxSize) { w = (w * maxSize) / h; h = maxSize; }
-                                  }
-                                  canvas.width = w;
-                                  canvas.height = h;
-                                  const ctx = canvas.getContext('2d');
-                                  ctx.drawImage(img, 0, 0, w, h);
-                                  set('logo_data', canvas.toDataURL('image/png'));
-                                };
-                                img.src = reader.result;
-                              };
-                              reader.readAsDataURL(file);
+                            if (file && file.size <= 500000) { // Max 500KB
+                              try {
+                                // Save file and get preview URL
+                                const dataUrl = await API.saveCompanyLogo(file);
+                                if (dataUrl) {
+                                  setPreviewUrl(dataUrl);
+                                  set('logo_path', file.name);
+                                }
+                              } catch(err) {
+                                console.error('Error saving logo:', err);
+                              }
+                            } else {
+                              alert('Imagen muy grande. Máximo 500KB');
                             }
                           }}
                           className="hidden" 
@@ -219,16 +220,16 @@ export default function Settings() {
                           <span className="material-symbols-outlined text-[18px]">upload</span>
                           Elegir imagen
                         </label>
-                        {company.logo_data && (
+                        {(previewUrl || company.logo_path) && (
                           <button 
-                            onClick={() => set('logo_data', '')}
+                            onClick={() => { setPreviewUrl(null); set('logo_path', ''); }}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all"
                           >
                             <span className="material-symbols-outlined text-[14px]">delete</span>
                             Eliminar
                           </button>
                         )}
-                        <p className="text-[#6f7a97] text-xs">PNG, JPG. Máximo 200x200px</p>
+                        <p className="text-[#6f7a97] text-xs">PNG, JPG. Máximo 500KB</p>
                       </div>
                     </div>
                   </div>

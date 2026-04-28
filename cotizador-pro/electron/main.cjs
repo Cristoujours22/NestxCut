@@ -385,7 +385,6 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_name TEXT,
       logo_path TEXT,
-      logo_data TEXT,
       currency TEXT DEFAULT 'USD',
       tax_rate REAL DEFAULT 0,
       contact_email TEXT,
@@ -627,13 +626,12 @@ ipcMain.handle('save-company-settings', async (event, settings) => {
     if (!db) return reject(new Error('Database not connected.'));
     const sql = `
       INSERT OR REPLACE INTO company_settings
-      (company_name, logo_path, logo_data, currency, tax_rate, contact_email, contact_phone, address, nit, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      (company_name, logo_path, currency, tax_rate, contact_email, contact_phone, address, nit, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
     db.run(sql, [
       settings.company_name || '',
       settings.logo_path || '',
-      settings.logo_data || '',
       settings.currency || 'USD',
       settings.tax_rate || 0,
       settings.contact_email || '',
@@ -644,6 +642,61 @@ ipcMain.handle('save-company-settings', async (event, settings) => {
       if (err) reject(new Error('Failed to save settings.'));
       else resolve({ success: true, id: this.lastID });
     });
+  });
+});
+
+// Save company logo to file
+ipcMain.handle('save-company-logo', async (event, fileData) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      
+      // Create logos directory if not exists
+      const logosDir = path.join(app.getPath('userData'), 'logos');
+      if (!fs.existsSync(logosDir)) {
+        fs.mkdirSync(logosDir, { recursive: true });
+      }
+      
+      // Generate filename
+      const filename = `logo_${Date.now()}.png`;
+      const filePath = path.join(logosDir, filename);
+      
+      // Convert base64 to buffer and save
+      const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(filePath, buffer);
+      
+      // Return data URL for preview
+      resolve(fileData);
+    } catch (err) {
+      reject(new Error('Failed to save logo: ' + err.message));
+    }
+  });
+});
+
+// Get company logo data
+ipcMain.handle('get-file-data', async (event, filename) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      
+      const logosDir = path.join(app.getPath('userData'), 'logos');
+      const filePath = path.join(logosDir, filename);
+      
+      if (fs.existsSync(filePath)) {
+        const buffer = fs.readFileSync(filePath);
+        const base64 = buffer.toString('base64');
+        resolve(`data:image/png;base64,${base64}`);
+      } else {
+        resolve(null);
+      }
+    } catch (err) {
+      resolve(null);
+    }
+  });
+});
   });
 });
 
