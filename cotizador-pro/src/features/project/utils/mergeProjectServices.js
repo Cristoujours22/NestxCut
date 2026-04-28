@@ -264,7 +264,7 @@ export function mergeProjectServices(despieceData, servicios, manualItems, inven
 }
 
 export function calculateServicesTotal(despieceData, servicios, manualItems, inventoryItems = []) {
-  const porMaterial = mergeProjectServices(despieceData, servicios, manualItems);
+  const porMaterial = mergeProjectServices(despieceData, servicios, manualItems, inventoryItems);
   const cantosPorMaterial = calcularCantosPorMaterial(despieceData);
   const subtotalAuto = porMaterial.reduce((acc, mat) => acc + mat.subtotalAutomatico, 0);
   const subtotalManual = porMaterial.reduce((acc, mat) => acc + mat.subtotalManual, 0);
