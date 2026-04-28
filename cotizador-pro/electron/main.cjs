@@ -667,8 +667,8 @@ ipcMain.handle('save-company-logo', async (event, fileData) => {
       const buffer = Buffer.from(base64Data, 'base64');
       fs.writeFileSync(filePath, buffer);
       
-      // Return data URL for preview
-      resolve(fileData);
+      // Return filename and data URL
+      resolve({ filename, dataUrl: fileData });
     } catch (err) {
       reject(new Error('Failed to save logo: ' + err.message));
     }

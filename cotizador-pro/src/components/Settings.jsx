@@ -49,14 +49,20 @@ export default function Settings() {
     setMsg(null);
     try {
       // If there's a preview URL (new logo), save it to file first
+      let logoFilename = company.logo_path;
       if (previewUrl && previewUrl.startsWith('data:')) {
         try {
-          await API.saveCompanyLogo(previewUrl);
+          // Save returns the filename that was created
+          const result = await API.saveCompanyLogo(previewUrl);
+          if (result?.filename) {
+            logoFilename = result.filename;
+          }
         } catch(err) {
           console.error('Error saving logo:', err);
         }
       }
-      const r = await API?.saveCompanySettings(company);
+      // Save settings with correct logo filename
+      const r = await API?.saveCompanySettings({ ...company, logo_path: logoFilename });
       if (r?.success) setMsg({ ok: true, text: 'Guardado correctamente' });
       else setMsg({ ok: false, text: 'Error al guardar' });
     } catch (e) {
