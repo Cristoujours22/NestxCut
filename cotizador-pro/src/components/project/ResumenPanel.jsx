@@ -193,6 +193,8 @@ export default function ResumenPanel({
             const valorLaminas = material.valorTotalLaminas || 0;
             const precioUnitario = material.precioUnitarioLamina || 0;
             
+            console.log('DEBUG ResumenPanel - Material:', material.material_nombre, 'cantidadLaminas:', cantidadLaminas, 'precioUnitario:', precioUnitario, 'valorLaminas:', valorLaminas);
+            
             return (
               <div key={material.material_id || idx} className="glass-panel rounded-2xl border border-[#1a233a] overflow-hidden">
                 {/* Header del material - CLICKABLE */}
@@ -222,6 +224,27 @@ export default function ResumenPanel({
                 {/* Contenido expandible */}
                 {isExpanded && (
                   <div className="border-t border-[#1a233a]">
+                    {/* Sección de Láminas (Materiales) */}
+                    {valorLaminas > 0 && (
+                      <div className="p-5 bg-[#0d1320]/50">
+                        <h4 className="text-[#a3aac4] text-xs uppercase font-bold mb-3 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                          Láminas / Tableros
+                        </h4>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <span className="text-[#dee5ff] font-medium">
+                              {cantidadLaminas} {cantidadLaminas === 1 ? 'lámina' : 'láminas'} de {material.material_nombre}
+                            </span>
+                            {precioUnitario > 0 && (
+                              <span className="text-[#6f7a97] text-sm ml-2">@ {formatPrice(precioUnitario)}/u</span>
+                            )}
+                          </div>
+                          <span className="text-[#00d1ed] font-bold">{formatPrice(valorLaminas)}</span>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Servicios de este material */}
                     {material.servicios.length > 0 && (
                       <div className="p-5">

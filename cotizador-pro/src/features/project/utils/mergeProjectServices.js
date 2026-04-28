@@ -89,9 +89,15 @@ function detectarServiciosPorMaterial(despieceData, servicios, inventoryItems = 
     let laminaTotalServicios = 0;
     let piezaCount = 0;
     
-    // Buscar precio del material en inventario
+    // Buscar precio del material en inventario (campo: costo_unitario)
     const inventoryMaterial = inventoryMap.get(materialId);
-    const precioUnitarioLamina = Number(despiece.precio_unitario || despiece.costo_unitario || despiece.precio || inventoryMaterial?.precio || 0);
+    const precioUnitarioLamina = Number(
+      despiece.costo_unitario || 
+      despiece.precio_unitario || 
+      inventoryMaterial?.costo_unitario || 
+      inventoryMaterial?.precio || 
+      0
+    );
     const cantidadLaminas = Number(despiece.cantidad || despiece.laminas || Math.ceil(filas.reduce((acc, r) => acc + (parseInt(r.cantidad || 0) || 0), 0) / 4) || 1);
     const valorTotalLaminas = precioUnitarioLamina * cantidadLaminas;
     
