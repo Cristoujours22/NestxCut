@@ -83,15 +83,15 @@ export async function generateCotizacionPDF({
   doc.setTextColor(230, 245, 255);
   let rightY = 8;
   if (companyPhone) {
-    doc.text(`📞 ${companyPhone}`, pageWidth - 55, rightY);
+    doc.text(`Tel: ${companyPhone}`, pageWidth - 50, rightY);
     rightY += 5;
   }
   if (companyEmail) {
-    doc.text(`✉️ ${companyEmail}`, pageWidth - 55, rightY);
+    doc.text(`Email: ${companyEmail}`, pageWidth - 50, rightY);
     rightY += 5;
   }
   if (companyAddress) {
-    doc.text(`📍 ${companyAddress.substring(0, 35)}`, pageWidth - 55, rightY);
+    doc.text(`Dir: ${companyAddress.substring(0, 30)}`, pageWidth - 50, rightY);
   }
 
   currentY = 32;

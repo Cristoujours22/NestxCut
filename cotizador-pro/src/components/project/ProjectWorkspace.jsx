@@ -59,8 +59,15 @@ export default function ProjectWorkspace() {
 
         // Cargar configuración de la empresa
         if (window.electronAPI?.getCompanySettings) {
-          const settings = await window.electronAPI.getCompanySettings();
-          setCompanySettings(settings || {});
+          let settings = await window.electronAPI.getCompanySettings() || {};
+          // Load logo data if logo_path exists
+          if (settings.logo_path && window.electronAPI.getFileData) {
+            try {
+              const logoData = await window.electronAPI.getFileData(settings.logo_path);
+              if (logoData) settings.logo_data = logoData;
+            } catch(e) { console.log('No logo loaded'); }
+          }
+          setCompanySettings(settings);
         }
       } catch (error) {
         console.error("Error fetching project:", error);
