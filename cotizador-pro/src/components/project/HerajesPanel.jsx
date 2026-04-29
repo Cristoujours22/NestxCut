@@ -17,8 +17,7 @@ function normalizeServicio(servicio) {
   return {
     ...servicio,
     atributos: attrs,
-    modo_origen: servicio?.modo_origen || 'despiece',
-    precio_base: Number(attrs[0]?.precio || servicio?.precio || 0),
+    precio_base: Number(servicio?.precio || attrs[0]?.precio || 0),
   };
 }
 
@@ -81,10 +80,9 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
 
   // Filtrar servicios para búsqueda
   const filteredServicios = useMemo(() => {
-    const elegibles = servicios.filter((s) => s.modo_origen === 'manual' || s.modo_origen === 'mixto');
-    if (!searchServicio) return elegibles;
+    if (!searchServicio) return servicios;
     const q = searchServicio.toLowerCase();
-    return elegibles.filter(s => 
+    return servicios.filter(s => 
       (s.nombre || '').toLowerCase().includes(q)
     );
   }, [servicios, searchServicio]);
@@ -124,7 +122,6 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
         id: `srv_${Date.now()}`,
         servicio_id: servicio.id,
         nombre: servicio.nombre,
-        modo_origen: servicio.modo_origen,
         origen: 'manual',
         cantidad: 1,
         precio: Number(servicio.precio_base || 0),
@@ -189,7 +186,7 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
       </div>
 
       <div className="bg-[#0f1930]/60 border border-[#1a233a] rounded-xl px-4 py-3 text-sm text-[#a3aac4]">
-        Los <span className="text-cyan-300 font-semibold">servicios automáticos</span> se calculan desde el despiece. Acá solo agregás servicios <span className="text-amber-300 font-semibold">manuales</span> o <span className="text-violet-300 font-semibold">mixtos</span>.
+        Los <span className="text-cyan-300 font-semibold">servicios detectados</span> salen del despiece. Acá también podés agregar servicios <span className="text-amber-300 font-semibold">manuales</span> por lámina cuando haga falta.
       </div>
 
       {/* Modal: Agregar Herraje del Inventario */}
@@ -255,7 +252,7 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
             
             <div className="p-4">
               <p className="text-xs text-[#a3aac4] mb-3">
-                Se muestran solo servicios manuales o mixtos. Los automáticos salen del despiece.
+                Podés agregar manualmente cualquier servicio del catálogo a esta lámina.
               </p>
               <input
                 type="text"
@@ -283,13 +280,6 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-[#dee5ff] font-medium">{servicio.nombre}</div>
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full ${
-                          servicio.modo_origen === 'manual'
-                            ? 'bg-amber-500/15 text-amber-300'
-                            : 'bg-violet-500/15 text-violet-300'
-                        }`}>
-                          {servicio.modo_origen}
-                        </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-[#a3aac4]">{servicio.descripcion || '—'}</span>

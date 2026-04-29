@@ -7,22 +7,42 @@ import ResumenPanel from './ResumenPanel';
 import { generateCotizacionPDF } from '../../features/project/utils/cotizacionPdfExport';
 import { calculateServicesTotal } from '../../features/project/utils/mergeProjectServices';
 
+function normalizeServicio(servicio) {
+  let atributos = servicio?.atributos || [];
+  if (typeof atributos === 'string') {
+    try {
+      atributos = JSON.parse(atributos);
+    } catch {
+      atributos = [];
+    }
+  }
+
+  const attrs = Array.isArray(atributos) ? atributos : [];
+  return {
+    ...servicio,
+    atributos: attrs,
+    precio: Number(servicio?.precio || attrs?.[0]?.precio || 0)
+  };
+}
+
 export default function ProjectWorkspace() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('despiece');
   const [project, setProject] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [despieceData, setDespieceData] = useState([]);
-  const [hardwareData, setHardwareData] = useState({ items: [], total: 0 });
+  const [despieceData, setDespieceData] = useState({ items: [] });
+  const [hardwareData, setHardwareData] = useState({ items: [] });
   const [servicios, setServicios] = useState([]);
   const [cantosInventory, setCantosInventory] = useState([]);
   const [materialesInventory, setMaterialesInventory] = useState([]);
+  const [companySettings, setCompanySettings] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState(null);
   const [despieceStats, setDespieceStats] = useState({ laminaCount: 0, piezaCount: 0 });
   const [openNestingHandler, setOpenNestingHandler] = useState(null);
-  const [companySettings, setCompanySettings] = useState(null);
+  const [servicePicker, setServicePicker] = useState({ open: false, materialId: null, query: '' });
 
   // Cargar info del proyecto desde la base de datos
   useEffect(() => {
@@ -47,7 +67,7 @@ export default function ProjectWorkspace() {
         // Cargar servicios para el resumen
         if (window.electronAPI?.getServicios) {
           const srv = await window.electronAPI.getServicios();
-          setServicios(srv || []);
+          setServicios((srv || []).map(normalizeServicio));
         }
         
         // Cargar cantos del inventario para el resumen
@@ -60,13 +80,7 @@ export default function ProjectWorkspace() {
         // Cargar configuración de la empresa
         if (window.electronAPI?.getCompanySettings) {
           let settings = await window.electronAPI.getCompanySettings() || {};
-          // Load logo data if logo_path exists
-          if (settings.logo_path && window.electronAPI.getFileData) {
-            try {
-              const logoData = await window.electronAPI.getFileData(settings.logo_path);
-              if (logoData) settings.logo_data = logoData;
-            } catch(e) { console.log('No logo loaded'); }
-          }
+          // Logo se guarda directamente como logo_data en la DB
           setCompanySettings(settings);
         }
       } catch (error) {
@@ -87,26 +101,117 @@ export default function ProjectWorkspace() {
         despiece_data: JSON.stringify(despieceData),
         hardware_data: JSON.stringify(hardwareData)
       });
+      // Show toast
+      setToast({ type: 'success', message: 'Cambios guardados correctamente' });
+      setTimeout(() => setToast(null), 3000);
     } catch(err) {
       console.error("Error guardando proyecto", err);
+      setToast({ type: 'error', message: 'Error al guardar' });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const recalculateHardwareTotal = (items = []) => {
+    return items.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
+  };
+
+  const addManualServiceToMaterial = (servicio, materialId) => {
+    if (!servicio) return;
+
+    setHardwareData((prev) => {
+      const currentItems = prev?.items || [];
+      const existing = currentItems.find((item) => item.origen === 'manual' && item.servicio_id === servicio.id && item.material_id === materialId);
+
+      let nextItems;
+      if (existing) {
+        nextItems = currentItems.map((item) => item === existing
+          ? {
+              ...item,
+              cantidad: Number(item.cantidad || 0) + 1,
+              subtotal: (Number(item.cantidad || 0) + 1) * Number(item.precio || 0)
+            }
+          : item
+        );
+      } else {
+        const precio = Number(servicio.precio || 0);
+        nextItems = [
+          ...currentItems,
+          {
+            id: `srv_${materialId}_${Date.now()}`,
+            material_id: materialId,
+            servicio_id: servicio.id,
+            nombre: servicio.nombre,
+            origen: 'manual',
+            cantidad: 1,
+            precio,
+            subtotal: precio
+          }
+        ];
+      }
+
+      return { ...prev, items: nextItems, total: recalculateHardwareTotal(nextItems) };
+    });
+
+    setToast({ type: 'success', message: `${servicio.nombre} agregado` });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleAddService = (materialId) => {
+    if (!servicios.length) {
+      setToast({ type: 'error', message: 'No hay servicios configurados' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    setServicePicker({ open: true, materialId, query: '' });
+  };
+
+  const closeServicePicker = () => {
+    setServicePicker({ open: false, materialId: null, query: '' });
+  };
+
+  const filteredServices = servicios.filter((s) =>
+    (s.nombre || '').toLowerCase().includes((servicePicker.query || '').toLowerCase())
+  );
+
+  const handleUpdateManualQuantity = (servicioId, materialId, nuevaCantidad) => {
+    setHardwareData((prev) => {
+      const currentItems = prev?.items || [];
+      const filteredItems = currentItems.filter(
+        (item) => !(item.origen === 'manual' && item.servicio_id === servicioId && item.material_id === materialId && Number(nuevaCantidad) <= 0)
+      );
+
+      const nextItems = Number(nuevaCantidad) <= 0
+        ? filteredItems
+        : filteredItems.map((item) => (
+            item.origen === 'manual' && item.servicio_id === servicioId && item.material_id === materialId
+              ? {
+                  ...item,
+                  cantidad: Number(nuevaCantidad),
+                  subtotal: Number(nuevaCantidad) * Number(item.precio || 0)
+                }
+              : item
+          ));
+
+      return { ...prev, items: nextItems, total: recalculateHardwareTotal(nextItems) };
+    });
   };
 
   const handleExportPDF = async () => {
     try {
       // Get servicios consolidados
       const serviciosManuales = (hardwareData.items || []).filter(item => item.servicio_id || item.origen === 'manual');
-      const serviciosData = calculateServicesTotal(despieceData, servicios, serviciosManuales, materialesInventory);
+      const serviciosData = calculateServicesTotal(despieceData, servicios, serviciosManuales, materialesInventory, cantosInventory);
 
       const validity = new Date();
       validity.setDate(validity.getDate() + 3);
       const validez = validity.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 
       const doc = await generateCotizacionPDF({
-        projectName: project?.name || 'Proyecto',
-        clientName: project?.client_name || '',
+        projectName: project?.title || project?.name || 'Proyecto',
+        clientName: project?.client || project?.client_name || '',
         clientDoc: project?.client_doc || '',
         clientPhone: project?.client_phone || '',
         clientEmail: project?.client_email || '',
@@ -130,7 +235,7 @@ export default function ProjectWorkspace() {
         ]
       });
 
-      doc.save(`${project?.name || 'cotizacion'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`${project?.title || project?.name || 'cotizacion'}_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch(err) {
       console.error("Error exportando PDF:", err);
       alert("Error al exportar PDF: " + err.message);
@@ -149,6 +254,82 @@ export default function ProjectWorkspace() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Toast notification */}
+      {toast && (
+        <div 
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          } text-white`}
+        >
+          <span className="material-symbols-outlined text-[20px]">
+            {toast.type === 'success' ? 'check_circle' : 'error'}
+          </span>
+          <span className="font-medium">{toast.message}</span>
+        </div>
+      )}
+
+      {servicePicker.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[#1a233a] bg-[#0a1122] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[#1a233a] px-5 py-4 bg-[#060e20]">
+              <div>
+                <h3 className="text-[#dee5ff] font-bold font-['Space_Grotesk']">Agregar servicio a la lámina</h3>
+                <p className="text-[#a3aac4] text-sm mt-1">Elegí un servicio del catálogo</p>
+              </div>
+              <button
+                onClick={closeServicePicker}
+                className="text-[#a3aac4] hover:text-white transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-[#1a233a]">
+              <input
+                type="text"
+                autoFocus
+                value={servicePicker.query}
+                onChange={(e) => setServicePicker((prev) => ({ ...prev, query: e.target.value }))}
+                placeholder="Buscar servicio..."
+                className="w-full bg-[#060e20] border border-[#1a233a] text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#00e0fe]/50 focus:ring-1 focus:ring-[#00e0fe]/50 transition-all placeholder:text-[#40485d]"
+              />
+            </div>
+
+            <div className="max-h-[55vh] overflow-y-auto p-3">
+              {filteredServices.length === 0 ? (
+                <div className="text-center text-[#a3aac4] py-10">
+                  <span className="material-symbols-outlined text-4xl mb-2">search_off</span>
+                  <p>No hay servicios que coincidan</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredServices.map((servicio) => (
+                    <button
+                      key={servicio.id}
+                      onClick={() => {
+                        addManualServiceToMaterial(servicio, servicePicker.materialId);
+                        closeServicePicker();
+                      }}
+                      className="w-full text-left rounded-xl border border-[#1a233a] bg-[#060e20] px-4 py-3 hover:border-[#00d1ed]/50 hover:bg-[#0f1930] transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[#dee5ff] font-medium">{servicio.nombre}</div>
+                          <div className="text-[#a3aac4] text-sm">{servicio.descripcion || 'Sin descripción'}</div>
+                        </div>
+                        <div className="text-[#00d1ed] font-bold whitespace-nowrap">
+                          {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Number(servicio.precio || 0))}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Header Fijo del Workspace */}
       <header className="shrink-0 bg-[#060e20] border-b border-[#1a233a] sticky top-0 z-10">
         <div className="px-5 pt-4 pb-0">
@@ -266,6 +447,8 @@ export default function ProjectWorkspace() {
                 cantosInventory={cantosInventory}
                 inventoryItems={materialesInventory}
                 onExportPDF={handleExportPDF}
+                onAddService={handleAddService}
+                onUpdateManualQuantity={handleUpdateManualQuantity}
               />
             )}
           </>

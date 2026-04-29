@@ -93,9 +93,9 @@ function createDb() {
           lastID = row.id;
           saveState();
         } else if (q.startsWith('insert into servicios')) {
-          const [id, nombre, descripcion, atributos, modo_origen] = params;
+          const [id, nombre, precio, descripcion, atributos] = params;
           state.servicios = state.servicios || [];
-          state.servicios.push({ id, nombre, descripcion, atributos, modo_origen: modo_origen || 'despiece', created_at: new Date().toISOString() });
+          state.servicios.push({ id, nombre, precio: Number(precio) || 0, descripcion, atributos, created_at: new Date().toISOString() });
           lastID = id;
           saveState();
         } else if (q.startsWith('insert into plans')) {
@@ -147,14 +147,14 @@ function createDb() {
           const u = state.users.find((r) => Number(r.id) === Number(id));
           if (u) { u.password = password; saveState(); }
         } else if (q.startsWith('update servicios')) {
-          const [nombre, descripcion, atributos, modo_origen, id] = params;
+          const [nombre, precio, descripcion, atributos, id] = params;
           state.servicios = state.servicios || [];
           const servicio = state.servicios.find((r) => r.id === id);
           if (servicio) {
             servicio.nombre = nombre;
+            servicio.precio = Number(precio) || 0;
             servicio.descripcion = descripcion;
             servicio.atributos = atributos;
-            servicio.modo_origen = modo_origen || servicio.modo_origen || 'despiece';
             saveState();
           }
         } else if (q.startsWith('delete from servicios')) {
@@ -315,11 +315,17 @@ function initializeDatabase() {
     db.run(`CREATE TABLE IF NOT EXISTS servicios (
       id TEXT PRIMARY KEY,
       nombre TEXT NOT NULL,
+      precio REAL DEFAULT 0,
       descripcion TEXT,
       atributos TEXT,
-      modo_origen TEXT DEFAULT 'despiece',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, [], (err) => { if (err) console.error('Error creating servicios table:', err.message); });
+
+    db.run(`ALTER TABLE servicios ADD COLUMN precio REAL DEFAULT 0`, [], (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) {
+        console.error('Error adding precio column to servicios:', err.message);
+      }
+    });
 
     db.run(`CREATE TABLE IF NOT EXISTS plans (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -385,6 +391,7 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_name TEXT,
       logo_path TEXT,
+      logo_data TEXT,
       currency TEXT DEFAULT 'USD',
       tax_rate REAL DEFAULT 0,
       contact_email TEXT,
@@ -393,6 +400,17 @@ function initializeDatabase() {
       nit TEXT,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, [], (err) => { if (err) console.error('Error creating company_settings table:', err.message); });
+
+    // Migration: Reset company_settings if corrupted (logo in wrong column)
+    db.get('SELECT currency FROM company_settings ORDER BY id DESC LIMIT 1', [], (err, row) => {
+      if (!err && row && row.currency && row.currency.startsWith('data:image')) {
+        console.log('[DB] Detected corrupted data - resetting company_settings');
+        db.run('DELETE FROM company_settings', [], (err) => {
+          if (err) console.error('Reset failed:', err);
+          else console.log('[DB] company_settings reset complete');
+        });
+      }
+    });
 
     db.run(`CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
@@ -509,138 +527,76 @@ ipcMain.handle('logout', async () => {
 });
 
 ipcMain.handle('get-productos', async () => {
-  return new Promise((resolve, reject) => {
+return new Promise((resolve, reject) => {
     if (!db) return reject(new Error('Database not connected.'));
-    db.all('SELECT * FROM productos', [], (err, rows) => {
-      if (err) reject(new Error('Failed to fetch products.'));
-      else resolve(rows);
-    });
-  });
-});
-
-ipcMain.handle('add-producto', async (event, nombre, precio) => {
-  return new Promise((resolve, reject) => {
-    if (!db) return reject(new Error('Database not connected.'));
-    db.run('INSERT INTO productos (nombre, precio) VALUES (?, ?)', [nombre, precio], function (err) {
-      if (err) reject(new Error('Failed to add product.'));
-      else resolve({ success: true, id: this.lastID });
-    });
-  });
-});
-
-ipcMain.handle('get-plans', async () => {
-  return new Promise((resolve, reject) => {
-    if (!db) return reject(new Error('Database not connected.'));
-    db.all('SELECT * FROM plans WHERE 1=1', [], (err, rows) => {
-      if (err) reject(new Error('Failed to fetch plans.'));
-      else resolve(rows);
-    });
-  });
-});
-
-ipcMain.handle('get-license-status', async (event, userId) => {
-  return new Promise((resolve, reject) => {
-    if (!db) return reject(new Error('Database not connected.'));
-    const sql = `
-      SELECT l.*, p.name as plan_name, p.price, p.features, p.trial_days
-      FROM licenses l
-      LEFT JOIN plans p ON l.plan_id = p.id
-      WHERE l.user_id = ? AND l.status = 'active'
-      ORDER BY l.created_at DESC LIMIT 1
-    `;
-    db.get(sql, [userId], (err, row) => {
-      if (err) reject(new Error('Failed to fetch license.'));
-      else {
-        if (row && row.trial_ends_at) {
-          const trialEnd = new Date(row.trial_ends_at);
-          const now = new Date();
-          row.is_trial_active = trialEnd > now;
-          row.days_remaining = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
-        }
-        resolve(row || { no_license: true });
-      }
-    });
-  });
-});
-
-ipcMain.handle('activate-license', async (event, userId, licenseKey) => {
-  return new Promise((resolve, reject) => {
-    if (!db) return reject(new Error('Database not connected.'));
-    db.get('SELECT * FROM licenses WHERE license_key = ? AND status = ?', [licenseKey, 'active'], (err, existingLicense) => {
-      if (err) return reject(new Error('Error checking license.'));
-      if (!existingLicense) {
-        db.get('SELECT * FROM plans ORDER BY id LIMIT 1', [], (err2, plan) => {
-          if (err2 || !plan) return reject(new Error('No plan available.'));
-          const startDate = new Date();
-          const endDate = new Date();
-          endDate.setMonth(endDate.getMonth() + 1);
-          const trialEnd = new Date();
-          trialEnd.setDate(trialEnd.getDate() + (plan.trial_days || 14));
-          db.run('INSERT INTO licenses (license_key, user_id, plan_id, status, started_at, ends_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [licenseKey, userId, plan.id, 'active', startDate.toISOString(), endDate.toISOString(), trialEnd.toISOString()], function (err3) {
-            if (err3) return reject(new Error('Failed to create license.'));
-            resolve({ success: true, license_id: this.lastID, plan });
-          });
+    
+    // Use a simple SELECT without WHERE
+    const checkSql = `SELECT * FROM company_settings`;
+    db.get(checkSql, [], (err, row) => {
+      if (err) return reject(new Error('DB check error: ' + err.message));
+      
+      if (!row) {
+        // Need to create initial row
+        const insertSql = `
+          INSERT INTO company_settings 
+          (id, company_name, logo_path, logo_data, currency, tax_rate, contact_email, contact_phone, address, nit)
+          VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        db.run(insertSql, [
+          settings.company_name || '',
+          settings.logo_path || '',
+          settings.logo_data || '',
+          settings.currency || 'USD',
+          settings.tax_rate || 0,
+          settings.contact_email || '',
+          settings.contact_phone || '',
+          settings.address || '',
+          settings.nit || ''
+        ], function(err) {
+          if (err) {
+            console.error('[main] Insert error:', err.message);
+            reject(new Error('Failed to save settings: ' + err.message));
+          } else {
+            console.log('[main] Insert success');
+            resolve({ success: true, id: 1 });
+          }
         });
       } else {
-        if (existingLicense.user_id) return resolve({ success: false, message: 'License key already used.' });
-        db.run('UPDATE licenses SET user_id = ? WHERE id = ?', [userId, existingLicense.id], (err2) => {
-          if (err2) return reject(new Error('Failed to assign license.'));
-          resolve({ success: true, license_id: existingLicense.id });
+        // Row exists, update it
+        const updateSql = `
+          UPDATE company_settings SET 
+            company_name = ?,
+            logo_path = ?,
+            logo_data = ?,
+            currency = ?,
+            tax_rate = ?,
+            contact_email = ?,
+            contact_phone = ?,
+            address = ?,
+            nit = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1
+        `;
+        db.run(updateSql, [
+          settings.company_name || '',
+          settings.logo_path || '',
+          settings.logo_data || '',
+          settings.currency || 'USD',
+          settings.tax_rate || 0,
+          settings.contact_email || '',
+          settings.contact_phone || '',
+          settings.address || '',
+          settings.nit || ''
+        ], function(err) {
+          if (err) {
+            console.error('[main] Update error:', err.message);
+            reject(new Error('Failed to save settings: ' + err.message));
+          } else {
+            console.log('[main] Update success');
+            resolve({ success: true, id: 1 });
+          }
         });
       }
-    });
-  });
-});
-
-ipcMain.handle('apply-promo-code', async (event, code, planId) => {
-  return new Promise((resolve, reject) => {
-    if (!db) return reject(new Error('Database not connected.'));
-    db.get('SELECT * FROM promo_codes WHERE code = ? AND is_active = 1', [code], (err, promo) => {
-      if (err) return reject(new Error('Error checking promo code.'));
-      if (!promo) return resolve({ valid: false, message: 'Código inválido o expirado.' });
-      const now = new Date();
-      if (promo.start_date && new Date(promo.start_date) > now) return resolve({ valid: false, message: 'Código aún no válido.' });
-      if (promo.end_date && new Date(promo.end_date) < now) return resolve({ valid: false, message: 'Código expirado.' });
-      if (promo.max_uses && promo.used_count >= promo.max_uses) return resolve({ valid: false, message: 'Código alcanzó el límite de usos.' });
-      if (promo.applies_to_plan_ids) {
-        const plans = JSON.parse(promo.applies_to_plan_ids);
-        if (!plans.includes(planId)) return resolve({ valid: false, message: 'Código no aplicable a este plan.' });
-      }
-      resolve({ valid: true, promo });
-    });
-  });
-});
-
-ipcMain.handle('get-company-settings', async () => {
-  return new Promise((resolve, reject) => {
-    if (!db) return reject(new Error('Database not connected.'));
-    db.get('SELECT * FROM company_settings ORDER BY id DESC LIMIT 1', [], (err, row) => {
-      if (err) reject(new Error('Failed to fetch settings.'));
-      else resolve(row || {});
-    });
-  });
-});
-
-ipcMain.handle('save-company-settings', async (event, settings) => {
-  return new Promise((resolve, reject) => {
-    if (!db) return reject(new Error('Database not connected.'));
-    const sql = `
-      INSERT OR REPLACE INTO company_settings
-      (company_name, logo_path, currency, tax_rate, contact_email, contact_phone, address, nit, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `;
-    db.run(sql, [
-      settings.company_name || '',
-      settings.logo_path || '',
-      settings.currency || 'USD',
-      settings.tax_rate || 0,
-      settings.contact_email || '',
-      settings.contact_phone || '',
-      settings.address || '',
-      settings.nit || ''
-    ], function (err) {
-      if (err) reject(new Error('Failed to save settings.'));
-      else resolve({ success: true, id: this.lastID });
     });
   });
 });
@@ -695,8 +651,6 @@ ipcMain.handle('get-file-data', async (event, filename) => {
     } catch (err) {
       resolve(null);
     }
-  });
-});
   });
 });
 
@@ -831,4 +785,37 @@ ipcMain.handle('delete-project', async (event, id) => {
       else resolve({ success: true });
     });
   });
+});
+
+// Simple file-based storage for company settings (bypass SQLite issues)
+function getCompanySettingsPath() {
+  return path.join(app.getPath('userData'), 'company-settings.json');
+}
+
+// Get company settings
+ipcMain.handle('get-company-settings', async () => {
+  const filePath = getCompanySettingsPath();
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('[main] Error reading settings:', e);
+  }
+  return {};
+});
+
+// Save company settings
+ipcMain.handle('save-company-settings', async (event, settings) => {
+  console.log('[main] save-company-settings:', { company_name: settings.company_name, logo_data: settings.logo_data?.length });
+  const filePath = getCompanySettingsPath();
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(settings, null, 2));
+    console.log('[main] Save success');
+    return { success: true, id: 1 };
+  } catch (e) {
+    console.error('[main] Save error:', e);
+    return { success: false, error: e.message };
+  }
 });

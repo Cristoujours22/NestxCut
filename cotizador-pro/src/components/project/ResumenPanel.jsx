@@ -29,8 +29,8 @@ export default function ResumenPanel({
       cantosPorMaterial: [],
       subtotal: 0 
     };
-    return calculateServicesTotal(despieceData, servicios, serviciosManuales, inventoryItems);
-  }, [despieceData, servicios, serviciosManuales, inventoryItems]);
+    return calculateServicesTotal(despieceData, servicios, serviciosManuales, inventoryItems, cantosInventory);
+  }, [despieceData, servicios, serviciosManuales, inventoryItems, cantosInventory]);
 
   // Totales generales
   const totalLaminas = consolidado.subtotalLaminas || 0;
@@ -271,9 +271,6 @@ export default function ResumenPanel({
                                 <td className="py-2">
                                   <div className="flex items-center gap-2">
                                     <span className="text-[#dee5ff] font-medium">{serv.nombre}</span>
-                                    {serv.modo_origen === 'mixto' && (
-                                      <span className="text-[10px] px-1 py-0.5 rounded-full bg-violet-500/15 text-violet-300">mixto</span>
-                                    )}
                                   </div>
                                 </td>
                                 <td className="py-2 text-right text-[#a3aac4]">{formatPrice(serv.valorUnitario)}</td>

@@ -30,12 +30,6 @@ const LADOS_CANTO = [
   { value: 'A2', label: 'A2' },
 ];
 
-const MODOS_ORIGEN = [
-  { value: 'despiece', label: 'Automático desde despiece', desc: 'Se detecta desde el detalle de las piezas.' },
-  { value: 'manual', label: 'Manual en herrajes y extras', desc: 'Se agrega manualmente en la cotización.' },
-  { value: 'mixto', label: 'Mixto', desc: 'Puede venir desde despiece o agregarse manualmente; luego se consolida.' },
-];
-
 export default function ServicesModal({ isOpen, onClose }) {
   const [servicios, setServicios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,9 +42,9 @@ export default function ServicesModal({ isOpen, onClose }) {
   // Form state - nueva estructura con atributos
   const [formData, setFormData] = useState({
     nombre: '',
+    precio: '',
     descripcion: '',
-    modo_origen: 'despiece',
-    atributos: [{ tipo: 'cantidad', precio: '', medida: 'largo', lados: [] }]
+    atributos: [{ tipo: 'cantidad', medida: 'largo', lados: [] }]
   });
 
   // Cerrar con ESC
@@ -87,24 +81,25 @@ export default function ServicesModal({ isOpen, onClose }) {
             }
           }
           
+          const precio = Number(s?.precio || attrs?.[0]?.precio || 0);
+
           // Si no hay atributos pero hay precio viejo, crear uno
-          if ((!attrs || attrs.length === 0) && s.precio) {
-            attrs = [{ tipo: s.tipo_cobro || 'cantidad', precio: s.precio }];
+          if ((!attrs || attrs.length === 0) && precio) {
+            attrs = [{ tipo: s.tipo_cobro || 'cantidad', medida: 'largo', lados: [] }];
           }
           
           // Asegurar que cada atributo tenga los campos correctos
           if (attrs && attrs.length > 0) {
             attrs = attrs.map(a => ({
               tipo: a.tipo || 'cantidad',
-              precio: a.precio || 0,
               medida: a.medida || 'largo',
               lados: a.lados || []
             }));
           } else {
-            attrs = [{ tipo: 'cantidad', precio: 0, medida: 'largo', lados: [] }];
+            attrs = [{ tipo: 'cantidad', medida: 'largo', lados: [] }];
           }
           
-          return { ...s, atributos: attrs, modo_origen: s.modo_origen || 'despiece' };
+          return { ...s, precio, atributos: attrs };
         });
         
         setServicios(converted);
@@ -120,9 +115,9 @@ export default function ServicesModal({ isOpen, onClose }) {
   const resetForm = () => {
     setFormData({ 
       nombre: '', 
+      precio: '',
       descripcion: '', 
-      modo_origen: 'despiece',
-      atributos: [{ tipo: 'cantidad', precio: '', medida: 'largo', lados: [] }] 
+      atributos: [{ tipo: 'cantidad', medida: 'largo', lados: [] }] 
     });
     setEditing(null);
     setShowForm(false);
@@ -131,16 +126,15 @@ export default function ServicesModal({ isOpen, onClose }) {
   const handleEdit = (servicio) => {
     setFormData({
       nombre: servicio.nombre,
+      precio: (servicio.precio ?? servicio.atributos?.[0]?.precio ?? '').toString(),
       descripcion: servicio.descripcion || '',
-      modo_origen: servicio.modo_origen || 'despiece',
       atributos: servicio.atributos && servicio.atributos.length > 0 
         ? servicio.atributos.map(a => ({ 
             tipo: a.tipo, 
-            precio: a.precio?.toString() || '',
             medida: a.medida || 'largo',
             lados: a.lados || []
           }))
-        : [{ tipo: 'cantidad', precio: '' }]
+        : [{ tipo: 'cantidad', medida: 'largo', lados: [] }]
     });
     setEditing(servicio);
     setShowForm(true);
@@ -163,7 +157,7 @@ export default function ServicesModal({ isOpen, onClose }) {
   const addAtributo = () => {
     setFormData(p => ({
       ...p,
-      atributos: [...p.atributos, { tipo: 'ml', precio: '', medida: 'largo', lados: [] }]
+      atributos: [...p.atributos, { tipo: 'ml', medida: 'largo', lados: [] }]
     }));
   };
 
@@ -190,23 +184,25 @@ export default function ServicesModal({ isOpen, onClose }) {
     setMsg(null);
 
     try {
-      // Guardar todos los atributos que tengan precio
       const servicioData = {
         nombre: formData.nombre,
+        precio: parseFloat(formData.precio) || 0,
         descripcion: formData.descripcion,
-        modo_origen: formData.modo_origen,
-        atributos: formData.atributos
-          .filter(a => a.precio && parseFloat(a.precio) > 0)
-          .map(a => ({
-            tipo: a.tipo,
-            precio: parseFloat(a.precio) || 0,
-            medida: a.medida || 'largo',
-            lados: a.lados || []
-          }))
+        atributos: formData.atributos.map(a => ({
+          tipo: a.tipo,
+          medida: a.medida || 'largo',
+          lados: a.lados || []
+        }))
       };
 
+      if (servicioData.precio <= 0) {
+        setMsg({ ok: false, text: 'Debes definir un precio para el servicio' });
+        setSaving(false);
+        return;
+      }
+
       if (servicioData.atributos.length === 0) {
-        setMsg({ ok: false, text: 'Debes agregar al menos un atributo con precio' });
+        setMsg({ ok: false, text: 'Debes agregar al menos un atributo' });
         setSaving(false);
         return;
       }
@@ -312,6 +308,22 @@ export default function ServicesModal({ isOpen, onClose }) {
                 {/* Descripción */}
                 <div>
                   <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2">
+                    Precio del servicio
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.precio}
+                    onChange={e => setFormData(p => ({ ...p, precio: e.target.value }))}
+                    className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff]"
+                    placeholder="2000"
+                    min="0"
+                    required
+                  />
+                </div>
+
+                {/* Descripción */}
+                <div>
+                  <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2">
                     Descripción (opcional)
                   </label>
                   <input
@@ -323,31 +335,13 @@ export default function ServicesModal({ isOpen, onClose }) {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2">
-                    Origen del servicio
-                  </label>
-                  <select
-                    value={formData.modo_origen}
-                    onChange={e => setFormData(p => ({ ...p, modo_origen: e.target.value }))}
-                    className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff] appearance-none cursor-pointer"
-                  >
-                    {MODOS_ORIGEN.map((modo) => (
-                      <option key={modo.value} value={modo.value}>{modo.label}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-[#a3aac4] mt-2">
-                    {MODOS_ORIGEN.find((modo) => modo.value === formData.modo_origen)?.desc}
-                  </p>
-                </div>
-
                 {/* Atributos */}
                 <div>
                   <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2">
-                    Atributos de cobro
+                    Atributos del servicio
                   </label>
                   <p className="text-xs text-[#a3aac4] mb-3">
-                    Agrega diferentes formas de cobrar este servicio
+                    Agrega atributos de detección. El precio vive en el servicio.
                   </p>
                   
                   {formData.atributos.map((attr, index) => (
@@ -362,13 +356,6 @@ export default function ServicesModal({ isOpen, onClose }) {
                             <option key={t.value} value={t.value}>{t.label}</option>
                           ))}
                         </select>
-                        <input
-                          type="number"
-                          value={attr.precio}
-                          onChange={e => updateAtributo(index, 'precio', e.target.value)}
-                          className="flex-1 bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-3 py-2 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff]"
-                          placeholder="Precio"
-                        />
                         {formData.atributos.length > 1 && (
                           <button
                             type="button"
@@ -477,7 +464,7 @@ export default function ServicesModal({ isOpen, onClose }) {
                     <thead className="bg-[#0f1930] border-b border-[#1a233a]">
                       <tr>
                         <th className="text-left px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Servicio</th>
-                        <th className="text-left px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Origen</th>
+                        <th className="text-right px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Precio</th>
                         <th className="text-left px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Atributos</th>
                         <th className="text-right px-4 py-3 text-[#a3aac4] text-xs uppercase font-bold">Acciones</th>
                       </tr>
@@ -491,22 +478,14 @@ export default function ServicesModal({ isOpen, onClose }) {
                               <div className="text-[#a3aac4] text-xs">{s.descripcion}</div>
                             )}
                           </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              s.modo_origen === 'manual'
-                                ? 'bg-amber-500/15 text-amber-300'
-                                : s.modo_origen === 'mixto'
-                                  ? 'bg-violet-500/15 text-violet-300'
-                                  : 'bg-cyan-500/15 text-cyan-300'
-                            }`}>
-                              {MODOS_ORIGEN.find((modo) => modo.value === s.modo_origen)?.label || 'Automático desde despiece'}
-                            </span>
+                          <td className="px-4 py-3 text-right text-[#00d1ed] font-medium">
+                            {formatPrice(s.precio || 0)}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap gap-1">
                               {(s.atributos || []).map((attr, i) => (
                                 <span key={i} className="text-xs bg-[#1a233a]/50 text-[#a3aac4] px-2 py-1 rounded">
-                                  {getTipoLabel(attr.tipo)}: {formatPrice(attr.precio)}
+                                  {getTipoLabel(attr.tipo)}
                                 </span>
                               ))}
                             </div>

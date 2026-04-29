@@ -280,7 +280,11 @@ export async function generateCotizacionPDF({
         }
         
         const name = serv.nombre || 'Servicio';
-        const origin = serv.modo_origen === 'automatico' ? 'Auto' : 'Manual';
+        const origin = serv.automatico?.cantidad > 0 && serv.manual?.cantidad > 0
+          ? 'Mixto'
+          : serv.automatico?.cantidad > 0
+            ? 'Auto'
+            : 'Manual';
         const cant = `x${serv.total?.cantidad || 0}`;
         const unit = formatCOP(serv.valorUnitario || 0);
         const subtotal = formatCOP(serv.total?.subtotal || 0);

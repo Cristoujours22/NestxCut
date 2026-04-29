@@ -11,7 +11,7 @@ export default function Settings() {
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState({
-    company_name: '', logo_path: '', currency: 'USD',
+    company_name: '', logo_data: '', currency: 'USD',
     tax_rate: 0, contact_email: '', contact_phone: '', address: '', nit: ''
   });
   const [previewUrl, setPreviewUrl] = useState('');
@@ -26,19 +26,50 @@ export default function Settings() {
     try {
       if (API?.getCompanySettings) {
         const s = await API.getCompanySettings();
+        console.log('[Settings] load() raw DB:', s);
         if (s) {
-          setCompany(s);
-          // Load preview from logo_path if exists
-          if (s.logo_path) {
+          // AUTO-MIGRATE: If currency looks like base64 img, data was saved in wrong column
+          let fixedData = { ...s };
+          if (s.currency && s.currency.startsWith && s.currency.startsWith('data:image')) {
+            console.log('[Settings] load() AUTO-MIGRATING corrupted data');
+            // Logo was saved in currency - move to correct column
+            fixedData.logo_data = s.currency;
+            fixedData.currency = 'USD'; // Reset to default
+            // Fix other shifted fields
+            fixedData.contact_email = s.tax_rate || '';
+            fixedData.contact_phone = s.contact_email || '';
+            fixedData.address = s.contact_phone || '';
+            fixedData.nit = s.address || '';
+            fixedData.tax_rate = 0;
+            // Save corrected data back
             try {
-              const data = await API.getFileData(s.logo_path);
-              if (data) setPreviewUrl(data);
-            } catch(e) { console.log('No preview:', e); }
+              await API?.saveCompanySettings(fixedData);
+              console.log('[Settings] load() migration saved');
+            } catch(e) { console.log('[Settings] load() migration fail:', e); }
+          }
+          // Explicit field mapping
+          setCompany({
+            company_name: fixedData.company_name || '',
+            logo_data: fixedData.logo_data || '',
+            logo_path: fixedData.logo_path || '',
+            currency: fixedData.currency || 'USD',
+            tax_rate: Number(fixedData.tax_rate) || 0,
+            contact_email: fixedData.contact_email || '',
+            contact_phone: fixedData.contact_phone || '',
+            address: fixedData.address || '',
+            nit: fixedData.nit || ''
+          });
+          // Load preview from logo_data if exists
+          if (fixedData.logo_data) {
+            console.log('[Settings] load() logo_data length:', fixedData.logo_data.length);
+            setPreviewUrl(fixedData.logo_data);
+          } else {
+            console.log('[Settings] load() NO logo_data found');
           }
         }
       }
     } catch (e) {
-      console.error(e);
+      console.error('[Settings] load() error:', e);
     } finally {
       setLoading(false);
     }
@@ -48,23 +79,27 @@ export default function Settings() {
     setSaving(true);
     setMsg(null);
     try {
-      // If there's a preview URL (new logo), save it to file first
-      let logoFilename = company.logo_path;
-      if (previewUrl && previewUrl.startsWith('data:')) {
-        try {
-          // Save returns the filename that was created
-          const result = await API.saveCompanyLogo(previewUrl);
-          if (result?.filename) {
-            logoFilename = result.filename;
-          }
-        } catch(err) {
-          console.error('Error saving logo:', err);
-        }
+      // Save logo_data correctly in the right column
+      const settingsToSave = {
+        company_name: company.company_name || '',
+        logo_data: previewUrl || '',
+        logo_path: '',
+        currency: company.currency || 'USD',
+        tax_rate: company.tax_rate || 0,
+        contact_email: company.contact_email || '',
+        contact_phone: company.contact_phone || '',
+        address: company.address || '',
+        nit: company.nit || ''
+      };
+      console.log('[Settings] save() previewUrl length:', previewUrl?.length);
+      const r = await API?.saveCompanySettings(settingsToSave);
+      console.log('[Settings] save() result:', r);
+      if (r?.success) {
+        setMsg({ ok: true, text: 'Guardado correctamente' });
+        setCompany(p => ({ ...p, logo_data: previewUrl || '' }));
+      } else {
+        setMsg({ ok: false, text: 'Error al guardar' });
       }
-      // Save settings with correct logo filename
-      const r = await API?.saveCompanySettings({ ...company, logo_path: logoFilename });
-      if (r?.success) setMsg({ ok: true, text: 'Guardado correctamente' });
-      else setMsg({ ok: false, text: 'Error al guardar' });
     } catch (e) {
       setMsg({ ok: false, text: e.message });
     } finally {
@@ -127,7 +162,7 @@ export default function Settings() {
                 <div className="glass-panel rounded-2xl border border-[#1a233a] p-5 shadow-lg space-y-4">
                   <div>
                     <div className="text-[#dee5ff] font-semibold">Servicios y atributos</div>
-                    <p className="text-[#a3aac4] text-sm mt-1">Administrá nombre, atributos y precios de los servicios detectados en despiece.</p>
+                    <p className="text-[#a3aac4] text-sm mt-1">Administrá nombre, precio y atributos de los servicios detectados en despiece.</p>
                   </div>
                   <button
                     onClick={() => setShowServicesModal(true)}
@@ -200,7 +235,7 @@ export default function Settings() {
                       <div className="w-24 h-24 rounded-xl border-2 border-dashed border-[#40485d]/50 bg-[#060e20] overflow-hidden flex items-center justify-center">
                         {previewUrl ? (
                           <img src={previewUrl} alt="Logo" className="w-full h-full object-contain" />
-                        ) : company.logo_path ? (
+                        ) : company.logo_data ? (
                           <span className="material-symbols-outlined text-[#40485d] text-3xl">check_circle</span>
                         ) : (
                           <span className="material-symbols-outlined text-[#40485d] text-3xl">image</span>
@@ -236,7 +271,7 @@ export default function Settings() {
                                     ctx.drawImage(img, 0, 0, w, h);
                                     const dataUrl = canvas.toDataURL('image/png', 0.8);
                                     setPreviewUrl(dataUrl);
-                                    set('logo_path', file.name);
+                                    set('logo_data', file.name);
                                   };
                                   img.src = reader.result;
                                 };
@@ -255,9 +290,9 @@ export default function Settings() {
                           <span className="material-symbols-outlined text-[18px]">upload</span>
                           Elegir imagen
                         </label>
-                        {(previewUrl || company.logo_path) && (
+                        {(previewUrl || company.logo_data) && (
                           <button 
-                            onClick={() => { setPreviewUrl(null); set('logo_path', ''); }}
+                            onClick={() => { setPreviewUrl(null); set('logo_data', ''); }}
                             className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all"
                           >
                             <span className="material-symbols-outlined text-[14px]">delete</span>

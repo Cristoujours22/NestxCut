@@ -5,8 +5,9 @@
  * 
  * Estructura:
  * - nombre: nombre del servicio
+ * - precio: valor base del servicio
  * - descripcion: descripción opcional
- * - atributos: lista de formas de cobro [{ tipo, precio, medida?, lados? }]
+ * - atributos: lista de formas de cobro [{ tipo, medida?, lados? }]
  * 
  * Tipos de atributo:
  * - unidad: por unidad
@@ -22,86 +23,86 @@
 export const DEFAULT_SERVICIOS = [
   {
     nombre: 'Pegado',
+    precio: 1500,
     descripcion: 'Pegado de canto',
-    modo_origen: 'despiece',
     atributos: [
-      { tipo: 'ml', precio: 1500, medida: 'largo' },
-      { tipo: 'cantidad', precio: 800 }
+      { tipo: 'ml', medida: 'largo' },
+      { tipo: 'cantidad' }
     ]
   },
   {
     nombre: 'Nariz',
+    precio: 1200,
     descripcion: 'Nariz de recubrimiento',
-    modo_origen: 'despiece',
     atributos: [
-      { tipo: 'ml', precio: 1200, medida: 'largo' },
-      { tipo: 'lados', precio: 500 }
+      { tipo: 'ml', medida: 'largo' },
+      { tipo: 'lados' }
     ]
   },
   {
     nombre: 'Caja',
+    precio: 5000,
     descripcion: 'Caja básica',
-    modo_origen: 'mixto',
     atributos: [
-      { tipo: 'cantidad', precio: 5000 }
+      { tipo: 'cantidad' }
     ]
   },
   {
     nombre: 'Enchape',
+    precio: 1800,
     descripcion: 'Enchape de canto',
-    modo_origen: 'despiece',
     atributos: [
-      { tipo: 'ml', precio: 1800, medida: 'largo' },
-      { tipo: 'm2', precio: 25000 }
+      { tipo: 'ml', medida: 'largo' },
+      { tipo: 'm2' }
     ]
   },
   {
     nombre: 'Calado',
+    precio: 800,
     descripcion: 'Corte especial',
-    modo_origen: 'despiece',
     atributos: [
-      { tipo: 'escala_60', precio: 800 },
-      { tipo: 'escala_120', precio: 1200 }
+      { tipo: 'escala_60' },
+      { tipo: 'escala_120' }
     ]
   },
   {
     nombre: 'Ranurado',
+    precio: 1000,
     descripcion: 'Ranura para panel',
-    modo_origen: 'despiece',
     atributos: [
-      { tipo: 'ml', precio: 1000, medida: 'largo' }
+      { tipo: 'ml', medida: 'largo' }
     ]
   },
   {
     nombre: 'Canto',
+    precio: 600,
     descripcion: 'Aplicación de canto',
-    modo_origen: 'despiece',
     atributos: [
-      { tipo: 'canto', precio: 600, lados: ['L1', 'L2', 'A1', 'A2'] }
+      { tipo: 'canto', lados: ['L1', 'L2', 'A1', 'A2'] }
     ]
   },
   {
     nombre: 'Caja InglESA',
+    precio: 8000,
     descripcion: 'Caja inglesa completa',
-    modo_origen: 'manual',
     atributos: [
-      { tipo: 'cantidad', precio: 8000 }
+      { tipo: 'cantidad' }
     ]
   },
   {
     nombre: 'Manija',
+    precio: 500,
     descripcion: 'Instalación de manija',
-    modo_origen: 'manual',
     atributos: [
-      { tipo: 'cantidad', precio: 500 }
+      { tipo: 'cantidad' }
     ]
   },
   {
     nombre: 'Cajón',
+    precio: 6000,
     descripcion: 'Cajón completo',
-    modo_origen: 'manual',
     atributos: [
-      { tipo: 'cantidad', precio: 6000 }
+      { tipo: 'cantidad' }
     ]
   }
 ];

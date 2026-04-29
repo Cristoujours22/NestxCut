@@ -1,7 +1,7 @@
 // src/features/project/utils/mergeProjectServices.js
 /**
  * Utility para consolidar servicios automáticos (despiece) con servicios manuales
- * (Herajes y Extras) mostrando cantidad, valores unitarios y subtotales por origen.
+ * (Herajes y Extras) mostrando cantidad, valores unitarios y subtotales.
  * 
  * IMPORTANTE: Los servicios se agrupan por MATERIAL (lámina) porque cada material
  * puede tener servicios diferentes y costos diferentes.
@@ -21,7 +21,7 @@ function normalizeAtributos(servicio) {
 
 function getPrecioBase(servicio) {
   const attrs = normalizeAtributos(servicio);
-  return Number(attrs[0]?.precio || servicio?.precio || 0);
+  return Number(servicio?.precio || attrs[0]?.precio || 0);
 }
 
 function detectarEnDetalle(detalle, nombre) {
@@ -38,6 +38,8 @@ function detectarEnDetalle(detalle, nombre) {
 function calcularCostoAutomatico(servicio, row) {
   const attrs = normalizeAtributos(servicio);
   if (!attrs || attrs.length === 0) return 0;
+  const precioBase = getPrecioBase(servicio);
+  if (precioBase <= 0) return 0;
   const cantidadPieza = parseInt(row.cantidad || 0) || 1;
   const largo = parseFloat(row.largo || 0) || 0;
   const ancho = parseFloat(row.ancho || 0) || 0;
@@ -49,30 +51,30 @@ function calcularCostoAutomatico(servicio, row) {
     case 'ml': {
       const medida = attr.medida || 'largo';
       let metros = medida === 'largo' ? largo : medida === 'ancho' ? ancho : largo + ancho;
-      costo = cantidadDetectada * cantidadPieza * (metros / 1000) * attr.precio;
+      costo = cantidadDetectada * cantidadPieza * (metros / 1000) * precioBase;
       break;
     }
     case 'm2':
-      costo = cantidadDetectada * cantidadPieza * ((largo * ancho) / 1000000) * attr.precio;
+      costo = cantidadDetectada * cantidadPieza * ((largo * ancho) / 1000000) * precioBase;
       break;
     case 'cantidad':
     case 'unidad':
     case 'lados':
     case 'canto':
-      costo = cantidadDetectada * cantidadPieza * attr.precio;
+      costo = cantidadDetectada * cantidadPieza * precioBase;
       break;
     case 'escala_60': {
       const escala = Math.max(0, 60 - Math.min(largo, ancho)) / 60;
-      costo = cantidadDetectada * cantidadPieza * attr.precio * (1 + escala);
+      costo = cantidadDetectada * cantidadPieza * precioBase * (1 + escala);
       break;
     }
     case 'escala_120': {
       const escala = Math.max(0, 120 - Math.min(largo, ancho)) / 120;
-      costo = cantidadDetectada * cantidadPieza * attr.precio * (1 + escala);
+      costo = cantidadDetectada * cantidadPieza * precioBase * (1 + escala);
       break;
     }
     default:
-      costo = cantidadDetectada * cantidadPieza * attr.precio;
+      costo = cantidadDetectada * cantidadPieza * precioBase;
   }
   return Math.round(costo);
 }
@@ -113,7 +115,6 @@ function detectarServiciosPorMaterial(despieceData, servicios, inventoryItems = 
           serviciosDetectados.set(servicio.id, {
             servicio_id: servicio.id,
             nombre: servicio.nombre,
-            modo_origen: servicio.modo_origen || 'despiece',
             valorUnitario: getPrecioBase(servicio),
             automatico: { cantidad: 0, subtotal: 0 },
             manual: { cantidad: 0, subtotal: 0 },
@@ -141,8 +142,9 @@ function detectarServiciosPorMaterial(despieceData, servicios, inventoryItems = 
   return resultadosPorMaterial;
 }
 
-function calcularCantosPorMaterial(despieceData) {
+function calcularCantosPorMaterial(despieceData, cantoInventoryItems = []) {
   const resultadosPorMaterial = [];
+  const cantoInventoryMap = new Map((cantoInventoryItems || []).map(item => [item.id, item]));
   despieceData.forEach((despiece, idx) => {
     const materialId = despiece.material_id;
     const materialNombre = despiece.material_nombre || `Lámina ${idx + 1}`;
@@ -161,14 +163,15 @@ function calcularCantosPorMaterial(despieceData) {
         if (metros <= 0) return;
         if (!cantosMap.has(ref)) {
           const invCanto = cantosData.find(c => Number(c.ref) === ref);
+          const inventoryCanto = cantoInventoryMap.get(invCanto?.inventory_item_id);
           cantosMap.set(ref, {
             ref,
-            nombre: invCanto?.nombre || `Canto #${ref}`,
-            tipo: invCanto?.tipo || 'rigido',
-            color: invCanto?.color || '',
-            calibre: invCanto?.calibre || '',
+            nombre: invCanto?.nombre || inventoryCanto?.nombre || `Canto #${ref}`,
+            tipo: invCanto?.tipo || inventoryCanto?.tipo_canto || inventoryCanto?.tipo || 'rigido',
+            color: invCanto?.color || inventoryCanto?.color || '',
+            calibre: invCanto?.calibre || inventoryCanto?.calibre || '',
             metros: 0,
-            precio: Number(invCanto?.costo_unitario || 0)
+            precio: Number(invCanto?.costo_unitario || inventoryCanto?.costo_unitario || inventoryCanto?.precio || 0)
           });
         }
         const current = cantosMap.get(ref);
@@ -197,23 +200,25 @@ function extraerServiciosManuales(manualItems) {
   return (manualItems || [])
     .filter(item => item.servicio_id || item.origen === 'manual')
     .map(item => ({
+      material_id: item.material_id,
       servicio_id: item.servicio_id,
       nombre: item.nombre,
-      modo_origen: item.modo_origen || 'manual',
       valorUnitario: item.precio,
       manual: { cantidad: item.cantidad || 1, subtotal: item.subtotal || item.precio || 0 }
     }));
 }
 
-export function mergeProjectServices(despieceData, servicios, manualItems, inventoryItems = []) {
+export function mergeProjectServices(despieceData, servicios, manualItems, inventoryItems = [], cantoInventoryItems = []) {
   const porMaterial = detectarServiciosPorMaterial(despieceData, servicios, inventoryItems);
-  const cantosPorMaterial = calcularCantosPorMaterial(despieceData);
+  const cantosPorMaterial = calcularCantosPorMaterial(despieceData, cantoInventoryItems);
   const manuales = extraerServiciosManuales(manualItems);
   const manualMap = new Map();
-  manuales.forEach(serv => { manualMap.set(serv.servicio_id, serv); });
+  manuales.forEach(serv => {
+    manualMap.set(`${serv.material_id}::${serv.servicio_id}`, serv);
+  });
   const resultado = porMaterial.map(mat => {
     const serviciosConsolidados = mat.servicios.map(serv => {
-      const manual = manualMap.get(serv.servicio_id);
+      const manual = manualMap.get(`${mat.material_id}::${serv.servicio_id}`);
       const manualData = manual ? manual.manual : { cantidad: 0, subtotal: 0 };
       return {
         ...serv,
@@ -224,12 +229,12 @@ export function mergeProjectServices(despieceData, servicios, manualItems, inven
         }
       };
     });
-    manualMap.forEach((manual, servId) => {
-      if (!serviciosConsolidados.find(s => s.servicio_id === servId)) {
+    manualMap.forEach((manual, compositeKey) => {
+      if (manual.material_id !== mat.material_id) return;
+      if (!serviciosConsolidados.find(s => s.servicio_id === manual.servicio_id)) {
         serviciosConsolidados.push({
           servicio_id: manual.servicio_id,
           nombre: manual.nombre,
-          modo_origen: manual.modo_origen,
           valorUnitario: manual.valorUnitario,
           automatico: { cantidad: 0, subtotal: 0 },
           manual: manual.manual,
@@ -263,9 +268,9 @@ export function mergeProjectServices(despieceData, servicios, manualItems, inven
   return resultado;
 }
 
-export function calculateServicesTotal(despieceData, servicios, manualItems, inventoryItems = []) {
-  const porMaterial = mergeProjectServices(despieceData, servicios, manualItems, inventoryItems);
-  const cantosPorMaterial = calcularCantosPorMaterial(despieceData);
+export function calculateServicesTotal(despieceData, servicios, manualItems, inventoryItems = [], cantoInventoryItems = []) {
+  const porMaterial = mergeProjectServices(despieceData, servicios, manualItems, inventoryItems, cantoInventoryItems);
+  const cantosPorMaterial = calcularCantosPorMaterial(despieceData, cantoInventoryItems);
   const subtotalAuto = porMaterial.reduce((acc, mat) => acc + mat.subtotalAutomatico, 0);
   const subtotalManual = porMaterial.reduce((acc, mat) => acc + mat.subtotalManual, 0);
   const subtotalLaminas = porMaterial.reduce((acc, mat) => acc + (mat.valorTotalLaminas || 0), 0);

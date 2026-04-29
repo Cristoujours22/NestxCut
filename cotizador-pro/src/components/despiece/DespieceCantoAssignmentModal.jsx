@@ -8,10 +8,12 @@ function buildAssignmentRows(cantos) {
     return {
       ref,
       inventory_item_id: existing?.inventory_item_id || '',
+      codigo: existing?.codigo || '',
       nombre: existing?.nombre || '',
       tipo: existing?.tipo || 'rigido',
       calibre: existing?.calibre || '19',
       color: existing?.color || '',
+      costo_unitario: Number(existing?.costo_unitario || existing?.precio || 0),
     };
   });
 }
@@ -172,15 +174,17 @@ export default function DespieceCantoAssignmentModal({ isOpen, cantos, inventory
     setRows((prev) => prev.map((row) => {
       if (row.ref !== ref) return row;
       if (!selected) {
-        return { ref, inventory_item_id: '', nombre: '', tipo: 'rigido', calibre: '19', color: '' };
+        return { ref, inventory_item_id: '', codigo: '', nombre: '', tipo: 'rigido', calibre: '19', color: '', costo_unitario: 0 };
       }
       return {
         ref,
         inventory_item_id: selected.id,
+        codigo: selected.codigo || '',
         nombre: selected.nombre || '',
         tipo: selected.tipo_canto || selected.tipo || 'rigido',
         calibre: selected.calibre || '19',
         color: selected.color || '',
+        costo_unitario: Number(selected.costo_unitario || selected.precio || 0),
       };
     }));
   };
