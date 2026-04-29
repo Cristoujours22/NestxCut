@@ -102,7 +102,7 @@ export default function Dashboard() {
   const greetingSummary = useMemo(() => {
     if (loading) return 'Cargando el estado real de tus proyectos...';
     if (!projects.length) return 'Todavía no tenés proyectos cargados. Cuando crees el primero, este panel se va a actualizar solo.';
-    return `Tenés ${activeProjects} proyectos en curso y ${pendingQuotes} cotizaciones pendientes. Revisá el tablero y seguí desde donde lo dejaste.`;
+    return 'Revisá el estado general de tu operación y seguí trabajando desde el tablero principal.';
   }, [loading, projects, activeProjects, pendingQuotes]);
 
   return (
@@ -113,29 +113,33 @@ export default function Dashboard() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#00e0fe]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#99f7ff]/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
 
-        <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#99f7ff]/15 bg-[#99f7ff]/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#99f7ff] mb-5">
-              <span className="w-2 h-2 rounded-full bg-[#00e0fe] shadow-[0_0_12px_#00e0fe]"></span>
-              Panel principal
+        <div className="relative z-10">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+            <div className="max-w-4xl">
+              <h1 className="font-['Space_Grotesk'] text-[42px] leading-[0.95] sm:text-5xl md:text-6xl font-bold text-white mb-5 tracking-[-0.04em]">
+                Buenos días, <span className="text-[#99f7ff]">{companyName}</span>
+              </h1>
+              <div className="max-w-[690px]">
+                <p className="text-[#a9b6d3] text-[14px] md:text-[15px] leading-7">
+                  {greetingSummary}
+                </p>
+              </div>
             </div>
-            <h1 className="font-['Space_Grotesk'] text-[42px] leading-[0.95] sm:text-5xl md:text-6xl font-bold text-white mb-5 tracking-[-0.04em]">
-              Buenos días, <span className="text-[#99f7ff]">{companyName}</span>
-            </h1>
-            <p className="text-[#a9b6d3] text-lg md:text-[20px] leading-8 max-w-[780px]">
-              {greetingSummary}
-            </p>
-          </div>
 
-          <div className="lg:pb-1 lg:shrink-0 lg:self-end">
-            <button
-              disabled
-              title="Próximamente"
-              className="bg-[#002f33] border border-[#00e0fe]/20 text-[#5bd8e6] px-6 py-3 rounded-xl font-bold flex items-center gap-2 opacity-60 cursor-not-allowed shadow-lg"
-            >
-              <span className="material-symbols-outlined text-[20px]">analytics</span>
-              Reportes próximamente
-            </button>
+            <div className="flex flex-col items-start lg:items-end gap-4 lg:pt-3 lg:shrink-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#99f7ff]/15 bg-[#99f7ff]/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#99f7ff]">
+                <span className="w-2 h-2 rounded-full bg-[#00e0fe] shadow-[0_0_12px_#00e0fe]"></span>
+                Panel principal
+              </div>
+              <button
+                disabled
+                title="Próximamente"
+                className="bg-[#002f33] border border-[#00e0fe]/20 text-[#5bd8e6] px-6 py-3 rounded-xl font-bold flex items-center gap-2 opacity-60 cursor-not-allowed shadow-lg"
+              >
+                <span className="material-symbols-outlined text-[20px]">analytics</span>
+                Reportes próximamente
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -175,7 +179,6 @@ export default function Dashboard() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.04em] leading-none">{activeProjects}</span>
-            <span className="text-[#a3aac4] text-sm">proyectos</span>
           </div>
           <span className="text-[#7f8ba8] text-sm mt-3">Actualmente en ejecución</span>
         </div>
@@ -196,7 +199,6 @@ export default function Dashboard() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.04em] leading-none">{pendingQuotes}</span>
-            <span className="text-[#a3aac4] text-sm">pendientes</span>
           </div>
           <span className="text-[#7f8ba8] text-sm mt-3">Pendientes por revisar</span>
         </div>
