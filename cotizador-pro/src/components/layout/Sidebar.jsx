@@ -1,14 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleCollapsed }) {
   const { user } = useAuth();
   const location = useLocation();
+  const [companyName, setCompanyName] = useState('Workshop Alpha');
+
+  useEffect(() => {
+    const loadCompany = async () => {
+      try {
+        if (window.electronAPI?.getCompanySettings) {
+          const settings = await window.electronAPI.getCompanySettings();
+          setCompanyName(settings?.company_name || 'Workshop Alpha');
+        }
+      } catch (error) {
+        console.error('Error loading company settings in sidebar:', error);
+      }
+    };
+
+    loadCompany();
+  }, []);
 
   const menuItems = [
     { name: 'Home', icon: 'home', path: '/dashboard' },
-    { name: 'Cotización', icon: 'request_quote', path: '/cotizacion' },
+    { name: 'Cotización', icon: 'request_quote', path: '/cotizacion', disabled: true },
     { name: 'Inventario', icon: 'inventory_2', path: '/inventario' },
     { name: 'Configuración', icon: 'settings', path: '/settings' },
   ];
@@ -24,8 +40,8 @@ export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleC
                 <span className="material-symbols-outlined text-[#99f7ff]">person</span>
               </div>
               <div className="flex flex-col overflow-hidden min-w-0">
-                <span className="text-[#dee5ff] font-bold text-sm truncate">{user?.username || 'Workshop Alpha'}</span>
-                <span className="text-[#a3aac4] text-xs font-medium truncate">Carpintero Maestro</span>
+                <span className="text-[#dee5ff] font-bold text-sm truncate">{companyName}</span>
+                <span className="text-[#a3aac4] text-xs font-medium truncate">{user?.username || 'Carpintero Maestro'}</span>
               </div>
             </div>
           )}
@@ -50,18 +66,47 @@ export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleC
         <nav className="flex flex-col gap-2">
           {menuItems.map((item) => {
             const isActive = location.pathname.startsWith(item.path) || (item.path === '/dashboard' && location.pathname === '/');
+            const itemClasses = `flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl transition-all font-medium text-sm border border-transparent ${
+              item.disabled
+                ? 'text-[#5a647f] bg-transparent cursor-not-allowed opacity-60'
+                : isActive 
+                  ? 'bg-[#1a233a]/60 text-[#99f7ff] border-[#99f7ff]/20 shadow-[inset_2px_0_0_#99f7ff]' 
+                  : 'text-[#a3aac4] hover:bg-[#1a233a]/30 hover:text-[#dee5ff]'
+            }`;
+
+            const iconClasses = `material-symbols-outlined text-[20px] ${
+              item.disabled ? 'text-[#5a647f]' : isActive ? 'text-[#99f7ff]' : 'text-[#a3aac4]'
+            }`;
+
+            if (item.disabled) {
+              return (
+                <div
+                  key={item.path}
+                  title={collapsed ? `${item.name} (próximamente)` : 'Próximamente'}
+                  aria-disabled="true"
+                  className={itemClasses}
+                >
+                  <span className={iconClasses}>
+                    {item.icon}
+                  </span>
+                  {!collapsed && (
+                    <>
+                      <span>{item.name}</span>
+                      <span className="ml-auto text-[10px] uppercase tracking-wide text-[#5a647f]">Pronto</span>
+                    </>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 title={collapsed ? item.name : undefined}
-                className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl transition-all font-medium text-sm border border-transparent ${
-                  isActive 
-                    ? 'bg-[#1a233a]/60 text-[#99f7ff] border-[#99f7ff]/20 shadow-[inset_2px_0_0_#99f7ff]' 
-                    : 'text-[#a3aac4] hover:bg-[#1a233a]/30 hover:text-[#dee5ff]'
-                }`}
+                className={itemClasses}
               >
-                <span className={`material-symbols-outlined text-[20px] ${isActive ? 'text-[#99f7ff]' : 'text-[#a3aac4]'}`}>
+                <span className={iconClasses}>
                   {item.icon}
                 </span>
                 {!collapsed && item.name}
