@@ -262,7 +262,7 @@ export const AuthProvider = ({ children }) => {
                     if (!freshUser.emailVerified) {
                         console.log('[AuthContext] Usuario autenticado pero sin email verificado. Se omite validación HID por ahora.');
                         setUser(freshUser)
-                        setUserData(null)
+                        setUserData({ email: freshUser.email, status: 'pending_verification' })
                         setLicenseData(null)
                         setIsLoading(false)
                         return
@@ -282,6 +282,8 @@ export const AuthProvider = ({ children }) => {
                         }
                     } catch (err) {
                         console.error('[AuthContext] Error resolving access:', err);
+                        setUserData({ email: freshUser.email });
+                        setUser(freshUser);
                     }
                 } else {
                     console.log("[AuthContext] User not authenticated");
