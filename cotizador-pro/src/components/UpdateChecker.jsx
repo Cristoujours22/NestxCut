@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
 import pkg from '../../package.json' with { type: 'json' };
 
 const localVersion = pkg.version;
+
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/Cristoujours22/NestxCut/releases/latest';
 
 /** Simple semver compare: returns 1 if a > b, -1 if a < b, 0 if equal */
 function compareVersions(a, b) {
@@ -18,6 +18,11 @@ function compareVersions(a, b) {
   return 0;
 }
 
+/** Strip leading 'v' from tag_name (e.g. "v0.0.2" → "0.0.2") */
+function cleanVersion(raw) {
+  return typeof raw === 'string' ? raw.replace(/^v/i, '') : raw;
+}
+
 export default function UpdateChecker() {
   const [update, setUpdate] = useState(null);
   const [dismissed, setDismissed] = useState(false);
@@ -26,17 +31,20 @@ export default function UpdateChecker() {
     let cancelled = false;
     async function check() {
       try {
-        const snap = await getDoc(doc(db, 'app_config', 'version'));
+        const res = await fetch(GITHUB_RELEASES_URL, {
+          headers: { Accept: 'application/vnd.github+json' },
+        });
         if (cancelled) return;
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const latest = data.latestVersion;
+        if (!res.ok) return;
+        const release = await res.json();
+        const latest = cleanVersion(release.tag_name);
         if (!latest) return;
         if (compareVersions(latest, localVersion) > 0) {
+          const asset = Array.isArray(release.assets) ? release.assets[0] : null;
           setUpdate({
             version: latest,
-            downloadUrl: data.downloadUrl || '#',
-            releaseNotes: data.releaseNotes || '',
+            downloadUrl: asset?.browser_download_url || release.html_url || '#',
+            releaseNotes: release.body || '',
           });
         }
       } catch (err) {
