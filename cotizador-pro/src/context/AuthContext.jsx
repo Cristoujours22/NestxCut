@@ -278,7 +278,11 @@ export const AuthProvider = ({ children }) => {
                             setUser(freshUser);
                         } else {
                             console.log('[AuthContext] Acceso denegado:', accessDecision.reason);
-                            setUser(freshUser);
+                            // Si no tiene acceso, cerrar sesión para que vaya al login
+                            await signOut(auth);
+                            setUser(null);
+                            setUserData(null);
+                            setLicenseData(null);
                         }
                     } catch (err) {
                         console.error('[AuthContext] Error resolving access:', err);
@@ -323,7 +327,8 @@ export const AuthProvider = ({ children }) => {
 
             if (!accessDecision.hasAccess) {
                 console.log('[AuthContext] Acceso denegado en login:', accessDecision.reason);
-                return { success: true, user: freshUser, accessDenied: true, reason: accessDecision.reason };
+                await signOut(auth);
+                throw new Error(accessDecision.reason === 'device-license-missing' ? 'DEVICE_ACCESS_DENIED' : 'LICENCIA_EXPIRADA');
             }
             
             console.log("[AuthContext] Email verificado y licencia válida, acceso concedido");
