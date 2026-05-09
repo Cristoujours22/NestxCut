@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export default function InventoryStockEntryModal({ isOpen, item, onClose, onSubmit, error = '' }) {
+export default function InventoryStockEntryModal({ isOpen, item, mode = 'entry', onClose, onSubmit, error = '' }) {
   const [cantidad, setCantidad] = useState('');
   const [motivo, setMotivo] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,11 +23,17 @@ export default function InventoryStockEntryModal({ isOpen, item, onClose, onSubm
       return;
     }
 
+    if (mode === 'exit' && Number(cantidad) > Number(item?.cantidad_disponible || 0)) {
+      setLocalError('La salida no puede superar el stock disponible');
+      return;
+    }
+
     setLoading(true);
     try {
       await onSubmit({
         itemId: item.id,
         cantidad: Number(cantidad),
+        mode,
         motivo: motivo.trim() || undefined,
       });
       onClose();
@@ -44,7 +50,7 @@ export default function InventoryStockEntryModal({ isOpen, item, onClose, onSubm
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-[#0a1122] border border-[#1a233a] rounded-2xl w-full max-w-md p-6 shadow-2xl">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white">Entrada rápida de stock</h2>
+          <h2 className="text-xl font-bold text-white">{mode === 'exit' ? 'Salida rápida de stock' : 'Entrada rápida de stock'}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-lg border border-[#1a233a] bg-[#10182d] text-[#99f7ff] hover:bg-[#15213b] inline-flex items-center justify-center">
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
@@ -63,7 +69,7 @@ export default function InventoryStockEntryModal({ isOpen, item, onClose, onSubm
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#a3aac4] mb-1">Cantidad a ingresar</label>
+              <label className="block text-sm font-medium text-[#a3aac4] mb-1">{mode === 'exit' ? 'Cantidad a retirar' : 'Cantidad a ingresar'}</label>
               <input
                 type="number"
                 min="1"
@@ -81,7 +87,7 @@ export default function InventoryStockEntryModal({ isOpen, item, onClose, onSubm
                 type="text"
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Ej: Compra a proveedor, devolución, etc."
+                placeholder={mode === 'exit' ? 'Ej: consumo interno, pérdida, traslado, etc.' : 'Ej: compra a proveedor, devolución, etc.'}
                 className="w-full px-3 py-2 bg-[#060e20] border border-[#1a233a] rounded-lg text-[#dee5ff] focus:outline-none focus:ring-2 focus:ring-[#00e0fe] focus:border-transparent"
               />
             </div>
@@ -110,9 +116,9 @@ export default function InventoryStockEntryModal({ isOpen, item, onClose, onSubm
               {loading ? (
                 <span className="material-symbols-outlined animate-spin mr-1">progress_activity</span>
               ) : (
-                <span className="material-symbols-outlined mr-1">add</span>
+                <span className="material-symbols-outlined mr-1">{mode === 'exit' ? 'remove' : 'add'}</span>
               )}
-              Registrar entrada
+              {mode === 'exit' ? 'Registrar salida' : 'Registrar entrada'}
             </button>
           </div>
         </form>

@@ -8,7 +8,7 @@ import ServicesModal from './ServicesModal';
 const API = window.electronAPI;
 
 export default function Settings() {
-  const { user, userData } = useAuth();
+  const { user, userData, logout } = useAuth();
   const navigate = useNavigate();
   const [company, setCompany] = useState({
     company_name: '', logo_data: '', currency: 'USD',
@@ -19,52 +19,31 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [showServicesModal, setShowServicesModal] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    load(); 
+  }, []);
 
   const load = async () => {
     try {
       if (API?.getCompanySettings) {
         const s = await API.getCompanySettings();
-        console.log('[Settings] load() raw DB:', s);
+        console.log('[Settings] load() company settings:', s);
         if (s) {
-          // AUTO-MIGRATE: If currency looks like base64 img, data was saved in wrong column
-          let fixedData = { ...s };
-          if (s.currency && s.currency.startsWith && s.currency.startsWith('data:image')) {
-            console.log('[Settings] load() AUTO-MIGRATING corrupted data');
-            // Logo was saved in currency - move to correct column
-            fixedData.logo_data = s.currency;
-            fixedData.currency = 'USD'; // Reset to default
-            // Fix other shifted fields
-            fixedData.contact_email = s.tax_rate || '';
-            fixedData.contact_phone = s.contact_email || '';
-            fixedData.address = s.contact_phone || '';
-            fixedData.nit = s.address || '';
-            fixedData.tax_rate = 0;
-            // Save corrected data back
-            try {
-              await API?.saveCompanySettings(fixedData);
-              console.log('[Settings] load() migration saved');
-            } catch(e) { console.log('[Settings] load() migration fail:', e); }
-          }
-          // Explicit field mapping
           setCompany({
-            company_name: fixedData.company_name || '',
-            logo_data: fixedData.logo_data || '',
-            logo_path: fixedData.logo_path || '',
-            currency: fixedData.currency || 'USD',
-            tax_rate: Number(fixedData.tax_rate) || 0,
-            contact_email: fixedData.contact_email || '',
-            contact_phone: fixedData.contact_phone || '',
-            address: fixedData.address || '',
-            nit: fixedData.nit || ''
+            company_name: s.company_name || '',
+            logo_data: s.logo_data || '',
+            logo_path: s.logo_path || '',
+            currency: s.currency || 'USD',
+            tax_rate: Number(s.tax_rate) || 0,
+            contact_email: s.contact_email || '',
+            contact_phone: s.contact_phone || '',
+            address: s.address || '',
+            nit: s.nit || ''
           });
-          // Load preview from logo_data if exists
-          if (fixedData.logo_data) {
-            console.log('[Settings] load() logo_data length:', fixedData.logo_data.length);
-            setPreviewUrl(fixedData.logo_data);
-          } else {
-            console.log('[Settings] load() NO logo_data found');
+          if (s.logo_data) {
+            setPreviewUrl(s.logo_data);
           }
         }
       }
@@ -79,7 +58,6 @@ export default function Settings() {
     setSaving(true);
     setMsg(null);
     try {
-      // Save logo_data correctly in the right column
       const settingsToSave = {
         company_name: company.company_name || '',
         logo_data: previewUrl || '',
@@ -89,18 +67,20 @@ export default function Settings() {
         contact_email: company.contact_email || '',
         contact_phone: company.contact_phone || '',
         address: company.address || '',
-        nit: company.nit || ''
+        nit: company.nit || '',
+        updatedAt: new Date().toISOString()
       };
-      console.log('[Settings] save() previewUrl length:', previewUrl?.length);
-      const r = await API?.saveCompanySettings(settingsToSave);
-      console.log('[Settings] save() result:', r);
-      if (r?.success) {
+
+      const result = await API?.saveCompanySettings?.(settingsToSave);
+      if (result?.success) {
+        console.log('[Settings] save() success');
         setMsg({ ok: true, text: 'Guardado correctamente' });
         setCompany(p => ({ ...p, logo_data: previewUrl || '' }));
       } else {
-        setMsg({ ok: false, text: 'Error al guardar' });
+        setMsg({ ok: false, text: result?.error || 'Error al guardar' });
       }
     } catch (e) {
+      console.error('[Settings] save() error:', e);
       setMsg({ ok: false, text: e.message });
     } finally {
       setSaving(false);
@@ -119,6 +99,40 @@ export default function Settings() {
   return (
     <>
       <ServicesModal isOpen={showServicesModal} onClose={() => setShowServicesModal(false)} />
+
+      {logoutConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#1a233a] bg-[#0a1122] shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#1a233a] bg-[#060e20]">
+              <h3 className="text-[#dee5ff] font-bold font-['Space_Grotesk']">Cerrar sesión</h3>
+              <p className="text-[#a3aac4] text-sm mt-1">Vas a salir de tu cuenta actual.</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-[#dee5ff]">¿Querés cerrar sesión?</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setLogoutConfirmOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-[#1a233a] bg-[#10182d] text-[#a3aac4] hover:text-white hover:bg-[#15213b]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setLogoutConfirmOpen(false);
+                    await logout();
+                    navigate('/login');
+                  }}
+                  className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="min-h-screen bg-[#060e20] text-[#dee5ff] font-['Inter'] p-6 md:p-8">
         <div className="max-w-5xl mx-auto space-y-8">
@@ -142,6 +156,13 @@ export default function Settings() {
               <div className="flex items-center gap-2 text-[#a3aac4] text-sm bg-[#1a233a]/50 px-3 py-1.5 rounded-full border border-[#40485d]/30 shadow-sm shrink-0">
                 <span className="material-symbols-outlined text-[#99f7ff] text-[16px]">person</span>
                 <span className="font-medium tracking-wide">{userData?.nombre || user?.email || 'Usuario'}</span>
+                <button
+                  onClick={() => setLogoutConfirmOpen(true)}
+                  className="ml-2 p-1.5 rounded-full hover:bg-red-500/20 text-[#a3aac4] hover:text-red-400 transition-colors"
+                  title="Cerrar sesión"
+                >
+                  <span className="material-symbols-outlined text-[16px]">logout</span>
+                </button>
               </div>
             )}
           </div>

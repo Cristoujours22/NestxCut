@@ -4,17 +4,17 @@ const defaultByType = {
   tablero: {
     item_type: 'tablero',
     nombre: '', codigo: '', material: '', acabado: '', espesor_mm: '', largo_mm: '', ancho_mm: '', cantidad_disponible: '', cantidad_reservada: 0,
-    stock_minimo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'lamina', notas: '', activo: true,
+    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'lamina', notas: '', activo: true,
   },
   herraje: {
     item_type: 'herraje',
     nombre: '', codigo: '', tipo: '', subtipo: '', medida: '', presentacion: 'unidad', cantidad_disponible: '', cantidad_reservada: 0,
-    stock_minimo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'unidad', notas: '', activo: true,
+    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'unidad', notas: '', activo: true,
   },
   canto: {
     item_type: 'canto',
     nombre: '', codigo: '', tipo_canto: 'rigido', calibre: '19', color: '', medida: '', presentacion: 'metro', cantidad_disponible: '', cantidad_reservada: 0,
-    stock_minimo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'metro', notas: '', activo: true,
+    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'metro', notas: '', activo: true,
   },
 };
 
@@ -22,7 +22,7 @@ function Field({ label, children }) {
   return <label className="flex flex-col gap-1 text-sm text-[#a3aac4]"> <span>{label}</span>{children}</label>;
 }
 
-export default function InventoryFormModal({ isOpen, type, item, existingItems = [], onClose, onSubmit, submitError = '' }) {
+export default function InventoryFormModal({ isOpen, type, item, existingItems = [], providers = [], onClose, onSubmit, submitError = '' }) {
   const [form, setForm] = useState(defaultByType.tablero);
   const [errors, setErrors] = useState({});
   const isEdit = Boolean(item?.id);
@@ -53,7 +53,11 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
     if (duplicatedCode) nextErrors.codigo = 'Ya existe un item con ese código';
     if (Number(form.cantidad_disponible || 0) < 0) nextErrors.cantidad_disponible = 'La cantidad no puede ser negativa';
     if (Number(form.stock_minimo || 0) < 0) nextErrors.stock_minimo = 'El stock mínimo no puede ser negativo';
+    if (Number(form.stock_objetivo || 0) < 0) nextErrors.stock_objetivo = 'El stock objetivo no puede ser negativo';
     if (Number(form.costo_unitario || 0) < 0) nextErrors.costo_unitario = 'El costo no puede ser negativo';
+    if (Number(form.stock_objetivo || 0) > 0 && Number(form.stock_objetivo || 0) < Number(form.stock_minimo || 0)) {
+      nextErrors.stock_objetivo = 'El stock objetivo no puede ser menor al mínimo';
+    }
 
     if (currentType === 'tablero') {
       if (!form.material?.trim()) nextErrors.material = 'El material es obligatorio';
@@ -107,6 +111,10 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
               <input type="number" value={form.stock_minimo || ''} onChange={(e) => set('stock_minimo', e.target.value)} className={inputClass('stock_minimo')} />
               {errors.stock_minimo && <span className="text-red-400 text-xs">{errors.stock_minimo}</span>}
             </Field>
+            <Field label="Stock objetivo">
+              <input type="number" value={form.stock_objetivo || ''} onChange={(e) => set('stock_objetivo', e.target.value)} className={inputClass('stock_objetivo')} />
+              {errors.stock_objetivo && <span className="text-red-400 text-xs">{errors.stock_objetivo}</span>}
+            </Field>
             <Field label="Costo unitario">
               <input type="number" value={form.costo_unitario || ''} onChange={(e) => set('costo_unitario', e.target.value)} className={inputClass('costo_unitario')} />
               {errors.costo_unitario && <span className="text-red-400 text-xs">{errors.costo_unitario}</span>}
@@ -115,7 +123,20 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
               <input value={form.ubicacion || ''} onChange={(e) => set('ubicacion', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50" />
             </Field>
             <Field label="Proveedor">
-              <input value={form.proveedor || ''} onChange={(e) => set('proveedor', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50" />
+              <select
+                value={form.proveedor_id || ''}
+                onChange={(e) => {
+                  const provider = providers.find((entry) => entry.id === e.target.value);
+                  set('proveedor_id', e.target.value);
+                  set('proveedor', provider?.nombre || '');
+                }}
+                className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50"
+              >
+                <option value="">Sin proveedor</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>{provider.nombre}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Marca">
               <input value={form.marca || ''} onChange={(e) => set('marca', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50" />

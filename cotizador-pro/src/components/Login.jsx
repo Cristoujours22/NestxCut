@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { auth } from '../firebase';
+import { sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 import '../index.css';
 import logo from '../assets/Logo.png';
 
@@ -13,6 +15,8 @@ export default function Login() {
   });
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,23 +27,85 @@ export default function Login() {
   const validateEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
   const validatePassword = (p) => p.length >= 4;
 
+  // Reenviar email de verificación
+  const handleResendVerification = async () => {
+    if (!email || !password) {
+      setError('Ingresa tu email y contraseña primero');
+      return;
+    }
+    
+    setResendingVerification(true);
+    setError('');
+    
+    let tempUser = null;
+    
+    try {
+      // Intentar sign in - el resultado puede tener el usuario aunque no esté verificado
+      try {
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        tempUser = result.user;
+      } catch (loginErr) {
+        console.log('[Login] Login error (esperado):', loginErr.code);
+        
+        // Cuando el email no está verificado, Firebase igual crea el usuario temporalmente
+        // Intentamos obtenerlo de otra manera
+        tempUser = auth.currentUser;
+      }
+      
+      // Si aún no tenemos usuario, no se puede
+      if (!tempUser) {
+        throw new Error('No se pudo obtener el usuario. Intenta iniciar sesión primero.');
+      }
+      
+      // Enviar verificación
+      console.log('[Login] Enviando verificación a:', tempUser.email);
+      await sendEmailVerification(tempUser);
+      
+      // Cerrar sesión temporal
+      await auth.signOut();
+      
+      setVerificationSent(true);
+      setTimeout(() => setVerificationSent(false), 10000);
+    } catch (err) {
+      console.error('[Login] Error reenviando verificación:', err);
+      if (err.code === 'auth/too-many-requests') {
+        setError('Demasiados intentos. Espera un momento e intenta de nuevo.');
+      } else if (err.message.includes('No se pudo obtener')) {
+        setError(err.message);
+      } else {
+        setError('Error al reenviar verificación: ' + err.message);
+      }
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoggingIn(true);
 
+    // Timeout de seguridad - 10 segundos max
+    const timeoutId = setTimeout(() => {
+      console.warn('[Login] Timeout, liberando inputs');
+      setIsLoggingIn(false);
+    }, 10000);
+
     // Client-side validation
     if (!email || !password) {
+      clearTimeout(timeoutId);
       setError('Por favor, completa todos los campos.');
       setIsLoggingIn(false);
       return;
     }
     if (!validateEmail(email)) {
+      clearTimeout(timeoutId);
       setError('Email inválido.');
       setIsLoggingIn(false);
       return;
     }
     if (!validatePassword(password)) {
+      clearTimeout(timeoutId);
       setError('Contraseña: Mínimo 4 caracteres.');
       setIsLoggingIn(false);
       return;
@@ -48,6 +114,15 @@ export default function Login() {
     try {
       // Firebase Auth login
       await auth.login(email, password);
+      clearTimeout(timeoutId);
+      
+      // Verificar si el email fue verificado (el contexto ya lo hace, pero por seguridad)
+      if (auth.user && !auth.user.emailVerified) {
+        setError('Tu email no está verificado. Por favor, revisa tu correo y verifica tu cuenta.');
+        await auth.logout();
+        setIsLoggingIn(false);
+        return;
+      }
       
       // Handle 'Remember Me'
       try {
@@ -58,9 +133,21 @@ export default function Login() {
       
       navigate(from, { replace: true });
     } catch (err) {
+      clearTimeout(timeoutId);
       console.error('[Login] Login failed:', err);
       
-      if (err.code === 'auth/invalid-email') {
+      // Manejar error de email no verificado
+      if (err.message === 'EMAIL_NO_VERIFICADO') {
+        setError('Tu email no está verificado. Por favor, revisa tu correo y haz clic en el enlace de verificación.');
+      } else if (err.message === 'device-license-missing') {
+        setError('Este equipo no tiene una licencia activa asignada. Contactá al administrador para activar NestxCut en esta máquina.');
+      } else if (err.message === 'device-license-inactive') {
+        setError('La licencia de este equipo está vencida o inactiva. Contactá al administrador para renovarla.');
+      } else if (err.message === 'DEVICE_ACCESS_DENIED') {
+        setError('Este equipo no tiene acceso habilitado. Contactá al administrador.');
+      } else if (err.message === 'LICENCIA_EXPIRADA') {
+        setError('La licencia de este equipo ha expirado. Contactá al administrador para renovarla.');
+      } else if (err.code === 'auth/invalid-email') {
         setError('Email inválido.');
       } else if (err.code === 'auth/user-not-found') {
         setError('Usuario no encontrado.');
@@ -72,6 +159,7 @@ export default function Login() {
         setError(err.message || 'Error al intentar iniciar sesión.');
       }
     } finally {
+      clearTimeout(timeoutId);
       setIsLoggingIn(false);
     }
   };
@@ -134,6 +222,17 @@ export default function Login() {
           {error && (
             <div className="error-message text-red-400 text-sm mb-4 text-center bg-red-900 bg-opacity-30 px-3 py-2 rounded">
               {error}
+              {error.includes('no está verificado') && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/resend-verification', { state: { email } })}
+                    className="text-sm text-cyan-400 hover:text-cyan-300 underline"
+                  >
+                    Reenviar email de verificación
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

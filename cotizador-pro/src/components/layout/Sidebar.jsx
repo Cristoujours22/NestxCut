@@ -24,7 +24,8 @@ export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleC
 
   const menuItems = [
     { name: 'Home', icon: 'home', path: '/dashboard' },
-    { name: 'Cotización', icon: 'request_quote', path: '/cotizacion', disabled: true },
+    { name: 'Cotización', icon: 'request_quote', path: '/cotizacion' },
+    { name: 'Reportes', icon: 'analytics', path: '/reportes' },
     { name: 'Inventario', icon: 'inventory_2', path: '/inventario' },
     { name: 'Configuración', icon: 'settings', path: '/settings' },
   ];

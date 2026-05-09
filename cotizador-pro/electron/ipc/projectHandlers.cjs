@@ -38,7 +38,7 @@ function registerProjectHandlers({ ipcMain, getDb }) {
         project.id,
         project.title || 'Proyecto sin título',
         project.client || '',
-        project.state || 'EN PROGRESO',
+        project.state || 'EDICION',
         project.total || 0,
         project.despiece_data || '[]',
         project.hardware_data || '{}',

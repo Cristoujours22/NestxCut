@@ -1,9 +1,9 @@
 // src/components/Register.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import logo from '../assets/Logo.png';
 
 export default function Register() {
@@ -14,6 +14,7 @@ export default function Register() {
     nombre: '',
     apellido: '',
     celular: '',
+    cedula: '',
     direccion: '',
     ocupacion: '',
     empresa: '',
@@ -53,6 +54,7 @@ export default function Register() {
     if (!formData.apellido.trim()) newErrors.apellido = 'Apellido es requerido';
     if (!formData.celular.trim()) newErrors.celular = 'Celular es requerido';
     else if (!validateCelular(formData.celular)) newErrors.celular = 'Celular inválido (formato: 3001234567)';
+    if (!formData.cedula.trim()) newErrors.cedula = 'Cédula/NIT es requerido';
     if (!formData.direccion.trim()) newErrors.direccion = 'Dirección es requerida';
     if (!formData.ocupacion.trim()) newErrors.ocupacion = 'Ocupación es requerida';
     
@@ -105,9 +107,14 @@ export default function Register() {
         formData.password
       );
       
-      const uid = userCredential.user.uid;
+      const user = userCredential.user;
+      const uid = user.uid;
       
-      // 2. Save additional data in Firestore
+      // 2. Send email verification
+      await sendEmailVerification(user);
+      console.log('[Register] Email de verificación enviado a:', user.email);
+      
+      // 3. Save additional data in Firestore
       const now = new Date();
       const trialEnd = new Date(now);
       trialEnd.setDate(trialEnd.getDate() + 30);
@@ -116,6 +123,7 @@ export default function Register() {
         nombre: formData.nombre.trim(),
         apellido: formData.apellido.trim(),
         celular: formData.celular.trim(),
+        cedula: formData.cedula.trim(),
         direccion: formData.direccion.trim(),
         ocupacion: formData.ocupacion.trim(),
         empresa: formData.empresa.trim() || null,
@@ -124,7 +132,8 @@ export default function Register() {
         role: 'user',
         trialEnd: trialEnd,
         subscriptionEnd: null,
-        status: 'active',
+        status: 'pending_verification', // Requiere verificación de email
+        emailVerified: false,
         createdAt: now,
         activatedAt: null,
         activatedBy: null,
@@ -134,8 +143,11 @@ export default function Register() {
       
       console.log('[Register] Usuario creado exitosamente:', uid);
       
-      // 3. Redirect to login
-      navigate('/login', { state: { message: 'Registro exitoso. Por favor, inicia sesión.' } });
+      // 4. Sign out until verifique email
+      await auth.signOut();
+      
+      // 5. Redirect to login with message
+      navigate('/login', { state: { message: 'Registro exitoso. Se envió un email de verificación a tu correo. Por favor, verifica tu email antes de iniciar sesión.' } });
       
     } catch (error) {
       console.error('[Register] Error:', error);
@@ -155,21 +167,34 @@ export default function Register() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center flex-col bg-gray-900 text-white">
-      <div className="login-box p-8 rounded-lg shadow-xl bg-gray-800 w-full max-w-md">
-        <div className="login-brand" style={{ textAlign: 'center' }}>
-          <img 
-            src={logo} 
-            alt="Cotizador Pro" 
-            style={{ width: '140px', height: 'auto', display: 'block', margin: '0 auto 16px' }} 
-          />
-          <h2 className="text-xl font-bold text-white mb-2">Crear Cuenta</h2>
-          <p className="text-gray-400 text-sm">Regístrate para comenzar</p>
-        </div>
-        
-        <form onSubmit={handleSubmit} noValidate>
+    <div className="min-h-screen bg-gray-900 text-white px-3 sm:px-4 py-3 sm:py-4 flex flex-col justify-between">
+      <div className="flex-1 flex items-center justify-center min-h-0">
+      <div className="w-full max-w-5xl rounded-2xl shadow-xl bg-gray-800 border border-gray-700 overflow-hidden">
+        <div className="grid lg:grid-cols-[320px_1fr]">
+          <div className="bg-gradient-to-br from-cyan-900/40 to-slate-900 p-5 sm:p-6 lg:p-8 border-b lg:border-b-0 lg:border-r border-gray-700 flex flex-col justify-center">
+            <div className="login-brand" style={{ textAlign: 'center' }}>
+              <img 
+                src={logo} 
+                alt="Cotizador Pro" 
+                style={{ width: '140px', height: 'auto', display: 'block', margin: '0 auto 16px' }} 
+              />
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Crear Cuenta</h2>
+              <p className="text-gray-300 text-sm leading-5">
+                Registrate para comenzar a usar NestxCut. Completá tus datos personales, de contacto y acceso en un solo paso.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5 md:p-6 lg:p-8">
+        <form onSubmit={handleSubmit} noValidate className="space-y-5 sm:space-y-6">
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">Datos personales</h3>
+              <p className="text-gray-400 text-xs sm:text-sm mt-1">Información básica del titular de la cuenta.</p>
+            </div>
+
           {/* Nombre y Apellido */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid sm:grid-cols-2 gap-3">
             <div>
               <input
                 id="nombre"
@@ -198,8 +223,9 @@ export default function Register() {
             </div>
           </div>
 
+          <div className="grid md:grid-cols-2 gap-4">
           {/* Celular */}
-          <div className="mb-4">
+          <div>
             <input
               id="celular"
               name="celular"
@@ -213,8 +239,24 @@ export default function Register() {
             {errors.celular && <p className="text-red-400 text-xs mt-1">{errors.celular}</p>}
           </div>
 
+          {/* Cédula/NIT */}
+          <div>
+            <input
+              id="cedula"
+              name="cedula"
+              type="text"
+              required
+              value={formData.cedula}
+              onChange={handleChange}
+              placeholder="Cédula/NIT"
+              className="w-full px-3 py-2 bg-transparent border-b-2 border-gray-500 text-white focus:outline-none focus:border-cyan-400 peer"
+            />
+            {errors.cedula && <p className="text-red-400 text-xs mt-1">{errors.cedula}</p>}
+          </div>
+          </div>
+
           {/* Dirección */}
-          <div className="mb-4">
+          <div>
             <input
               id="direccion"
               name="direccion"
@@ -228,8 +270,9 @@ export default function Register() {
             {errors.direccion && <p className="text-red-400 text-xs mt-1">{errors.direccion}</p>}
           </div>
 
+          <div className="grid md:grid-cols-2 gap-4">
           {/* Ocupación */}
-          <div className="mb-4">
+          <div>
             <input
               id="ocupacion"
               name="ocupacion"
@@ -244,7 +287,7 @@ export default function Register() {
           </div>
 
           {/* Empresa (Opcional) */}
-          <div className="mb-4">
+          <div>
             <input
               id="empresa"
               name="empresa"
@@ -255,9 +298,18 @@ export default function Register() {
               className="w-full px-3 py-2 bg-transparent border-b-2 border-gray-500 text-white focus:outline-none focus:border-cyan-400 peer"
             />
           </div>
+          </div>
+          </section>
 
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">Acceso</h3>
+              <p className="text-gray-400 text-xs sm:text-sm mt-1">Datos de autenticación para ingresar a la aplicación.</p>
+            </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
           {/* Email */}
-          <div className="mb-4">
+          <div className="md:col-span-2">
             <input
               id="email"
               name="email"
@@ -273,7 +325,7 @@ export default function Register() {
           </div>
 
           {/* Contraseña */}
-          <div className="mb-4">
+          <div>
             <input
               id="password"
               name="password"
@@ -290,7 +342,7 @@ export default function Register() {
           </div>
 
           {/* Confirmar Contraseña */}
-          <div className="mb-4">
+          <div>
             <input
               id="confirmPassword"
               name="confirmPassword"
@@ -304,9 +356,17 @@ export default function Register() {
             />
             {errors.confirmPassword && <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>}
           </div>
+          </div>
+          </section>
+
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">Legal</h3>
+              <p className="text-gray-400 text-xs sm:text-sm mt-1">Aceptación de términos para crear la cuenta.</p>
+            </div>
 
           {/* Términos */}
-          <div className="mb-4">
+          <div>
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 id="acceptTerms"
@@ -317,11 +377,12 @@ export default function Register() {
                 className="mt-1"
               />
               <span className="text-gray-300 text-sm">
-                Acepto los <a href="#" className="text-cyan-400 hover:underline">Términos y Condiciones</a> y la <a href="#" className="text-cyan-400 hover:underline">Política de Privacidad</a>
+                Acepto los <Link to="/terminos" target="_blank" className="text-cyan-400 hover:underline">Términos y Condiciones</Link> y la <Link to="/privacidad" target="_blank" className="text-cyan-400 hover:underline">Política de Privacidad</Link>
               </span>
             </label>
             {errors.acceptTerms && <p className="text-red-400 text-xs mt-1">{errors.acceptTerms}</p>}
           </div>
+          </section>
 
           {/* Error general */}
           {generalError && (
@@ -349,9 +410,12 @@ export default function Register() {
             </Link>
           </p>
         </div>
+          </div>
+        </div>
+      </div>
       </div>
 
-      <footer className="footer mt-8 text-center text-gray-500 text-sm">
+      <footer className="footer mt-3 sm:mt-4 text-center text-gray-500 text-xs sm:text-sm shrink-0">
         <p>Todos los derechos reservados &copy; {new Date().getFullYear()} | Diseñado por Cristian</p>
       </footer>
     </div>

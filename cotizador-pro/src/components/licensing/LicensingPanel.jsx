@@ -3,23 +3,100 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getSubscriptionStatus, formatDate } from '../../utils/subscription';
+import { getDeviceId } from '../../utils/deviceId';
 
 export default function LicensingPanel() {
-  const { userData, isAdmin, hasAccess } = useAuth();
+  const { userData, isAdmin, hasAccess, accessDecision } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [deviceHid, setDeviceHid] = useState('Cargando...');
+  const [nowMs, setNowMs] = useState(Date.now());
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadHid = async () => {
+      const hid = await getDeviceId();
+      if (!cancelled) setDeviceHid(hid);
+    };
+    loadHid();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const handleActivate = () => {
     navigate('/subscription-expired');
   };
 
+  const handleCopyHid = async () => {
+    try {
+      await navigator.clipboard.writeText(deviceHid);
+    } catch (err) {
+      console.error('No se pudo copiar el HID:', err);
+    }
+  };
+
   const subscriptionStatus = getSubscriptionStatus(userData);
+  const deviceAccess = accessDecision?.device;
+  const effectiveDaysRemaining = !subscriptionStatus.isUnlimited
+    ? Number.isFinite(Number(userData?.daysRemaining))
+      ? Number(userData?.daysRemaining)
+      : subscriptionStatus.daysLeft
+    : null;
+  const remainingLabel = (() => {
+    if (subscriptionStatus.isUnlimited) return 'ILIMITADO';
+
+    if (deviceAccess?.expiresAt && deviceAccess?.hasDeviceAccess) {
+      const endDate = new Date(deviceAccess.expiresAt);
+      const diffMs = endDate.getTime() - nowMs;
+      if (diffMs <= 0) return null;
+
+      const totalHours = Math.ceil(diffMs / (1000 * 60 * 60));
+      const days = Math.floor(totalHours / 24);
+      const hours = totalHours % 24;
+
+      if (days > 0) {
+        return hours > 0
+          ? `${days} día${days === 1 ? '' : 's'} y ${hours} hora${hours === 1 ? '' : 's'}`
+          : `${days} día${days === 1 ? '' : 's'}`;
+      }
+
+      return `${Math.max(hours, 1)} hora${Math.max(hours, 1) === 1 ? '' : 's'}`;
+    }
+
+    const endDate = subscriptionStatus.endDate;
+    if (!endDate) {
+      return effectiveDaysRemaining > 0 ? `${effectiveDaysRemaining} días` : null;
+    }
+
+    const diffMs = endDate.getTime() - nowMs;
+    if (diffMs <= 0) return null;
+
+    const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+
+    if (days > 0) {
+      return hours > 0
+        ? `${days} día${days === 1 ? '' : 's'} y ${hours} hora${hours === 1 ? '' : 's'}`
+        : `${days} día${days === 1 ? '' : 's'}`;
+    }
+
+    const safeHours = Math.max(hours, 1);
+    return `${safeHours} hora${safeHours === 1 ? '' : 's'}`;
+  })();
 
   if (loading) {
     return (
@@ -67,13 +144,18 @@ export default function LicensingPanel() {
                   <span className="text-cyan-400 text-[11px] font-medium ml-4.5 truncate">
                     ILIMITADO
                   </span>
-                ) : subscriptionStatus.daysLeft > 0 ? (
-                  <span className="text-[#a3aac4] text-[11px] font-medium ml-4.5 truncate">
-                    Quedan <strong className="text-[#dee5ff]">{subscriptionStatus.daysLeft}</strong> días
+                  ) : remainingLabel ? (
+                    <span className="text-[#a3aac4] text-[11px] font-medium ml-4.5 truncate">
+                      Quedan <strong className="text-[#dee5ff]">{remainingLabel}</strong>
+                    </span>
+                  ) : null
+                )}
+                {!isAdmin && accessDecision?.device?.status && (
+                  <span className="text-[#6f7a97] text-[10px] font-medium ml-4.5 truncate uppercase tracking-wider">
+                    Licencia equipo: {accessDecision.device.status}
                   </span>
-                ) : null
-              )}
-            </div>
+                )}
+              </div>
 
             <div className="shrink-0 flex justify-end">
               {!hasAccess ? (
@@ -97,9 +179,26 @@ export default function LicensingPanel() {
 
           {userData?.plan && (
             <div className="mt-3 pt-3 border-t border-[#1a233a]/50">
-              <span className="text-[#a3aac4] text-[11px]">
-                Plan: <strong className="text-[#dee5ff] capitalize">{userData.plan}</strong>
-              </span>
+              <div className="flex flex-col gap-2">
+                <span className="text-[#a3aac4] text-[11px]">
+                  Plan: <strong className="text-[#dee5ff] capitalize">{userData.plan}</strong>
+                </span>
+                {!isAdmin && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[#6f7a97] text-[10px] font-medium uppercase tracking-wider shrink-0">HID</span>
+                    <code className="flex-1 rounded bg-[#060e20] px-2 py-1 text-[10px] text-[#dee5ff] font-mono truncate">
+                      {deviceHid}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopyHid}
+                      className="text-[10px] px-2 py-1 rounded bg-[#1a233a] text-[#99f7ff] hover:bg-[#24304f] shrink-0"
+                    >
+                      Copiar
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -137,9 +236,9 @@ export default function LicensingPanel() {
                   <p className="text-cyan-400 text-sm">
                     Acceso ILIMITADO (Admin)
                   </p>
-                ) : subscriptionStatus.daysLeft > 0 ? (
+                ) : remainingLabel ? (
                   <p className="text-gray-400 text-sm">
-                    Tiempo restante: <strong className="text-white">{subscriptionStatus.daysLeft} días</strong>
+                    Tiempo restante: <strong className="text-white">{remainingLabel}</strong>
                   </p>
                 ) : null}
               </div>
@@ -174,6 +273,25 @@ export default function LicensingPanel() {
                   )}
                 </div>
               </div>
+
+              {!isAdmin && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-400 uppercase">Equipo</h4>
+                  <div className="bg-gray-900 rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-gray-400">HID actual:</span>
+                      <code className="text-white text-right font-mono text-xs break-all">{deviceHid}</code>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyHid}
+                      className="w-full bg-[#1a233a] border border-[#40485d]/30 text-[#dee5ff] px-3 py-2 rounded-md text-sm font-bold hover:bg-[#a3aac4]/10 hover:border-[#99f7ff]/50 hover:text-[#99f7ff] transition-all"
+                    >
+                      Copiar HID
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Datos del usuario */}
               <div className="space-y-3">

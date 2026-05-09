@@ -2,6 +2,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDmUeyQrup8Kn1DgTCUgtR0TbAh5RO4dtE",
@@ -19,5 +20,29 @@ const app = initializeApp(firebaseConfig);
 // Initialize services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+const RECAPTCHA_SITE_KEY = '6LfkjtssAAAAAOq7A6QkZDk4z1_IB6bBG71SrNx6';
+
+if (typeof window !== 'undefined') {
+  const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron');
+
+  if (!isElectron) {
+    if (import.meta.env.DEV) {
+      window.FIREBASE_APPCHECK_DEBUG_TOKEN = '3FDBB90F-14FB-46BE-B4C7-DC1441ED7031';
+    }
+
+    try {
+      initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+        isTokenAutoRefreshEnabled: true
+      });
+      console.log('[Firebase] App Check initialized');
+    } catch (e) {
+      console.error('[Firebase] App Check init error:', e);
+    }
+  } else {
+    console.log('[Firebase] App Check skipped in Electron');
+  }
+}
 
 export default app;

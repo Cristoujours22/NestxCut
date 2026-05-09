@@ -48,13 +48,33 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
   const [showAddServicio, setShowAddServicio] = useState(false);
   const [searchItem, setSearchItem] = useState('');
   const [searchServicio, setSearchServicio] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    Promise.all([loadServicios(), loadHerajes()]).then(([srv, inv]) => {
-      setServicios(srv);
-      setHerajesInventory(inv);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    const run = async () => {
+      setLoading(true);
+      setLoadError('');
+      try {
+        const [srv, inv] = await Promise.all([loadServicios(), loadHerajes()]);
+        if (cancelled) return;
+        setServicios(srv);
+        setHerajesInventory(inv);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Error cargando herrajes/servicios:', error);
+        setLoadError('No se pudieron cargar herrajes y servicios.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Calcular total
@@ -156,6 +176,14 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
     return (
       <div className="flex items-center justify-center p-8">
         <span className="animate-spin material-symbols-outlined text-[#99f7ff]">sync</span>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        {loadError}
       </div>
     );
   }

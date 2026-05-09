@@ -19,8 +19,12 @@ function recoverPrecio(servicio) {
   return Number(attrs?.[0]?.precio || 0);
 }
 
-function registerServiceHandlers({ ipcMain, getDb }) {
+function registerServiceHandlers({ ipcMain, getDb, getServiceStore }) {
   ipcMain.handle('get-servicios', async () => {
+    const serviceStore = getServiceStore?.();
+    if (serviceStore?.getServicios) {
+      return serviceStore.getServicios();
+    }
     const db = getDb();
     return new Promise((resolve, reject) => {
       if (!db) return reject(new Error('Database not connected.'));
@@ -43,6 +47,10 @@ function registerServiceHandlers({ ipcMain, getDb }) {
   });
 
   ipcMain.handle('get-servicio', async (event, id) => {
+    const serviceStore = getServiceStore?.();
+    if (serviceStore?.getServicio) {
+      return serviceStore.getServicio(id);
+    }
     const db = getDb();
     return new Promise((resolve, reject) => {
       if (!db) return reject(new Error('Database not connected.'));
@@ -61,6 +69,11 @@ function registerServiceHandlers({ ipcMain, getDb }) {
   });
 
   ipcMain.handle('add-servicio', async (event, servicio) => {
+    const serviceStore = getServiceStore?.();
+    if (serviceStore?.addServicio) {
+      if (Number(servicio?.precio || 0) <= 0) throw new Error('El precio del servicio debe ser mayor a 0.');
+      return serviceStore.addServicio(servicio);
+    }
     const db = getDb();
     return new Promise((resolve, reject) => {
       if (!db) return reject(new Error('Database not connected.'));
@@ -89,6 +102,11 @@ function registerServiceHandlers({ ipcMain, getDb }) {
   });
 
   ipcMain.handle('update-servicio', async (event, servicio) => {
+    const serviceStore = getServiceStore?.();
+    if (serviceStore?.updateServicio) {
+      if (Number(servicio?.precio || 0) <= 0) throw new Error('El precio del servicio debe ser mayor a 0.');
+      return serviceStore.updateServicio(servicio);
+    }
     const db = getDb();
     return new Promise((resolve, reject) => {
       if (!db) return reject(new Error('Database not connected.'));
@@ -117,6 +135,10 @@ function registerServiceHandlers({ ipcMain, getDb }) {
   });
 
   ipcMain.handle('delete-servicio', async (event, id) => {
+    const serviceStore = getServiceStore?.();
+    if (serviceStore?.deleteServicio) {
+      return serviceStore.deleteServicio(id);
+    }
     const db = getDb();
     return new Promise((resolve, reject) => {
       if (!db) return reject(new Error('Database not connected.'));

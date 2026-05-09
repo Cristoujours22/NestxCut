@@ -4,18 +4,22 @@ import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './components/Login';
 import Register from './components/Register';
+import ResendVerification from './components/ResendVerification';
+import TermsConditions from './components/TermsConditions';
+import PrivacyPolicy from './components/PrivacyPolicy';
 import InventoryPage from './components/inventory/InventoryPage';
 import Settings from './components/Settings';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './components/dashboard/Dashboard';
 import ProjectWorkspace from './components/project/ProjectWorkspace';
 import SubscriptionExpired from './components/SubscriptionExpired';
-import { checkSubscription } from './utils/subscription';
+import ManualQuotePage from './components/quotes/ManualQuotePage';
+import ReportsPage from './components/reports/ReportsPage';
 import './App.css';
 
 // --- Protected Route Component ---
 function ProtectedRoute() {
-    const { isAuthenticated, isLoading, userData } = useAuth();
+    const { isAuthenticated, isLoading, userData, hasAccess } = useAuth();
     const location = useLocation();
 
     useEffect(() => {
@@ -30,8 +34,12 @@ function ProtectedRoute() {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
+    if (isAuthenticated && !userData) {
+        return <div>Verificando suscripción...</div>;
+    }
+
     // Verificar suscripción
-    if (!checkSubscription(userData)) {
+    if (!hasAccess) {
         return <SubscriptionExpired />;
     }
 
@@ -85,11 +93,13 @@ function App() {
     console.log("[App] Rendering Routes...");
     return (
         <Routes>
-            {/* Public-Only Routes (e.g., Login) */}
+{/* Public-Only Routes (e.g., Login) */}
             <Route element={<PublicRoute />}>
-                {/* Path for the login page */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/resend-verification" element={<ResendVerification />} />
+                <Route path="/terminos" element={<TermsConditions />} />
+                <Route path="/privacidad" element={<PrivacyPolicy />} />
             </Route>
 
             {/* Protected Routes (Require Authentication) */}
@@ -98,6 +108,8 @@ function App() {
                     {/* Main application route, redirects to Dashboard or acts as Dashboard */}
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/cotizacion" element={<ManualQuotePage />} />
+                    <Route path="/reportes" element={<ReportsPage />} />
                     
                     {/* Project Workspace (Editor de Cotización) */}
                     <Route path="/proyecto/:id" element={<ProjectWorkspace />} />

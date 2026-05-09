@@ -14,15 +14,18 @@
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.8.1",
     "firebase": "^12.12.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
+    "node-machine-id": "^1.1.12",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.5.3"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@tailwindcss/postcss": "^4.1.4",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.21",
@@ -37,11 +40,9 @@
   "build": {
     "appId": "com.despiece.cotizadorpro",
     "productName": "Cotizador Pro",
-    "icon": "build/icon.ico",
     "files": [
       "dist/**/*",
-      "electron/main.cjs",
-      "electron/preload.cjs",
+      "electron/**/*",
       "package.json"
     ],
     "asar": true,
@@ -51,16 +52,12 @@
     "win": {
       "target": [
         "nsis"
-      ],
-      "icon": "build/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": false,
       "perMachine": true,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico"
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

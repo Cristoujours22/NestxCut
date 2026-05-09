@@ -3,32 +3,16 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Define a whitelist of channels for security
 const validInvokeChannels = [
-  'login', 
-  'get-session',
-  'logout',
-  'get-productos', 
-  'add-producto',
-  // Licensing channels
-  'get-plans',
-  'get-license-status',
-  // New licensing channels (contract-driven)
-  'licensing:getStatus',
-  'licensing:purchase',
-  'licensing:upgrade',
-  'licensing:applyPromo',
-  'activate-license',
-  'apply-promo-code',
   'get-company-settings',
   'save-company-settings',
-  'generate-license-key',
   'get-servicios',
   'get-servicio',
   'add-servicio',
   'update-servicio',
   'delete-servicio',
   'get-env',
+  'get-stable-hid',
   'open-external',
-  'activate-license-after-payment',
   'get-projects',
   'get-project',
   'save-project',
@@ -58,23 +42,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return Promise.reject(new Error(`Invalid invoke channel: ${channel}`)); // Reject promise for invalid channels
   },
 
-  // Convenience methods for common operations
-  login: (username, password) => ipcRenderer.invoke('login', username, password),
-  getSession: () => ipcRenderer.invoke('get-session'),
-  logout: () => ipcRenderer.invoke('logout'),
-  getProductos: () => ipcRenderer.invoke('get-productos'),
-  addProducto: (nombre, precio) => ipcRenderer.invoke('add-producto', nombre, precio),
-  
-  // Licensing methods
-  getPlans: () => ipcRenderer.invoke('get-plans'),
-  getLicenseStatus: (userId) => ipcRenderer.invoke('get-license-status', userId),
-  activateLicense: (userId, licenseKey) => ipcRenderer.invoke('activate-license', userId, licenseKey),
-  applyPromoCode: (code, planId) => ipcRenderer.invoke('apply-promo-code', code, planId),
 getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
   saveCompanySettings: (settings) => ipcRenderer.invoke('save-company-settings', settings),
   saveCompanyLogo: (fileData) => ipcRenderer.invoke('save-company-logo', fileData),
   getFileData: (filename) => ipcRenderer.invoke('get-file-data', filename),
-  generateLicenseKey: () => ipcRenderer.invoke('generate-license-key'),
 
   // Services API
   getServicios: () => ipcRenderer.invoke('get-servicios'),
@@ -83,26 +54,22 @@ getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
   updateServicio: (servicio) => ipcRenderer.invoke('update-servicio', servicio),
   deleteServicio: (id) => ipcRenderer.invoke('delete-servicio', id),
 
+  // Client API
+  getClientByDocument: (documento) => ipcRenderer.invoke('get-client-by-document', documento),
+  saveClient: (client) => ipcRenderer.invoke('save-client', client),
+
   // Get Paddle config from main process
   getPaddleConfig: () => ipcRenderer.invoke('get-env'),
-
-  // Licensing IPC wrappers
-  licensingGetStatus: (payload) => ipcRenderer.invoke('licensing:getStatus', payload),
-  licensingPurchase: (payload) => ipcRenderer.invoke('licensing:purchase', payload),
-  licensingUpgrade: (payload) => ipcRenderer.invoke('licensing:upgrade', payload),
-  licensingApplyPromo: (payload) => ipcRenderer.invoke('licensing:applyPromo', payload),
+  getStableHid: () => ipcRenderer.invoke('get-stable-hid'),
 
   // Open URL in system browser
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
-  // Activate license after Paddle payment
-  activateLicenseAfterPayment: (paymentData) => ipcRenderer.invoke('activate-license-after-payment', paymentData),
-
   // Projects API
-  getProjects: () => ipcRenderer.invoke('get-projects'),
-  getProject: (id) => ipcRenderer.invoke('get-project', id),
+  getProjects: (ownerUid) => ipcRenderer.invoke('get-projects', ownerUid),
+  getProject: (id, ownerUid) => ipcRenderer.invoke('get-project', id, ownerUid),
   saveProject: (project) => ipcRenderer.invoke('save-project', project),
-  deleteProject: (id) => ipcRenderer.invoke('delete-project', id),
+  deleteProject: (id, ownerUid) => ipcRenderer.invoke('delete-project', id, ownerUid),
 
   // Inventory API
   getInventoryItems: () => ipcRenderer.invoke('get-inventory-items'),

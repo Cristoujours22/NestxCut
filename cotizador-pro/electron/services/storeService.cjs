@@ -1,9 +1,12 @@
 const fs = require('fs');
+const path = require('path');
+const { Worker } = require('worker_threads');
 
 function createDefaultState() {
   return {
     users: [],
     productos: [],
+    clientes: [],
     plans: [],
     licenses: [],
     promo_codes: [],
@@ -13,11 +16,15 @@ function createDefaultState() {
     servicios: [],
     inventory_items: [],
     inventory_movements: [],
+    inventory_providers: [],
+    inventory_purchases: [],
   };
 }
 
 function createStoreService({ dataFile }) {
   let currentDb = null;
+  let saveTimer = null;
+  let persistenceWorker = null;
 
   function loadState() {
     const file = dataFile();
@@ -32,11 +39,25 @@ function createStoreService({ dataFile }) {
 
   function saveState() {
     if (!currentDb) return;
-    try {
-      fs.writeFileSync(dataFile(), JSON.stringify(currentDb.state, null, 2), 'utf8');
-    } catch (err) {
-      console.error('Error saving store:', err.message);
-    }
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (!persistenceWorker) {
+        persistenceWorker = new Worker(path.join(__dirname, 'storePersistenceWorker.cjs'));
+        persistenceWorker.on('message', (message) => {
+          if (!message?.ok && message?.error) {
+            console.error('Error saving store:', message.error);
+          }
+        });
+        persistenceWorker.on('error', (err) => {
+          console.error('Persistence worker error:', err.message);
+        });
+      }
+      try {
+        persistenceWorker.postMessage({ filePath: dataFile(), state: currentDb.state });
+      } catch (err) {
+        console.error('Error saving store:', err.message);
+      }
+    }, 80);
   }
 
   function nextId(arr) {
@@ -62,12 +83,15 @@ function createStoreService({ dataFile }) {
           if (q.startsWith('create table if not exists')) {
             if (q.includes('users')) state.users = state.users || [];
             if (q.includes('productos')) state.productos = state.productos || [];
+            if (q.includes('clientes')) state.clientes = state.clientes || [];
             if (q.includes('plans')) state.plans = state.plans || [];
             if (q.includes('licenses')) state.licenses = state.licenses || [];
             if (q.includes('promo_codes')) state.promo_codes = state.promo_codes || [];
             if (q.includes('license_promos')) state.license_promos = state.license_promos || [];
             if (q.includes('company_settings')) state.company_settings = state.company_settings || [];
             if (q.includes('projects')) state.projects = state.projects || [];
+            saveState();
+          } else if (q.startsWith('alter table')) {
             saveState();
           } else if (q.startsWith('insert into users')) {
             const [username, password] = params;
@@ -111,14 +135,32 @@ function createStoreService({ dataFile }) {
             }];
             lastID = 1;
             saveState();
+          } else if (q.startsWith('insert into clientes')) {
+            const [documento, nombre, celular] = params;
+            state.clientes = state.clientes || [];
+            const row = { id: nextId(state.clientes), documento, nombre, celular, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+            state.clientes.push(row);
+            lastID = row.id;
+            saveState();
+          } else if (q.startsWith('update clientes')) {
+            const [nombre, celular, documento] = params;
+            state.clientes = state.clientes || [];
+            const cliente = state.clientes.find((r) => r.documento === documento);
+            if (cliente) {
+              cliente.nombre = nombre;
+              cliente.celular = celular;
+              cliente.updated_at = new Date().toISOString();
+              lastID = cliente.id;
+              saveState();
+            }
           } else if (q.includes('insert or replace into projects')) {
-            const [id, title, client, propState, total, despiece_data, hardware_data, summary_data] = params;
+            const [id, title, client, client_doc, client_phone, client_id, propState, total, despiece_data, hardware_data, summary_data] = params;
             state.projects = state.projects || [];
             const i = state.projects.findIndex((p) => p.id === id);
             if (i >= 0) {
-              state.projects[i] = { ...state.projects[i], title, client, state: propState, total, despiece_data, hardware_data, summary_data, updated_at: new Date().toISOString() };
+              state.projects[i] = { ...state.projects[i], title, client, client_doc, client_phone, client_id, state: propState, total, despiece_data, hardware_data, summary_data, updated_at: new Date().toISOString() };
             } else {
-              state.projects.push({ id, title, client, state: propState, total, despiece_data, hardware_data, summary_data, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+              state.projects.push({ id, title, client, client_doc, client_phone, client_id, state: propState, total, despiece_data, hardware_data, summary_data, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
             }
             saveState();
           } else if (q.includes('delete from projects')) {
@@ -179,6 +221,9 @@ function createStoreService({ dataFile }) {
           } else if (q.includes('select * from projects where id = ?')) {
             const [id] = params;
             row = state.projects.find((p) => p.id === id) || undefined;
+          } else if (q === 'select * from clientes where documento = ?') {
+            const [documento] = params;
+            row = (state.clientes || []).find((c) => c.documento === documento) || undefined;
           } else {
             throw new Error(`Unsupported SQL in get(): ${sql}`);
           }
@@ -194,6 +239,7 @@ function createStoreService({ dataFile }) {
           if (q === 'select * from productos') rows = state.productos;
           else if (q === 'select * from plans where 1=1') rows = state.plans;
           else if (q === 'select * from company_settings') rows = state.company_settings;
+          else if (q === 'select * from clientes order by nombre asc') rows = [...(state.clientes || [])].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || '')));
           else if (q === 'select id, username, password from users') rows = state.users.map((u) => ({ id: u.id, username: u.username, password: u.password }));
           else if (q.includes('select id, title, client, state, total, created_at, updated_at from projects')) {
             rows = [...(state.projects || [])].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));

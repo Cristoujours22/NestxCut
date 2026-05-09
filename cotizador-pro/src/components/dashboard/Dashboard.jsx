@@ -1,23 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const STATUS_FILTERS = ['TODOS', 'EN PROGRESO', 'APROBADA', 'RECHAZADA'];
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [projects, setProjects] = useState([]);
   const [companyName, setCompanyName] = useState('Workshop Alpha');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('TODOS');
+  const [menuProjectId, setMenuProjectId] = useState(null);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         if (window.electronAPI?.getProjects) {
-          const data = await window.electronAPI.getProjects();
+          const data = await window.electronAPI.getProjects(user?.uid);
           setProjects(data);
         }
         if (window.electronAPI?.getCompanySettings) {
@@ -31,7 +34,11 @@ export default function Dashboard() {
       }
     };
     fetchProjects();
-  }, []);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    setMenuProjectId(null);
+  }, [location.pathname]);
 
   const getStatusStyle = (state) => {
     switch (state) {
@@ -97,6 +104,27 @@ export default function Dashboard() {
     const currentIndex = STATUS_FILTERS.indexOf(statusFilter);
     const nextIndex = (currentIndex + 1) % STATUS_FILTERS.length;
     setStatusFilter(STATUS_FILTERS[nextIndex]);
+  };
+
+  const loadProjects = async () => {
+    try {
+      if (window.electronAPI?.getProjects) {
+        const data = await window.electronAPI.getProjects(user?.uid);
+        setProjects(data);
+      }
+    } catch (error) {
+      console.error('Error reloading projects:', error);
+    }
+  };
+
+  const deleteProject = async (projectId) => {
+    try {
+      await window.electronAPI.deleteProject(projectId, user?.uid);
+      setProjects((prev) => prev.filter((project) => project.id !== projectId));
+      await loadProjects();
+    } catch (e) {
+      console.error('Delete error:', e);
+    }
   };
 
   const greetingSummary = useMemo(() => {
@@ -295,7 +323,10 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="text-[#a3aac4] hover:text-white p-2 rounded-lg hover:bg-[#1a233a] transition-colors opacity-0 group-hover:opacity-100">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setMenuProjectId(proj.id); }}
+                        className="text-[#a3aac4] hover:text-white p-2 rounded-lg hover:bg-[#1a233a] transition-colors opacity-0 group-hover:opacity-100"
+                      >
                         <span className="material-symbols-outlined text-[20px]">more_vert</span>
                       </button>
                     </td>
@@ -306,6 +337,54 @@ export default function Dashboard() {
           </table>
         </div>
       </section>
+
+      {/* Dropdown menu */}
+      {menuProjectId && (
+        <div className="fixed inset-0 z-40" onClick={() => setMenuProjectId(null)}>
+          <div className="absolute bottom-20 right-8 w-48 bg-[#0a1122] border border-[#1a233a] rounded-xl shadow-2xl overflow-hidden">
+            <button onClick={() => { navigate(`/proyecto/${menuProjectId}`); setMenuProjectId(null); }} className="w-full px-4 py-3 text-left text-sm text-[#dee5ff] hover:bg-[#1a233a]/40 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">edit</span> Editar
+            </button>
+            <button onClick={() => { setDeleteCandidate(menuProjectId); setMenuProjectId(null); }} className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">delete</span> Eliminar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {deleteCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#1a233a] bg-[#0a1122] shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#1a233a] bg-[#060e20]">
+              <h3 className="text-[#dee5ff] font-bold font-['Space_Grotesk']">Eliminar proyecto</h3>
+              <p className="text-[#a3aac4] text-sm mt-1">Esta acción no se puede deshacer.</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-[#dee5ff]">¿Eliminar este proyecto?</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteCandidate(null)}
+                  className="px-4 py-2 rounded-lg border border-[#1a233a] bg-[#10182d] text-[#a3aac4] hover:text-white hover:bg-[#15213b]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const candidate = deleteCandidate;
+                    setDeleteCandidate(null);
+                    await deleteProject(candidate);
+                  }}
+                  className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

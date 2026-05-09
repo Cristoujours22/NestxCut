@@ -96,69 +96,92 @@ export async function generateCotizacionPDF({
 
   currentY = 32;
 
-  // ========== RESUMEN INFO ==========
-  // Card background
+  // ========== CLIENTE + COTIZACIÓN ==========
+  const cardWidth = (pageWidth - 35) / 2;
+
+  // Cliente
   doc.setFillColor(245, 250, 252);
-  doc.rect(leftMargin, currentY, pageWidth - 30, 40, 'F');
-  
-  // Title
+  doc.rect(leftMargin, currentY, cardWidth, 44, 'F');
+
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 80, 100);
-  doc.text('DATOS DEL PROYECTO', leftMargin + 3, currentY + 6);
-  
-  // Two columns layout
+  doc.text('DATOS DEL CLIENTE', leftMargin + 3, currentY + 6);
+
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
-  
-  const col1 = leftMargin + 3;
-  const col2 = leftMargin + 90;
-  const row1 = currentY + 13;
-  const row2 = currentY + 22;
-  const row3 = currentY + 31;
-  
-  // Left column
-  doc.text('Nombre del Proyecto:', col1, row1);
+
+  const clientCol = leftMargin + 3;
+  const clientRow1 = currentY + 14;
+  const clientRow2 = currentY + 23;
+  const clientRow3 = currentY + 32;
+  const clientRow4 = currentY + 41;
+
+  doc.text('Nombre:', clientCol, clientRow1);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(projectName || '—', col1 + 35, row1);
-  
+  doc.text(clientName || '—', clientCol + 18, clientRow1);
+
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
-  doc.text('Cliente:', col1, row2);
+  doc.text('Documento:', clientCol, clientRow2);
+  doc.setTextColor(0, 0, 0);
+  doc.text(clientDoc || '—', clientCol + 25, clientRow2);
+
+  doc.setTextColor(80, 80, 80);
+  doc.text('Celular:', clientCol, clientRow3);
+  doc.setTextColor(0, 0, 0);
+  doc.text(clientPhone || '—', clientCol + 18, clientRow3);
+
+  doc.setTextColor(80, 80, 80);
+  doc.text('Email:', clientCol, clientRow4);
+  doc.setTextColor(0, 0, 0);
+  doc.text(clientEmail || '—', clientCol + 14, clientRow4);
+
+  // Cotización
+  const quoteX = leftMargin + cardWidth + 5;
+  doc.setFillColor(245, 250, 252);
+  doc.rect(quoteX, currentY, cardWidth, 44, 'F');
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 80, 100);
+  doc.text('DATOS DE LA COTIZACIÓN', quoteX + 3, currentY + 6);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
+
+  const quoteCol = quoteX + 3;
+  const quoteRow1 = currentY + 14;
+  const quoteRow2 = currentY + 23;
+  const quoteRow3 = currentY + 32;
+  const quoteRow4 = currentY + 41;
+
+  doc.text('Proyecto:', quoteCol, quoteRow1);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(clientName || '—', col1 + 22, row2);
-  
+  doc.text(projectName || '—', quoteCol + 18, quoteRow1);
+
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(80, 80, 80);
-  doc.text('Documento:', col1, row3);
+  doc.text('Asesor:', quoteCol, quoteRow2);
   doc.setTextColor(0, 0, 0);
-  doc.text(clientDoc || '—', col1 + 25, row3);
-  
-  // Right column  
-  doc.setFont('helvetica', 'normal');
+  doc.text(advisorName || '—', quoteCol + 16, quoteRow2);
+
   doc.setTextColor(80, 80, 80);
-  doc.text('Asesor:', col2, row1);
+  doc.text('Tel. asesor:', quoteCol, quoteRow3);
   doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text(advisorName || '—', col2 + 18, row1);
-  
-  doc.setFont('helvetica', 'normal');
+  doc.text(advisorPhone || '—', quoteCol + 23, quoteRow3);
+
   doc.setTextColor(80, 80, 80);
-  doc.text('Teléfono:', col2, row2);
-  doc.setTextColor(0, 0, 0);
-  doc.text(clientPhone || '—', col2 + 22, row2);
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
-  doc.text('Válida hasta:', col2, row3);
+  doc.text('Válida hasta:', quoteCol, quoteRow4);
   doc.setTextColor(0, 100, 130);
   doc.setFont('helvetica', 'bold');
-  doc.text(validez || '—', col2 + 27, row3);
-  
-  currentY += 45;
+  doc.text(validez || '—', quoteCol + 27, quoteRow4);
+
+  currentY += 49;
 
   // ========== MATERIALES ==========
   if (serviciosData.porMaterial && serviciosData.porMaterial.length > 0) {

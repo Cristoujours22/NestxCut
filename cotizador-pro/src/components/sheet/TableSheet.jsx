@@ -20,6 +20,8 @@ function TableSheet({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const inputRefs = useRef({});
   const pendingFocusRef = useRef(null);
+  const focusFrameRef = useRef(null);
+  const focusTimeoutRef = useRef(null);
 
   const fieldOrder = useMemo(() => columns.map(c => c.key), [columns]);
   const lastField = fieldOrder[fieldOrder.length - 1];
@@ -27,8 +29,30 @@ function TableSheet({
   const activeField = activePos?.field;
   const isEditing = editMode !== 'selection';
 
-  const focusInput = (rowIndex, field, { selectAll = true, cursorToEnd = false } = {}) => {
-    setTimeout(() => {
+  const clearScheduledFocus = useCallback(() => {
+    if (focusFrameRef.current !== null) {
+      cancelAnimationFrame(focusFrameRef.current);
+      focusFrameRef.current = null;
+    }
+    if (focusTimeoutRef.current !== null) {
+      clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleFocus = useCallback((callback) => {
+    clearScheduledFocus();
+    focusFrameRef.current = requestAnimationFrame(() => {
+      focusTimeoutRef.current = setTimeout(() => {
+        focusFrameRef.current = null;
+        focusTimeoutRef.current = null;
+        callback();
+      }, 0);
+    });
+  }, [clearScheduledFocus]);
+
+  const focusInput = useCallback((rowIndex, field, { selectAll = true, cursorToEnd = false } = {}) => {
+    scheduleFocus(() => {
       const input = inputRefs.current[`${rowIndex}-${field}`];
       if (input) {
         input.focus();
@@ -40,8 +64,8 @@ function TableSheet({
           input.setSelectionRange(end, end);
         }
       }
-    }, 10);
-  };
+    });
+  }, [scheduleFocus]);
 
   const focusCell = (rowIndex, field, mode = 'selection', focusOptions = undefined) => {
     setActivePos({ rowIndex, field });
@@ -53,14 +77,14 @@ function TableSheet({
     }
   };
 
-  const focusSelectedCell = (rowIndex, field) => {
-    setTimeout(() => {
+  const focusSelectedCell = useCallback((rowIndex, field) => {
+    scheduleFocus(() => {
       const input = inputRefs.current[`${rowIndex}-${field}`];
       if (input) {
         input.focus();
       }
-    }, 10);
-  };
+    });
+  }, [scheduleFocus]);
 
   // Undo/Redo
   const saveHistory = useCallback(() => {
@@ -92,10 +116,17 @@ function TableSheet({
     if (onRedo) onRedo(redo);
   }, [undo, redo, onUndo, onRedo]);
 
+  useEffect(() => () => {
+    clearScheduledFocus();
+  }, [clearScheduledFocus]);
+
   useEffect(() => {
     if (!pendingFocusRef.current) return;
     const { rowIndex, field, mode = 'selection' } = pendingFocusRef.current;
-    if (rowIndex >= rows.length) return;
+    if (rowIndex >= rows.length) {
+      pendingFocusRef.current = null;
+      return;
+    }
 
     pendingFocusRef.current = null;
     if (mode === 'selection') {
