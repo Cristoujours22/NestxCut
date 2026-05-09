@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import NewProjectModal from '../dashboard/NewProjectModal';
+import UpdateChecker from '../UpdateChecker';
 
 export default function AppLayout() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,6 +25,9 @@ export default function AppLayout() {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
       />
+
+      {/* Update checker — renders nothing if no update available */}
+      <UpdateChecker />
     </div>
   );
 }

@@ -1,5 +1,5 @@
-// components/Settings.jsx
 import { useState, useEffect } from 'react';
+import pkg from '../../package.json' with { type: 'json' };
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import LicensingPanel from './licensing/LicensingPanel';
@@ -207,7 +207,7 @@ export default function Settings() {
                       <span className="material-symbols-outlined text-[16px]">terminal</span>
                       <span className="text-sm font-medium">Versión</span>
                     </div>
-                    <span className="text-[#dee5ff] text-sm font-mono font-bold bg-[#1a233a] px-2 py-0.5 rounded">0.0.1</span>
+                    <span className="text-[#dee5ff] text-sm font-mono font-bold bg-[#1a233a] px-2 py-0.5 rounded">{pkg.version}</span>
                   </div>
                   <div className="flex justify-between items-center px-5 py-3 hover:bg-[#0f1930]/40 transition-colors">
                     <div className="flex items-center gap-2 text-[#a3aac4]">
