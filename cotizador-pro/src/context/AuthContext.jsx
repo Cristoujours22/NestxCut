@@ -106,17 +106,7 @@ export const AuthProvider = ({ children }) => {
             const { stableHid, legacyHid } = await getDeviceIds();
             const deviceRef = doc(db, 'devices', stableHid);
 
-            let mergedPayload = {};
-            if (legacyHid && legacyHid !== stableHid) {
-                const legacyRef = doc(db, 'devices', legacyHid);
-                const legacySnap = await getDoc(legacyRef);
-                if (legacySnap.exists()) {
-                    mergedPayload = legacySnap.data() || {};
-                }
-            }
-
             await setDoc(deviceRef, {
-                ...mergedPayload,
                 hid: stableHid,
                 legacyHid: legacyHid !== stableHid ? legacyHid : null,
                 currentUserUid: firebaseUser.uid,

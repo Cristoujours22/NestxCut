@@ -38,8 +38,9 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.despiece.cotizadorpro",
-    "productName": "Cotizador Pro",
+    "appId": "com.nestxcut.app",
+    "productName": "NESTXCUT",
+    "icon": "build/icon.ico",
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -52,12 +53,16 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": true,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     }
   }
 }
