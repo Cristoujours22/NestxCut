@@ -5,12 +5,64 @@ const { machineIdSync } = require('node-machine-id');
 const { registerInventoryHandlers } = require('./ipc/inventoryHandlers.cjs');
 const { registerServiceHandlers } = require('./ipc/serviceHandlers.cjs');
 const { createSqliteProjectStore } = require('./services/sqliteProjectStore.cjs');
+const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 
 let mainWindow;
 let sqliteProjectStore;
 
 const isDev = !app.isPackaged;
+
+// ============ AUTO UPDATER ============
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('checking-for-update', () => {
+  console.log('[Updater] Checking for update...');
+  mainWindow?.webContents.send('update-status', { status: 'checking' });
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('[Updater] Update available:', info.version);
+  mainWindow?.webContents.send('update-status', { status: 'available', version: info.version });
+});
+
+autoUpdater.on('update-not-available', () => {
+  console.log('[Updater] Up to date');
+  mainWindow?.webContents.send('update-status', { status: 'up-to-date' });
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  console.log('[Updater] Download progress:', progress.percent.toFixed(1) + '%');
+  mainWindow?.webContents.send('update-status', { status: 'downloading', percent: progress.percent });
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('[Updater] Update downloaded:', info.version);
+  mainWindow?.webContents.send('update-status', { status: 'downloaded', version: info.version });
+});
+
+autoUpdater.on('error', (err) => {
+  console.error('[Updater] Error:', err.message);
+  mainWindow?.webContents.send('update-status', { status: 'error', message: err.message });
+});
+
+// IPC handlers for updater
+ipcMain.handle('check-for-updates', async () => {
+  if (!isDev) {
+    autoUpdater.checkForUpdates();
+  }
+  return { ok: true };
+});
+
+ipcMain.handle('install-update', async () => {
+  autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
+});
+// ============ END AUTO UPDATER ============
 
 const DATA_FILE = () => path.join(app.getPath('userData'), 'cotizador-store.json');
 
@@ -78,6 +130,16 @@ app.whenReady().then(() => {
     getServiceStore: () => sqliteProjectStore,
   });
   createWindow();
+
+  // Check for updates after window is ready (production only)
+  if (!isDev) {
+    mainWindow.webContents.on('did-finish-load', () => {
+      setTimeout(() => {
+        autoUpdater.checkForUpdates();
+      }, 3000);
+    });
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

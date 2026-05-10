@@ -22,10 +22,13 @@ const validInvokeChannels = [
   'update-inventory-item',
   'delete-inventory-item',
   'get-inventory-movements',
-  'add-inventory-movement'
+  'add-inventory-movement',
+  'check-for-updates',
+  'install-update',
+  'get-app-version'
 ]; // Add other DB channels
 const validSendChannels = []; // Channels for sending one-way messages to main
-const validOnChannels = [];   // Channels for receiving messages from main
+const validOnChannels = ['update-status'];   // Channels for receiving messages from main
 
 console.log('Preload script executing.'); // Log for debugging
 
@@ -78,6 +81,16 @@ getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
   deleteInventoryItem: (id) => ipcRenderer.invoke('delete-inventory-item', id),
   getInventoryMovements: () => ipcRenderer.invoke('get-inventory-movements'),
   addInventoryMovement: (movement) => ipcRenderer.invoke('add-inventory-movement', movement),
+
+  // Updater API
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onUpdateStatus: (callback) => {
+    const subscription = (event, data) => callback(data);
+    ipcRenderer.on('update-status', subscription);
+    return () => { ipcRenderer.removeListener('update-status', subscription); };
+  },
 
   // Function to send one-way messages to the main process (using ipcMain.on)
   send: (channel, data) => {
