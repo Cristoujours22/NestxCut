@@ -134,11 +134,12 @@ app.whenReady().then(() => {
 
   // Check for updates after window is ready (production only)
   if (!isDev) {
-    mainWindow.webContents.on('did-finish-load', () => {
-      setTimeout(() => {
-        autoUpdater.checkForUpdates();
-      }, 3000);
-    });
+    setTimeout(() => {
+      console.log('[Updater] Triggering check for updates...');
+      autoUpdater.checkForUpdates().catch(err => {
+        console.error('[Updater] checkForUpdates failed:', err.message);
+      });
+    }, 5000);
   }
 
   app.on('activate', () => {
