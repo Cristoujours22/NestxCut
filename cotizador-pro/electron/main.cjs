@@ -133,22 +133,18 @@ app.whenReady().then(() => {
   });
   createWindow();
 
-  // Check for updates after window is ready (production only)
-  if (!isDev) {
-    setTimeout(() => {
-      console.log('[Updater] Triggering check for updates...');
-      console.log('[Updater] isDev:', isDev, 'app.isPackaged:', app.isPackaged);
-      console.log('[Updater] Version:', app.getVersion());
-      autoUpdater.checkForUpdates().then(result => {
-        console.log('[Updater] checkForUpdates result:', result);
-      }).catch(err => {
-        console.error('[Updater] checkForUpdates failed:', err.message);
-        console.error('[Updater] Error details:', err);
-      });
-    }, 5000);
-  } else {
-    console.log('[Updater] Skipping update check - isDev:', isDev);
-  }
+  // Check for updates always
+  setTimeout(() => {
+    console.log('[Updater] Triggering check for updates...');
+    console.log('[Updater] isDev:', isDev, 'app.isPackaged:', app.isPackaged);
+    console.log('[Updater] Version:', app.getVersion());
+    autoUpdater.checkForUpdates().then(result => {
+      console.log('[Updater] checkForUpdates result:', result);
+    }).catch(err => {
+      console.error('[Updater] checkForUpdates failed:', err.message);
+      console.error('[Updater] Error details:', err);
+    });
+  }, 5000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
