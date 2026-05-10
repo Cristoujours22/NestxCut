@@ -109,6 +109,7 @@ function createWindow() {
   console.log('[main] isDev:', isDev, 'startUrl:', startUrl);
 
   mainWindow.loadURL(startUrl);
+  mainWindow.setTitle(`NESTXCUT v${app.getVersion()}`);
   if (isDev) mainWindow.webContents.openDevTools();
   mainWindow.on('closed', () => {
     mainWindow = null;
