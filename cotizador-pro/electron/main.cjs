@@ -44,6 +44,7 @@ autoUpdater.on('update-downloaded', (info) => {
 
 autoUpdater.on('error', (err) => {
   console.error('[Updater] Error:', err.message);
+  console.error('[Updater] Error stack:', err.stack);
   mainWindow?.webContents.send('update-status', { status: 'error', message: err.message });
 });
 
@@ -136,10 +137,17 @@ app.whenReady().then(() => {
   if (!isDev) {
     setTimeout(() => {
       console.log('[Updater] Triggering check for updates...');
-      autoUpdater.checkForUpdates().catch(err => {
+      console.log('[Updater] isDev:', isDev, 'app.isPackaged:', app.isPackaged);
+      console.log('[Updater] Version:', app.getVersion());
+      autoUpdater.checkForUpdates().then(result => {
+        console.log('[Updater] checkForUpdates result:', result);
+      }).catch(err => {
         console.error('[Updater] checkForUpdates failed:', err.message);
+        console.error('[Updater] Error details:', err);
       });
     }, 5000);
+  } else {
+    console.log('[Updater] Skipping update check - isDev:', isDev);
   }
 
   app.on('activate', () => {
