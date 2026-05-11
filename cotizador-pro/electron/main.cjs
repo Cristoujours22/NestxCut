@@ -8,6 +8,17 @@ const { createSqliteProjectStore } = require('./services/sqliteProjectStore.cjs'
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 
+// Logger para electron-updater
+const logPath = () => path.join(app.getPath('userData'), 'updater.log');
+
+function logToFile(msg) {
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] ${msg}\n`;
+  try {
+    fs.appendFileSync(logPath(), logLine);
+  } catch (e) { /* silencioso */ }
+}
+
 let mainWindow;
 let sqliteProjectStore;
 
@@ -16,48 +27,91 @@ const isDev = !app.isPackaged;
 // ============ AUTO UPDATER ============
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+// allowDowngrade para poder revertir si hay problemas
+autoUpdater.allowDowngrade = false;
+
+// Logger custom
+autoUpdater.logger = {
+  info: (msg) => {
+    console.log('[Updater]', msg);
+    logToFile(`INFO: ${msg}`);
+  },
+  warn: (msg) => {
+    console.warn('[Updater WARN]', msg);
+    logToFile(`WARN: ${msg}`);
+  },
+  error: (msg) => {
+    console.error('[Updater ERROR]', msg);
+    logToFile(`ERROR: ${msg}`);
+  }
+};
 
 autoUpdater.on('checking-for-update', () => {
   console.log('[Updater] Checking for update...');
+  logToFile('Checking for update...');
   mainWindow?.webContents.send('update-status', { status: 'checking' });
 });
 
 autoUpdater.on('update-available', (info) => {
   console.log('[Updater] Update available:', info.version);
+  logToFile(`Update available: ${info.version}`);
   mainWindow?.webContents.send('update-status', { status: 'available', version: info.version });
 });
 
 autoUpdater.on('update-not-available', () => {
   console.log('[Updater] Up to date');
+  logToFile('Up to date');
   mainWindow?.webContents.send('update-status', { status: 'up-to-date' });
 });
 
 autoUpdater.on('download-progress', (progress) => {
-  console.log('[Updater] Download progress:', progress.percent.toFixed(1) + '%');
+  const percent = progress.percent.toFixed(1);
+  console.log('[Updater] Download progress:', percent + '%');
+  logToFile(`Download progress: ${percent}%`);
   mainWindow?.webContents.send('update-status', { status: 'downloading', percent: progress.percent });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('[Updater] Update downloaded:', info.version);
+  logToFile(`Update downloaded: ${info.version}`);
   mainWindow?.webContents.send('update-status', { status: 'downloaded', version: info.version });
 });
 
 autoUpdater.on('error', (err) => {
   console.error('[Updater] Error:', err.message);
   console.error('[Updater] Error stack:', err.stack);
+  logToFile(`Error: ${err.message}\nStack: ${err.stack}`);
   mainWindow?.webContents.send('update-status', { status: 'error', message: err.message });
 });
 
 // IPC handlers for updater
 ipcMain.handle('check-for-updates', async () => {
-  if (!isDev) {
-    autoUpdater.checkForUpdates();
+  if (isDev) {
+    return { ok: true, isDev: true, message: 'Skipped in development mode' };
   }
-  return { ok: true };
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    logToFile(`checkForUpdates result: ${JSON.stringify(result)}`);
+    return {
+      ok: true,
+      isUpdateAvailable: result?.updateInfo?.version || null,
+      version: result?.updateInfo?.version || null
+    };
+  } catch (err) {
+    logToFile(`checkForUpdates error: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
 });
 
 ipcMain.handle('install-update', async () => {
-  autoUpdater.quitAndInstall();
+  try {
+    logToFile('quitAndInstall called');
+    autoUpdater.quitAndInstall();
+    return { ok: true };
+  } catch (err) {
+    logToFile(`quitAndInstall error: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
 });
 
 ipcMain.handle('get-app-version', async () => {

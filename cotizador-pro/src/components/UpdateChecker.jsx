@@ -22,8 +22,52 @@ export default function UpdateChecker() {
     window.electronAPI?.installUpdate?.();
   };
 
-  // Don't show anything if dismissed, no status, or up-to-date
-  if (dismissed || !status || status === 'up-to-date' || status === 'checking' || status === 'error') return null;
+  // Don't show anything if dismissed or no status
+  if (dismissed || !status) return null;
+
+  // Show up-to-date message briefly then hide
+  if (status === 'up-to-date') {
+    return (
+      <div className="fixed bottom-4 right-4 z-[100] w-72 rounded-xl border border-green-800 bg-green-950 shadow-2xl p-4">
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-green-400 text-[20px]">check_circle</span>
+          <p className="text-green-200 text-sm font-bold">Estás actualizado</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error with retry option
+  if (status === 'error') {
+    return (
+      <div className="fixed bottom-4 right-4 z-[100] w-72 rounded-xl border border-red-800 bg-red-950 shadow-2xl p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="material-symbols-outlined text-red-400 text-[20px]">error</span>
+          <p className="text-red-200 text-sm font-bold">Error de actualización</p>
+        </div>
+        <p className="text-red-300 text-xs mb-3">No se pudo verificar actualizaciones.</p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="px-3 py-1.5 rounded-lg border border-red-800 text-red-400 text-xs hover:bg-red-900 transition-colors"
+          >
+            Cerrar
+          </button>
+          <button
+            type="button"
+            onClick={() => window.electronAPI?.checkForUpdates?.()}
+            className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-500 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Hide checking status
+  if (status === 'checking') return null;
 
   // Downloading: show subtle progress bar
   if (status === 'downloading') {
