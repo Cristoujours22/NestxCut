@@ -27,8 +27,14 @@ const isDev = !app.isPackaged;
 // ============ AUTO UPDATER ============
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
-// allowDowngrade para poder revertir si hay problemas
 autoUpdater.allowDowngrade = false;
+
+// Forzar el feed URL explícitamente
+autoUpdater.setFeedURL({
+  provider: 'github',
+  owner: 'Cristoujours22',
+  repo: 'NestxCut'
+});
 
 // Logger custom
 autoUpdater.logger = {
