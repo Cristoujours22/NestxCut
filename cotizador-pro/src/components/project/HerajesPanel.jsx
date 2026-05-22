@@ -39,15 +39,25 @@ async function loadHerajes() {
   return [];
 }
 
+async function loadDoorFabrications() {
+  if (API?.getDoorFabrications) {
+    return await API.getDoorFabrications() || [];
+  }
+  return [];
+}
+
 export default function HerajesPanel({ initialData = {}, onChange }) {
   const [items, setItems] = useState(initialData.items || []);
   const [servicios, setServicios] = useState([]);
   const [herajesInventory, setHerajesInventory] = useState([]);
+  const [doorFabrications, setDoorFabrications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddItem, setShowAddItem] = useState(false);
   const [showAddServicio, setShowAddServicio] = useState(false);
+  const [showAddPuerta, setShowAddPuerta] = useState(false);
   const [searchItem, setSearchItem] = useState('');
   const [searchServicio, setSearchServicio] = useState('');
+  const [searchPuerta, setSearchPuerta] = useState('');
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
@@ -57,10 +67,11 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
       setLoading(true);
       setLoadError('');
       try {
-        const [srv, inv] = await Promise.all([loadServicios(), loadHerajes()]);
+        const [srv, inv, doors] = await Promise.all([loadServicios(), loadHerajes(), loadDoorFabrications()]);
         if (cancelled) return;
         setServicios(srv);
         setHerajesInventory(inv);
+        setDoorFabrications(doors);
       } catch (error) {
         if (cancelled) return;
         console.error('Error cargando herrajes/servicios:', error);
@@ -107,6 +118,15 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
     );
   }, [servicios, searchServicio]);
 
+  const filteredPuertas = useMemo(() => {
+    if (!searchPuerta) return doorFabrications;
+    const q = searchPuerta.toLowerCase();
+    return doorFabrications.filter((door) =>
+      (door.nombre || '').toLowerCase().includes(q) ||
+      (door.selectedMaterial?.nombre || '').toLowerCase().includes(q)
+    );
+  }, [doorFabrications, searchPuerta]);
+
   const addHeraje = (heraje) => {
     const existente = items.find(i => i.heraje_id === heraje.id);
     if (existente) {
@@ -149,6 +169,38 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
       }]);
     }
     setShowAddServicio(false);
+  };
+
+  const addPuerta = (door) => {
+    const precioMaterial = Number(door.totals?.materialCost || (Number(door.selectedMaterial?.costo_unitario || 0) * Number(door.inventoryImpact?.boardsConsumed || 0)));
+    const precioHerrajes = Number(door.totals?.hardwareCost || (door.selectedHerrajes || []).reduce((acc, item) => acc + (Number(item.costo_unitario || 0) * Number(item.cantidad || 1)), 0));
+    const precioServicios = Number(door.totals?.servicesCost || (door.selectedServicios || []).reduce((acc, item) => acc + (Number(item.precio || 0) * Number(item.cantidad || 1)), 0));
+    const precioBase = Number(door.totals?.total || (precioMaterial + precioHerrajes + precioServicios));
+    const precioUnitarioPuerta = Number(door.totals?.unitDoorCost || (precioBase / Math.max(1, Number(door.cantidad || 1))));
+
+    setItems(prev => [...prev, {
+      id: `door_${Date.now()}`,
+      origen: 'puerta',
+      puerta_fabrication_id: door.id,
+      nombre: door.nombre || 'Puerta fabricada',
+      cantidad: 1,
+      precio: precioUnitarioPuerta,
+      subtotal: precioUnitarioPuerta,
+      metadata: {
+        material: door.selectedMaterial?.nombre || '',
+        hoja: door.calculationSnapshot?.hoja || null,
+        nestingSummary: door.nestingSummary || null,
+        totals: {
+          materialCost: precioMaterial,
+          hardwareCost: precioHerrajes,
+          servicesCost: precioServicios,
+          total: precioBase,
+          unitDoorCost: precioUnitarioPuerta,
+        },
+      },
+    }]);
+
+    setShowAddPuerta(false);
   };
 
   const updateCantidad = (id, cantidad) => {
@@ -211,6 +263,13 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
           <span className="material-symbols-outlined text-[16px]">build</span>
           Agregar Servicio
         </button>
+        <button
+          onClick={() => setShowAddPuerta(true)}
+          className="text-xs bg-[#1a233a] hover:bg-[#202b46] text-[#dee5ff] px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors border border-[#40485d]/30"
+        >
+          <span className="material-symbols-outlined text-[16px]">door_front</span>
+          Agregar Puerta
+        </button>
       </div>
 
       <div className="bg-[#0f1930]/60 border border-[#1a233a] rounded-xl px-4 py-3 text-sm text-[#a3aac4]">
@@ -260,6 +319,70 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
                       </div>
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Agregar Puerta fabricada */}
+      {showAddPuerta && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0f1930] border border-[#1a233a] rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-[#1a233a] flex items-center justify-between">
+              <h3 className="text-[#dee5ff] font-bold">Agregar Puerta Fabricada</h3>
+              <button onClick={() => setShowAddPuerta(false)} className="text-[#a3aac4] hover:text-[#dee5ff]">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-4">
+              <input
+                type="text"
+                placeholder="Buscar puerta fabricada..."
+                value={searchPuerta}
+                onChange={e => setSearchPuerta(e.target.value)}
+                className="w-full bg-[#060e20] border border-[#1a233a] rounded-lg px-4 py-2 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff]"
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 pt-0">
+              {filteredPuertas.length === 0 ? (
+                <div className="text-center p-8 text-[#a3aac4]">
+                  <span className="material-symbols-outlined text-4xl">door_front</span>
+                  <p>No hay puertas fabricadas</p>
+                  <p className="text-sm mt-1">Fabricá una puerta en el módulo Puertas para poder usarla acá</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredPuertas.map(door => {
+                    const precioMaterial = Number(door.selectedMaterial?.costo_unitario || 0) * Number(door.inventoryImpact?.boardsConsumed || 0);
+                    const precioHerrajes = (door.selectedHerrajes || []).reduce((acc, item) => acc + (Number(item.costo_unitario || 0) * Number(item.cantidad || 1)), 0);
+                    const precioServicios = (door.selectedServicios || []).reduce((acc, item) => acc + (Number(item.precio || 0) * Number(item.cantidad || 1)), 0);
+                    const precioBase = precioMaterial + precioHerrajes + precioServicios;
+                    return (
+                      <button
+                        key={door.id}
+                        onClick={() => addPuerta(door)}
+                        className="w-full text-left p-4 rounded-xl hover:bg-[#1a233a] transition-colors border border-[#1a233a]"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-[#dee5ff] font-semibold">{door.nombre || 'Puerta fabricada'}</div>
+                            <div className="text-[#a3aac4] text-sm mt-1">
+                              {door.calculationSnapshot?.hoja?.altoMm || '-'} × {door.calculationSnapshot?.hoja?.anchoMm || '-'} mm
+                              {door.selectedMaterial?.nombre ? ` · ${door.selectedMaterial.nombre}` : ''}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[#00d1ed] font-bold">{formatPrice(precioUnitarioPuerta)}</div>
+                            <div className="text-[#6f7a97] text-xs">costo unitario puerta</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -326,8 +449,8 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 bg-[#0a1122]/50 border border-[#1a233a] rounded-2xl border-dashed">
           <span className="material-symbols-outlined text-[#40485d] text-4xl mb-4">handyman</span>
-          <h3 className="text-[#a3aac4] font-medium font-['Space_Grotesk']">No hay herrades ni servicios agregados</h3>
-          <p className="text-[#a3aac4] text-sm mt-1">Agrega herdades del inventario o servicios extras</p>
+          <h3 className="text-[#a3aac4] font-medium font-['Space_Grotesk']">No hay herrajes, servicios ni puertas agregadas</h3>
+          <p className="text-[#a3aac4] text-sm mt-1">Agregá herrajes, servicios extra o puertas ya fabricadas</p>
         </div>
       ) : (
         <div className="glass-panel rounded-2xl border border-[#1a233a] overflow-hidden">
@@ -351,6 +474,9 @@ export default function HerajesPanel({ initialData = {}, onChange }) {
                     )}
                     {item.origen === 'manual' && (
                       <div className="text-[11px] mt-1 text-amber-300">Servicio manual</div>
+                    )}
+                    {item.origen === 'puerta' && (
+                      <div className="text-[11px] mt-1 text-cyan-300">Puerta fabricada</div>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">

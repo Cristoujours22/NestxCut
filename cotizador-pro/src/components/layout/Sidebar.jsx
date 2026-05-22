@@ -27,6 +27,7 @@ export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleC
     { name: 'Cotización', icon: 'request_quote', path: '/cotizacion' },
     { name: 'Reportes', icon: 'analytics', path: '/reportes' },
     { name: 'Inventario', icon: 'inventory_2', path: '/inventario' },
+    { name: 'Puertas', icon: 'door_front', path: '/puertas' },
     { name: 'Configuración', icon: 'settings', path: '/settings' },
   ];
 

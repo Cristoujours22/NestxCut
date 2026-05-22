@@ -15,6 +15,7 @@ import ProjectWorkspace from './components/project/ProjectWorkspace';
 import SubscriptionExpired from './components/SubscriptionExpired';
 import ManualQuotePage from './components/quotes/ManualQuotePage';
 import ReportsPage from './components/reports/ReportsPage';
+import PuertasPage from './components/puertas/PuertasPage';
 import './App.css';
 
 // --- Protected Route Component ---
@@ -110,6 +111,7 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/cotizacion" element={<ManualQuotePage />} />
                     <Route path="/reportes" element={<ReportsPage />} />
+                    <Route path="/puertas" element={<PuertasPage />} />
                     
                     {/* Project Workspace (Editor de Cotización) */}
                     <Route path="/proyecto/:id" element={<ProjectWorkspace />} />

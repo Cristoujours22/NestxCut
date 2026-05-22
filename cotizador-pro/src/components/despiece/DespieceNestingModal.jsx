@@ -65,11 +65,11 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
         </div>
       )}
 
-      <div className="w-full overflow-x-auto flex justify-center">
-        <div id={id} className={`relative rounded-2xl border inline-block ${isPrintMode ? '' : 'shadow-inner'}`} style={{ padding: '3px 7px 7px 3px', backgroundColor: colors.frameBg, borderColor: colors.frameBorder }}>
+      <div className="w-full overflow-visible flex justify-center">
+        <div id={id} className={`relative rounded-2xl border inline-block ${isPrintMode ? '' : 'shadow-inner'}`} style={{ padding: '12px 24px 24px 12px', backgroundColor: colors.frameBg, borderColor: colors.frameBorder }}>
           <div className="relative rounded-xl border" style={{ width: previewWidth, height: previewHeight, backgroundColor: colors.boardBg, borderColor: colors.boardBorder }}>
             {!isPrintMode && <div className={`absolute inset-[3px] rounded-[10px] border ${colors.innerGlow} pointer-events-none z-40`} />}
-            <div className="absolute inset-0 rounded-xl overflow-hidden">
+            <div className="absolute inset-0 rounded-xl">
               {!isPrintMode && <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradientFrom} ${colors.gradientTo} pointer-events-none`} />}
               <div
                 className={`absolute ${colors.usableBorder} ${colors.usableBg} rounded-sm pointer-events-none z-20 ${isPrintMode ? '' : 'shadow-[inset_0_0_0_1px_rgba(153,247,255,0.08)]'}`}
@@ -80,43 +80,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                   height: usablePreviewHeight,
                 }}
               />
-              {insetY > 0 ? (
-                <div
-                  className={`absolute left-0 bottom-0 ${colors.refiladoBg} border-t-2 ${colors.refiladoBorder} pointer-events-none z-10`}
-                  style={{ left: boardInset, width: innerBoardWidth, height: refiladoBottomHeight }}
-                  title={`Refilado Y: ${insetY} mm`}
-                />
-              ) : null}
-              {insetX > 0 ? (
-                <div
-                  className={`absolute right-0 top-0 ${colors.refiladoXBg} border-l-2 ${colors.refiladoXBorder} pointer-events-none z-10`}
-                  style={{ right: boardInset, top: boardInset, width: refiladoRightWidth, height: innerBoardHeight }}
-                  title={`Refilado X: ${insetX} mm`}
-                />
-              ) : null}
-              {refiladoRightWidth > 0 ? (
-                <div
-                  className="absolute top-0 bottom-0 pointer-events-none z-30 bg-[#fde68ab3]"
-                  style={{ left: usableLeft + usablePreviewWidth - 1, top: boardInset, height: innerBoardHeight, width: 2 }}
-                />
-              ) : null}
-              {refiladoBottomHeight > 0 ? (
-                <div
-                  className="absolute left-0 right-0 pointer-events-none z-30 bg-[#fecdd3b3]"
-                  style={{ left: boardInset, top: usableTop + usablePreviewHeight - 1, width: innerBoardWidth, height: 2 }}
-                />
-              ) : null}
-              {refiladoRightWidth > 0 && refiladoBottomHeight > 0 ? (
-                <div
-                  className="absolute pointer-events-none z-30 bg-gradient-to-br from-[#fcd34d73] to-[#fda4af73] border-l-2 border-t-2 border-[#ffffff40]"
-                  style={{
-                    left: usableLeft + usablePreviewWidth,
-                    top: usableTop + usablePreviewHeight,
-                    width: refiladoRightWidth,
-                    height: refiladoBottomHeight,
-                  }}
-                />
-              ) : null}
+              {null}
               {(sheet.freeRects || []).map((rect, index) => {
                 const rectLeft = usableLeft + Math.round(rect.x * scale);
                 const rectTop = usableTop + Math.round(rect.y * scale);
@@ -124,7 +88,6 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                 const rectHeight = Math.max(1, Math.round(rect.height * scale));
                 const showRectWidthLabel = rectWidth >= 44 && rectHeight >= 16;
                 const showRectHeightLabel = rectHeight >= 44 && rectWidth >= 16;
-
                 return (
                   <div
                     key={`free_${sheet.index}_${index}`}
@@ -136,14 +99,20 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                       height: rectHeight,
                     }}
                     title={`Área libre ${rect.width}x${rect.height}`}
-                  >
-                    {showRectHeightLabel ? (
-                      <div className={`absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 origin-center text-[8px] ${colors.freeText} ${colors.freeLabelBg} px-1 py-0.5 rounded-sm border border-[#6ee7b733] whitespace-nowrap`}>
+                    >
+                      {showRectHeightLabel ? (
+                      <div
+                        className={`absolute text-[8px] ${colors.freeText} ${colors.freeLabelBg} px-1 py-0.5 rounded-sm border border-[#6ee7b733] whitespace-nowrap`}
+                        style={{ left: '16px', top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)' }}
+                      >
                         {rect.height}
                       </div>
                     ) : null}
                     {showRectWidthLabel ? (
-                      <div className={`absolute left-1/2 bottom-1 -translate-x-1/2 text-[8px] ${colors.freeText} ${colors.freeLabelBg} px-1 py-0.5 rounded-sm border border-[#6ee7b733] pointer-events-none`}>
+                      <div
+                        className={`absolute text-[8px] ${colors.freeText} ${colors.freeLabelBg} px-1 py-0.5 rounded-sm border border-[#6ee7b733] pointer-events-none`}
+                        style={{ left: '50%', bottom: '4px', transform: 'translateX(-50%)' }}
+                      >
                         {rect.width}
                       </div>
                     ) : null}
@@ -231,6 +200,18 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
                 })()
               ))}
             </div>
+          </div>
+
+          <div
+            className={`absolute left-1/2 bottom-[2px] -translate-x-1/2 text-[8px] ${colors.dimText} ${colors.dimBg} px-1 py-0.5 rounded-sm border ${colors.dimBorder} pointer-events-none z-30 whitespace-nowrap`}
+          >
+            {boardWidth}
+          </div>
+          <div
+            className={`absolute text-[8px] ${colors.dimText} ${colors.dimBg} px-1 py-0.5 rounded-sm border ${colors.dimBorder} pointer-events-none z-30 whitespace-nowrap`}
+            style={{ left: 'calc(100% - 16px)', top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)' }}
+          >
+            {boardHeight}
           </div>
         </div>
       </div>

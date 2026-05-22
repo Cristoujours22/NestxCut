@@ -22,10 +22,21 @@ const validInvokeChannels = [
   'update-inventory-item',
   'delete-inventory-item',
   'get-inventory-movements',
+  'delete-inventory-movement',
   'add-inventory-movement',
+  'get-inventory-providers',
+  'save-inventory-provider',
+  'delete-inventory-provider',
   'check-for-updates',
   'install-update',
-  'get-app-version'
+  'get-app-version',
+  'get-door-fabrications',
+  'save-door-fabrication',
+  'delete-door-fabrication',
+  'get-door-config',
+  'save-door-config',
+  'get-manual-quotes',
+  'save-manual-quote'
 ]; // Add other DB channels
 const validSendChannels = []; // Channels for sending one-way messages to main
 const validOnChannels = ['update-status'];   // Channels for receiving messages from main
@@ -80,7 +91,11 @@ getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
   updateInventoryItem: (item) => ipcRenderer.invoke('update-inventory-item', item),
   deleteInventoryItem: (id) => ipcRenderer.invoke('delete-inventory-item', id),
   getInventoryMovements: () => ipcRenderer.invoke('get-inventory-movements'),
+  deleteInventoryMovement: (id) => ipcRenderer.invoke('delete-inventory-movement', id),
   addInventoryMovement: (movement) => ipcRenderer.invoke('add-inventory-movement', movement),
+  getInventoryProviders: () => ipcRenderer.invoke('get-inventory-providers'),
+  saveInventoryProvider: (provider) => ipcRenderer.invoke('save-inventory-provider', provider),
+  deleteInventoryProvider: (id) => ipcRenderer.invoke('delete-inventory-provider', id),
 
   // Updater API
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
@@ -91,6 +106,15 @@ getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
     ipcRenderer.on('update-status', subscription);
     return () => { ipcRenderer.removeListener('update-status', subscription); };
   },
+
+  // Door fabrication API
+  getDoorFabrications: () => ipcRenderer.invoke('get-door-fabrications'),
+  saveDoorFabrication: (record) => ipcRenderer.invoke('save-door-fabrication', record),
+  deleteDoorFabrication: (id) => ipcRenderer.invoke('delete-door-fabrication', id),
+  getDoorConfig: () => ipcRenderer.invoke('get-door-config'),
+  saveDoorConfig: (config) => ipcRenderer.invoke('save-door-config', config),
+  getManualQuotes: () => ipcRenderer.invoke('get-manual-quotes'),
+  saveManualQuote: (quote) => ipcRenderer.invoke('save-manual-quote', quote),
 
   // Function to send one-way messages to the main process (using ipcMain.on)
   send: (channel, data) => {

@@ -4,6 +4,9 @@ const crypto = require('crypto');
 const { machineIdSync } = require('node-machine-id');
 const { registerInventoryHandlers } = require('./ipc/inventoryHandlers.cjs');
 const { registerServiceHandlers } = require('./ipc/serviceHandlers.cjs');
+const { registerDoorFabricationHandlers } = require('./ipc/doorFabricationHandlers.cjs');
+const { registerDoorConfigHandlers } = require('./ipc/doorConfigHandlers.cjs');
+const { registerManualQuoteHandlers } = require('./ipc/manualQuoteHandlers.cjs');
 const { createSqliteProjectStore } = require('./services/sqliteProjectStore.cjs');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
@@ -19,6 +22,13 @@ function logToFile(msg) {
   } catch (e) { /* silencioso */ }
 }
 
+// Mostrar rutas al inicio - guardar en archivo
+const rutasPath = path.join(app.getPath('userData'), 'rutas-app.txt');
+const rutasContent = `userData: ${app.getPath('userData')}
+cache: ${autoUpdater.cachePath}`;
+try { fs.writeFileSync(rutasPath, rutasContent); } catch(e) {}
+console.log('[App] Rutas guardadas en:', rutasPath);
+
 let mainWindow;
 let sqliteProjectStore;
 
@@ -26,7 +36,7 @@ const isDev = !app.isPackaged;
 
 // ============ AUTO UPDATER ============
 autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.autoInstallOnAppQuit = false;
 autoUpdater.allowDowngrade = false;
 
 // Forzar el feed URL explícitamente
@@ -35,6 +45,8 @@ autoUpdater.setFeedURL({
   owner: 'Cristoujours22',
   repo: 'NestxCut'
 });
+
+// No limpiamos más la cache al inicio para permitir descargas
 
 // Logger custom
 autoUpdater.logger = {
@@ -58,10 +70,26 @@ autoUpdater.on('checking-for-update', () => {
   mainWindow?.webContents.send('update-status', { status: 'checking' });
 });
 
-autoUpdater.on('update-available', (info) => {
+autoUpdater.on('update-available', async (info) => {
   console.log('[Updater] Update available:', info.version);
   logToFile(`Update available: ${info.version}`);
   mainWindow?.webContents.send('update-status', { status: 'available', version: info.version });
+  
+  // Forzar descarga manual con await
+  logToFile('Forzando descarga manual...');
+  
+  // Enviar estado downloading inmediatamente
+  mainWindow?.webContents.send('update-status', { status: 'downloading', percent: 0 });
+  
+  try {
+    await new Promise(r => setTimeout(r, 100));
+    const result = await autoUpdater.downloadUpdate();
+    logToFile(`downloadUpdate initiated: ${result ? 'OK' : 'null'}`);
+  } catch (err) {
+    logToFile(`downloadUpdate error: ${err.message}`);
+    console.error('[Updater] Download error:', err);
+    mainWindow?.webContents.send('update-status', { status: 'error', message: err.message });
+  }
 });
 
 autoUpdater.on('update-not-available', () => {
@@ -72,15 +100,19 @@ autoUpdater.on('update-not-available', () => {
 
 autoUpdater.on('download-progress', (progress) => {
   const percent = progress.percent.toFixed(1);
-  console.log('[Updater] Download progress:', percent + '%');
-  logToFile(`Download progress: ${percent}%`);
+  console.log('[Updater] Download progress:', percent + '%', 'bytes:', progress.transferred, '/', progress.total);
+  logToFile(`Download progress: ${percent}% (${progress.transferred}/${progress.total})`);
   mainWindow?.webContents.send('update-status', { status: 'downloading', percent: progress.percent });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('[Updater] Update downloaded:', info.version);
   logToFile(`Update downloaded: ${info.version}`);
+  // Forzar el evento aunque algo falle
   mainWindow?.webContents.send('update-status', { status: 'downloaded', version: info.version });
+  // También verificar el archivo directamente
+  const downloadedPath = autoUpdater.downloadedUpdateFilePath;
+  logToFile(`Downloaded file path: ${downloadedPath}`);
 });
 
 autoUpdater.on('error', (err) => {
@@ -191,6 +223,12 @@ app.whenReady().then(() => {
     getDb: () => null,
     getServiceStore: () => sqliteProjectStore,
   });
+  registerDoorFabricationHandlers({
+    ipcMain,
+    getInventoryStore: () => sqliteProjectStore,
+  });
+  registerDoorConfigHandlers({ ipcMain });
+  registerManualQuoteHandlers({ ipcMain });
   createWindow();
 
   // Check for updates always

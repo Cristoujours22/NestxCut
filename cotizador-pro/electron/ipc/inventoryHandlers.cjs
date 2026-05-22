@@ -293,6 +293,19 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
     return [...(db?.state?.inventory_movements || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   });
 
+  ipcMain.handle('delete-inventory-movement', async (event, id) => {
+    const inventoryStore = getInventoryStore?.();
+    if (inventoryStore?.deleteInventoryMovement) {
+      return inventoryStore.deleteInventoryMovement(id);
+    }
+    const db = getDb();
+    if (!db) throw new Error('Database not connected.');
+
+    db.state.inventory_movements = (db.state.inventory_movements || []).filter((entry) => entry.id !== id);
+    saveState();
+    return { success: true };
+  });
+
   ipcMain.handle('add-inventory-movement', async (event, movement) => {
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.addInventoryMovement) {

@@ -6,6 +6,7 @@ import HerajesPanel from './HerajesPanel';
 import ResumenPanel from './ResumenPanel';
 import { generateCotizacionPDF } from '../../features/project/utils/cotizacionPdfExport';
 import { calculateServicesTotal } from '../../features/project/utils/mergeProjectServices';
+import { calculateCommercialQuote } from '../../features/project/utils/commercialQuote';
 import { getStockReal } from '../../features/inventory/utils/inventoryStock';
 import { useAuth } from '../../context/AuthContext';
 
@@ -109,6 +110,14 @@ export default function ProjectWorkspace() {
   const [despieceStats, setDespieceStats] = useState({ laminaCount: 0, piezaCount: 0 });
   const [openNestingHandler, setOpenNestingHandler] = useState(null);
   const [servicePicker, setServicePicker] = useState({ open: false, materialId: null, query: '' });
+  const [commercialConfig, setCommercialConfig] = useState({
+    enabled: false,
+    desperdicioPct: 0,
+    manoObraPct: 0,
+    utilidadPct: 0,
+    ivaEnabled: false,
+    ivaTasa: 19
+  });
   const reservationBaselineRef = useRef({});
   const reservationsReadyRef = useRef(false);
   const boardReservationBaselineRef = useRef({});
@@ -178,6 +187,15 @@ export default function ProjectWorkspace() {
             setHardwareData(hw);
           } catch(e) {
             console.error("Error parsing hardware data", e);
+          }
+          // Phase 1B: Restaurar config comercial del proyecto
+          try {
+            const summary = JSON.parse(data.summary_data || "{}");
+            if (summary.commercialConfig) {
+              setCommercialConfig(summary.commercialConfig);
+            }
+          } catch(e) {
+            console.error("Error parsing commercial config", e);
           }
         }
         
@@ -477,10 +495,17 @@ export default function ProjectWorkspace() {
     if (!project || !window.electronAPI?.saveProject) return;
     setIsSaving(true);
     try {
+      // Phase 1B: Construir summary_data con config comercial
+      const currentSummary = (() => {
+        try { return JSON.parse(project.summary_data || '{}'); } catch { return {}; }
+      })();
+      currentSummary.commercialConfig = commercialConfig;
+
       await window.electronAPI.saveProject({
         ...project,
         despiece_data: JSON.stringify(despieceData),
-        hardware_data: JSON.stringify(hardwareData)
+        hardware_data: JSON.stringify(hardwareData),
+        summary_data: JSON.stringify(currentSummary)
       });
       showToast('success', 'Cambios guardados correctamente');
     } catch(err) {
@@ -494,10 +519,16 @@ export default function ProjectWorkspace() {
   const updateProjectState = async (nextState) => {
     if (!project || !window.electronAPI?.saveProject) return;
     const nextProject = { ...project, state: nextState };
+    // Phase 1B: Preservar summary_data al actualizar estado
+    const currentSummary = (() => {
+      try { return JSON.parse(nextProject.summary_data || '{}'); } catch { return {}; }
+    })();
+    currentSummary.commercialConfig = commercialConfig;
     await window.electronAPI.saveProject({
       ...nextProject,
       despiece_data: JSON.stringify(despieceData),
-      hardware_data: JSON.stringify(hardwareData)
+      hardware_data: JSON.stringify(hardwareData),
+      summary_data: JSON.stringify(currentSummary)
     });
     setProject(nextProject);
   };
@@ -732,6 +763,13 @@ export default function ProjectWorkspace() {
       validity.setDate(validity.getDate() + 3);
       const validez = validity.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 
+      // Phase 1B: Cálculo comercial para el PDF
+      const costoDirecto = (serviciosData.subtotalLaminas || 0) +
+        (serviciosData.subtotalServicios || 0) +
+        (serviciosData.subtotalCantos || 0) +
+        (hardwareData.total || 0);
+      const commercialResult = calculateCommercialQuote(costoDirecto, commercialConfig);
+
       const doc = await generateCotizacionPDF({
         projectName: project?.title || project?.name || 'Proyecto',
         clientName: project?.client || project?.client_name || '',
@@ -755,7 +793,8 @@ export default function ProjectWorkspace() {
           'Cotización sujeta a revisión de condiciones.',
           'Precios incluyen IVA.',
           'Antes de comprar verifique existencias.'
-        ]
+        ],
+        commercialResult
       });
 
       doc.save(`${project?.title || project?.name || 'cotizacion'}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -1070,6 +1109,8 @@ export default function ProjectWorkspace() {
                 onExportPDF={handleExportPDF}
                 onAddService={handleAddService}
                 onUpdateManualQuantity={handleUpdateManualQuantity}
+                commercialConfig={commercialConfig}
+                onCommercialConfigChange={setCommercialConfig}
               />
             )}
           </>

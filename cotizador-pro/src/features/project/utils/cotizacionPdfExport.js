@@ -38,7 +38,8 @@ export async function generateCotizacionPDF({
   companyAddress = '',
   companyEmail = '',
   companyPhone = '',
-  conditions = []
+  conditions = [],
+  commercialResult = null
 }) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -463,41 +464,114 @@ export async function generateCotizacionPDF({
 
   // ========== TOTAL ==========
   currentY = checkPageBreak(doc, currentY, 45);
-  
-  const subtotalAntesIva = (serviciosData.subtotalLaminas || 0) + 
-                          (serviciosData.subtotalServicios || 0) + 
-                          (serviciosData.subtotalCantos || 0) + 
-                          (hardwareData.total || 0);
-  const iva = Math.round(subtotalAntesIva * 0.19);
-  const total = subtotalAntesIva + iva;
-  
-  // Total box
-  doc.setFillColor(235, 245, 250);
-  doc.rect(leftMargin + 100, currentY, 95, 35, 'F');
-  doc.setDrawColor(0, 120, 150);
-  doc.setLineWidth(0.5);
-  doc.rect(leftMargin + 100, currentY, 95, 35, 'S');
-  
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  doc.text('Subtotal:', leftMargin + 103, currentY + 8);
-  doc.setTextColor(0, 0, 0);
-  doc.text(formatCOP(subtotalAntesIva), leftMargin + 135, currentY + 8);
-  
-  doc.setTextColor(80, 80, 80);
-  doc.text('IVA (19%):', leftMargin + 103, currentY + 16);
-  doc.setTextColor(0, 0, 0);
-  doc.text(formatCOP(iva), leftMargin + 135, currentY + 16);
-  
-  doc.setDrawColor(0, 120, 150);
-  doc.setLineWidth(0.3);
-  doc.line(leftMargin + 103, currentY + 21, leftMargin + 193, currentY + 21);
-  
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 100, 130);
-  doc.text('TOTAL:', leftMargin + 103, currentY + 28);
-  doc.text(formatCOP(total), leftMargin + 130, currentY + 28);
+
+  // Phase 1B: Usar cálculo comercial si está activo, si no el cálculo tradicional
+  const costoDirectoLegacy = (serviciosData.subtotalLaminas || 0) +
+                            (serviciosData.subtotalServicios || 0) +
+                            (serviciosData.subtotalCantos || 0) +
+                            (hardwareData.total || 0);
+
+  if (commercialResult && commercialResult.enabled) {
+    // Modo comercial ON: mostrar desglose completo desde commercialResult
+    const { subtotalAntesIva, ivaMonto, totalFinal, costoDirecto,
+            ajusteDesperdicio, ajusteManoObra, ajusteUtilidad } = commercialResult;
+
+    // Costo directo original
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 120, 120);
+    doc.text('Costo directo:', leftMargin + 103, currentY + 8);
+    doc.text(formatCOP(costoDirecto), leftMargin + 135, currentY + 8);
+
+    // Ajustes comerciales
+    if (ajusteDesperdicio > 0) {
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Desperdicio:', leftMargin + 103, currentY + 14);
+      doc.text(`+${formatCOP(ajusteDesperdicio)}`, leftMargin + 135, currentY + 14);
+    }
+    if (ajusteManoObra > 0) {
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Mano de obra:', leftMargin + 103, currentY + 20);
+      doc.text(`+${formatCOP(ajusteManoObra)}`, leftMargin + 135, currentY + 20);
+    }
+    if (ajusteUtilidad > 0) {
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Utilidad:', leftMargin + 103, currentY + 26);
+      doc.text(`+${formatCOP(ajusteUtilidad)}`, leftMargin + 135, currentY + 26);
+    }
+
+    const boxHeight = 35 + (ajusteDesperdicio > 0 ? 6 : 0) + (ajusteManoObra > 0 ? 6 : 0) + (ajusteUtilidad > 0 ? 6 : 0);
+
+    // Total box
+    doc.setFillColor(235, 245, 250);
+    doc.rect(leftMargin + 100, currentY, 95, boxHeight, 'F');
+    doc.setDrawColor(0, 120, 150);
+    doc.setLineWidth(0.5);
+    doc.rect(leftMargin + 100, currentY, 95, boxHeight, 'S');
+
+    let labelY = currentY + 8;
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text('Subtotal:', leftMargin + 103, labelY);
+    doc.setTextColor(0, 0, 0);
+    doc.text(formatCOP(subtotalAntesIva), leftMargin + 135, labelY);
+    labelY += 8;
+
+    if (commercialResult.ivaEnabled && ivaMonto > 0) {
+      doc.setTextColor(80, 80, 80);
+      doc.text(`IVA (${commercialResult._debug?.ivaTasa || 19}%):`, leftMargin + 103, labelY);
+      doc.setTextColor(0, 0, 0);
+      doc.text(formatCOP(ivaMonto), leftMargin + 135, labelY);
+      labelY += 8;
+    }
+
+    doc.setDrawColor(0, 120, 150);
+    doc.setLineWidth(0.3);
+    doc.line(leftMargin + 103, labelY, leftMargin + 193, labelY);
+    labelY += 7;
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 100, 130);
+    doc.text('TOTAL:', leftMargin + 103, labelY);
+    doc.text(formatCOP(totalFinal), leftMargin + 130, labelY);
+  } else {
+    // Modo legacy (sin capa comercial): cálculo tradicional 19% IVA fijo
+    const subtotalAntesIva = costoDirectoLegacy;
+    const iva = Math.round(subtotalAntesIva * 0.19);
+    const total = subtotalAntesIva + iva;
+
+    // Total box
+    doc.setFillColor(235, 245, 250);
+    doc.rect(leftMargin + 100, currentY, 95, 35, 'F');
+    doc.setDrawColor(0, 120, 150);
+    doc.setLineWidth(0.5);
+    doc.rect(leftMargin + 100, currentY, 95, 35, 'S');
+
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text('Subtotal:', leftMargin + 103, currentY + 8);
+    doc.setTextColor(0, 0, 0);
+    doc.text(formatCOP(subtotalAntesIva), leftMargin + 135, currentY + 8);
+
+    doc.setTextColor(80, 80, 80);
+    doc.text('IVA (19%):', leftMargin + 103, currentY + 16);
+    doc.setTextColor(0, 0, 0);
+    doc.text(formatCOP(iva), leftMargin + 135, currentY + 16);
+
+    doc.setDrawColor(0, 120, 150);
+    doc.setLineWidth(0.3);
+    doc.line(leftMargin + 103, currentY + 21, leftMargin + 193, currentY + 21);
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 100, 130);
+    doc.text('TOTAL:', leftMargin + 103, currentY + 28);
+    doc.text(formatCOP(total), leftMargin + 130, currentY + 28);
+  }
 
   currentY += 40;
 

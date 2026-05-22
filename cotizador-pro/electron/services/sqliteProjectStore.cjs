@@ -187,6 +187,7 @@ function createSqliteProjectStore({ app }) {
   const deleteItemStmt = sqlite.prepare('DELETE FROM inventory_items WHERE id = ?');
 
   const getMovementsStmt = sqlite.prepare('SELECT * FROM inventory_movements ORDER BY created_at DESC');
+  const deleteMovementStmt = sqlite.prepare('DELETE FROM inventory_movements WHERE id = ?');
   const addMovementStmt = sqlite.prepare(`
     INSERT INTO inventory_movements (id, item_id, item_name_snapshot, item_type_snapshot, movement_type, direction, cantidad, unit_cost, total_cost, reference_type, reference_id, motivo, payload, created_at)
     VALUES (@id, @item_id, @item_name_snapshot, @item_type_snapshot, @movement_type, @direction, @cantidad, @unit_cost, @total_cost, @reference_type, @reference_id, @motivo, @payload, CURRENT_TIMESTAMP)
@@ -540,6 +541,7 @@ function createSqliteProjectStore({ app }) {
     },
     deleteInventoryItem(id) { deleteItemStmt.run(id); return { success: true }; },
     getInventoryMovements() { return getMovementsStmt.all().map(mapMovementRow); },
+    deleteInventoryMovement(id) { deleteMovementStmt.run(id); return { success: true }; },
     addInventoryMovement(movement) {
       const item = getItemByIdStmt.get(movement.item_id);
       if (!item) throw new Error('Inventory item not found.');

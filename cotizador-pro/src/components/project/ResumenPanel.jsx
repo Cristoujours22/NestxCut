@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { formatPrice as formatPriceUtil } from '../../utils/serviceCalculator';
 import { calculateServicesTotal } from '../../features/project/utils/mergeProjectServices';
+import { calculateCommercialQuote, DEFAULT_COMMERCIAL_CONFIG } from '../../features/project/utils/commercialQuote';
 
 export default function ResumenPanel({ 
   despieceData = [], 
@@ -12,7 +13,9 @@ export default function ResumenPanel({
   inventoryItems = [],
   onExportPDF,
   onAddService,
-  onUpdateManualQuantity
+  onUpdateManualQuantity,
+  commercialConfig: externalCommercialConfig,
+  onCommercialConfigChange
 }) {
   // Filtrar items manuales que son servicios (no herajes)
   const serviciosManuales = useMemo(() => {
@@ -45,6 +48,51 @@ export default function ResumenPanel({
   // Estado para collapse/expand de materiales
   const [expandedMaterials, setExpandedMaterials] = useState({});
   const [editingManual, setEditingManual] = useState(null);
+
+  // === FASE 1A/1B: Capa comercial — estado local o externo ===
+  // Si viene config externa (Phase 1B persistencia), úsala; si no, usa default
+  const [internalCommercialConfig, setInternalCommercialConfig] = useState(DEFAULT_COMMERCIAL_CONFIG);
+  const commercialConfig = externalCommercialConfig !== undefined ? externalCommercialConfig : internalCommercialConfig;
+
+  // Callback para notificar cambios al padre (Phase 1B)
+  const notifyCommercialConfigChange = (updater) => {
+    if (onCommercialConfigChange) {
+      const next = typeof updater === 'function' ? updater(commercialConfig) : updater;
+      onCommercialConfigChange(next);
+    }
+    // También actualiza interno para cuando no hay padre
+    setInternalCommercialConfig(next => typeof updater === 'function' ? updater(next) : updater);
+  };
+
+  // Calcular costo directo (lo que ya existía)
+  const costoDirecto = totalGeneral;
+
+  // Cálculo comercial en memoria
+  const commercialResult = useMemo(() => {
+    return calculateCommercialQuote(costoDirecto, commercialConfig);
+  }, [costoDirecto, commercialConfig]);
+
+  // Handler para toggle modo comercial
+  const handleToggleCommercial = () => {
+    notifyCommercialConfigChange(prev => ({ ...prev, enabled: !prev.enabled }));
+  };
+
+  // Handler para actualizar porcentaje
+  const handleCommercialPctChange = (field, value) => {
+    const numValue = parseFloat(value) || 0;
+    notifyCommercialConfigChange(prev => ({ ...prev, [field]: numValue }));
+  };
+
+  // Handler para toggle IVA
+  const handleToggleIva = () => {
+    notifyCommercialConfigChange(prev => ({ ...prev, ivaEnabled: !prev.ivaEnabled }));
+  };
+
+  // Handler para cambiar tasa IVA
+  const handleIvaTasaChange = (value) => {
+    const numValue = parseFloat(value) || 0;
+    notifyCommercialConfigChange(prev => ({ ...prev, ivaTasa: Math.max(0, Math.min(100, numValue)) }));
+  };
 
   const toggleMaterial = (materialId) => {
     setExpandedMaterials(prev => ({
@@ -182,6 +230,149 @@ export default function ResumenPanel({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* === FASE 1A: Capa Comercial === */}
+      <div className="glass-panel rounded-2xl border border-[#1a233a] p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px] text-[#00e0fe]">point_of_sale</span>
+            <h3 className="text-[#dee5ff] font-bold text-sm uppercase tracking-wide">
+              Capa Comercial
+            </h3>
+          </div>
+          
+          {/* Toggle ON/OFF */}
+          <button
+            onClick={handleToggleCommercial}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              commercialConfig.enabled
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-[#1a233a] text-[#6f7a97] border border-[#40485d]/30'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${commercialConfig.enabled ? 'bg-emerald-400' : 'bg-[#40485d]'}`}></span>
+            {commercialConfig.enabled ? 'ACTIVADO' : 'DESACTIVADO'}
+          </button>
+        </div>
+
+        {commercialConfig.enabled && (
+          <>
+            {/* Resumen rápido del costo directo */}
+            <div className="mb-4 p-3 bg-[#0d1320]/50 rounded-xl border border-[#1a233a]">
+              <div className="flex justify-between items-center">
+                <span className="text-[#6f7a97] text-sm">Costo directo (base)</span>
+                <span className="text-[#dee5ff] font-semibold">{formatPrice(commercialResult.costoDirecto)}</span>
+              </div>
+            </div>
+
+            {/* Ajustes en línea */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              {/* Desperdicio */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[#6f7a97] text-xs uppercase">Desperdicio %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={commercialConfig.desperdicioPct}
+                  onChange={(e) => handleCommercialPctChange('desperdicioPct', e.target.value)}
+                  className="bg-[#0d1320] border border-[#1a233a] text-[#dee5ff] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00e0fe]/50 w-full"
+                />
+                <span className="text-[#00d1ed] text-xs text-right">+{formatPrice(commercialResult.ajusteDesperdicio)}</span>
+              </div>
+
+              {/* Mano de obra */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[#6f7a97] text-xs uppercase">Mano de obra %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={commercialConfig.manoObraPct}
+                  onChange={(e) => handleCommercialPctChange('manoObraPct', e.target.value)}
+                  className="bg-[#0d1320] border border-[#1a233a] text-[#dee5ff] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00e0fe]/50 w-full"
+                />
+                <span className="text-[#00d1ed] text-xs text-right">+{formatPrice(commercialResult.ajusteManoObra)}</span>
+              </div>
+
+              {/* Utilidad */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[#6f7a97] text-xs uppercase">Utilidad %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={commercialConfig.utilidadPct}
+                  onChange={(e) => handleCommercialPctChange('utilidadPct', e.target.value)}
+                  className="bg-[#0d1320] border border-[#1a233a] text-[#dee5ff] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00e0fe]/50 w-full"
+                />
+                <span className="text-[#00d1ed] text-xs text-right">+{formatPrice(commercialResult.ajusteUtilidad)}</span>
+              </div>
+
+              {/* IVA */}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[#6f7a97] text-xs uppercase">IVA</label>
+                  <button
+                    onClick={handleToggleIva}
+                    className={`text-xs px-2 py-0.5 rounded ${commercialConfig.ivaEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#1a233a] text-[#6f7a97]'}`}
+                  >
+                    {commercialConfig.ivaEnabled ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+                {commercialConfig.ivaEnabled && (
+                  <>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={commercialConfig.ivaTasa}
+                      onChange={(e) => handleIvaTasaChange(e.target.value)}
+                      className="bg-[#0d1320] border border-[#1a233a] text-[#dee5ff] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00e0fe]/50 w-full"
+                    />
+                    <span className="text-[#00d1ed] text-xs text-right">+{formatPrice(commercialResult.ivaMonto)}</span>
+                  </>
+                )}
+                {!commercialConfig.ivaEnabled && (
+                  <div className="h-[38px] flex items-center justify-center">
+                    <span className="text-[#40485d] text-xs">—</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Totales desglosados */}
+            <div className="border-t border-[#1a233a] pt-4 mt-2 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-[#6f7a97]">Subtotal antes IVA</span>
+                <span className="text-[#dee5ff]">{formatPrice(commercialResult.subtotalAntesIva)}</span>
+              </div>
+              
+              {commercialConfig.ivaEnabled && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#6f7a97]">IVA ({commercialConfig.ivaTasa}%)</span>
+                  <span className="text-[#dee5ff]">{formatPrice(commercialResult.ivaMonto)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center border-t border-[#00d1ed]/30 pt-3 mt-2">
+                <span className="text-[#00d1ed] font-bold text-lg">TOTAL COTIZACIÓN</span>
+                <span className="text-[#00e0fe] font-bold text-3xl">{formatPrice(commercialResult.totalFinal)}</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {!commercialConfig.enabled && (
+          <p className="text-[#6f7a97] text-xs text-center py-3">
+            Activá la capa comercial para aplicar ajustes sobre el costo directo.
+          </p>
+        )}
       </div>
 
 {/* Materiales (Láminas) con Servicios y Cantos - ESTRUCTURA ORDENADA */}
@@ -413,6 +604,52 @@ export default function ResumenPanel({
                   <td className="py-3 text-[#dee5ff] font-medium">
                     {item.nombre}
                     {item.codigo && <span className="text-[#a3aac4] text-xs ml-2">({item.codigo})</span>}
+                  </td>
+                  <td className="py-3 text-right text-[#dee5ff]">x{item.cantidad}</td>
+                  <td className="py-3 text-right text-[#a3aac4]">{formatPrice(item.precio)}</td>
+                  <td className="py-3 text-right text-[#00d1ed] font-semibold">{formatPrice(item.subtotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {(hardwareData.items || []).filter(i => i.origen === 'puerta').length > 0 && (
+        <div className="glass-panel rounded-2xl border border-[#1a233a] p-5">
+          <h3 className="text-[#dee5ff] font-bold mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">door_front</span>
+            Puertas Fabricadas
+          </h3>
+
+          <table className="w-full">
+            <thead className="border-b border-[#1a233a]">
+              <tr>
+                <th className="text-left text-[#a3aac4] text-xs uppercase font-bold py-2">Puerta</th>
+                <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Cant.</th>
+                <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Vlr Unit.</th>
+                <th className="text-right text-[#a3aac4] text-xs uppercase font-bold py-2">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1a233a]">
+              {(hardwareData.items || []).filter(i => i.origen === 'puerta').map((item) => (
+                <tr key={item.id}>
+                  <td className="py-3 text-[#dee5ff] font-medium">
+                    {item.nombre}
+                    {item.metadata?.material ? <span className="text-[#a3aac4] text-xs ml-2">({item.metadata.material})</span> : null}
+                    {item.metadata?.hoja ? (
+                      <div className="text-[11px] mt-1 text-cyan-300">
+                        {item.metadata.hoja.altoMm} × {item.metadata.hoja.anchoMm} mm
+                      </div>
+                    ) : null}
+                    {item.metadata?.totals ? (
+                      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-[#a3aac4]">
+                        <span>Material: {formatPrice(item.metadata.totals.materialCost || 0)}</span>
+                        <span>Herrajes: {formatPrice(item.metadata.totals.hardwareCost || 0)}</span>
+                        <span>Servicios: {formatPrice(item.metadata.totals.servicesCost || 0)}</span>
+                        <span className="text-cyan-300">Unit: {formatPrice(item.metadata.totals.unitDoorCost || item.precio || 0)}</span>
+                      </div>
+                    ) : null}
                   </td>
                   <td className="py-3 text-right text-[#dee5ff]">x{item.cantidad}</td>
                   <td className="py-3 text-right text-[#a3aac4]">{formatPrice(item.precio)}</td>
