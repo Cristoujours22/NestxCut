@@ -3,7 +3,7 @@ import DespieceTabs from './DespieceTabs';
 import DespieceTable from './DespieceTable';
 import DespieceCantosPanel from './DespieceCantosPanel';
 import { DespieceStatsBar } from './DespieceSummaryPanel';
-import { calculateEstimatedSheets } from '../../features/despiece/utils/nestingEstimate';
+import { calculateEstimatedSheets, calculateCommercialPacking } from '../../features/despiece/utils/nestingEstimate';
 import { buildNestingPreview } from '../../features/despiece/utils/nestingLayout';
 import DespieceNestingModal from './DespieceNestingModal';
 
@@ -97,15 +97,25 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
     [activeDespiece]
   );
 
-  const nestingEstimate = useMemo(
-    () => calculateEstimatedSheets({ rows: activeDespiece?.filas || [], material: materialOptions.find((item) => item.id === activeDespiece?.material_id) || null }),
-    [activeDespiece, materialOptions]
-  );
-
   const activeMaterial = useMemo(
     () => materialOptions.find((item) => item.id === activeDespiece?.material_id) || null,
     [materialOptions, activeDespiece]
   );
+
+  const nestingEstimate = useMemo(
+    () => calculateEstimatedSheets({ rows: activeDespiece?.filas || [], material: activeMaterial }),
+    [activeDespiece, activeMaterial]
+  );
+
+  // Compute commercial packing: best scenario (all-full / all-half / mixed) for commercial billing
+  const commercialPacking = useMemo(() => {
+    if (!activeMaterial || !activeDespiece?.filas?.length) return null;
+    return calculateCommercialPacking({
+      rows: activeDespiece.filas,
+      material: activeMaterial,
+      settings: {},
+    });
+  }, [activeDespiece, activeMaterial]);
 
   const nestingPreview = useMemo(
     () => buildNestingPreview({
@@ -119,8 +129,10 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
 
   const laminaCount = useMemo(() => {
     if (!activeMaterial) return nestingEstimate.estimatedSheets;
-    return nestingPreview?.sheets?.length ?? 0;
-  }, [activeMaterial, nestingEstimate.estimatedSheets, nestingPreview]);
+    // Use commercial count (fractional) from commercial packing for UI display
+    if (commercialPacking?.commercialCount != null) return commercialPacking.commercialCount;
+    return nestingPreview?.sheets?.length ?? nestingEstimate.estimatedSheets;
+  }, [activeMaterial, nestingEstimate.estimatedSheets, nestingPreview, commercialPacking]);
 
   // Pass stats to parent component
   useEffect(() => {
@@ -172,6 +184,7 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
         pieceCount={piezaCount}
         estimate={nestingEstimate}
         preview={nestingPreview}
+        commercialPacking={commercialPacking}
         rows={activeDespiece?.filas || []}
         cantos={activeDespiece?.cantos || []}
         projectName={projectName}

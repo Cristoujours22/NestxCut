@@ -1,6 +1,12 @@
 export function DespieceStatsBar({ laminaCount, piezaCount, onOpenNesting, compact = false }) {
+  // Format fractional counts (e.g., 1.5 → "1.5", 2.5 → "2.5")
+  const displayLaminaCount = (() => {
+    if (laminaCount == null) return '0';
+    return Number.isInteger(laminaCount) ? laminaCount.toString() : laminaCount.toFixed(1);
+  })();
+
   const stats = [
-    { icon: 'layers', label: 'Láminas', value: laminaCount, clickable: true },
+    { icon: 'layers', label: 'Láminas', value: displayLaminaCount, clickable: true },
     { icon: 'grid_on', label: 'Piezas', value: piezaCount },
   ];
 

@@ -4,7 +4,7 @@ import { calculateEstimatedSheetsWithSettings } from '../../features/despiece/ut
 import { groupIdenticalSheets, generateNestingPDF, getPieceCantoInfo } from '../../features/despiece/utils/pdfExport';
 import { toJpeg } from 'html-to-image';
 
-function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1, rows = [], cantos = [], id, isPrintMode = false }) {
+function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1, rows = [], cantos = [], id, isPrintMode = false, boardMode = 'full' }) {
   const boardInset = 3;
 
   // Print Mode color palette (toner-friendly: white bg, black lines, dark text)
@@ -60,7 +60,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
     <div className={`${colors.cardBg} border ${colors.cardBorder} rounded-2xl p-4 space-y-3 w-fit max-w-full min-w-[320px] overflow-hidden`}>
       {!isPrintMode && (
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[#dee5ff] font-semibold">Lámina {sheet.index}</div>
+          <div className="text-[#dee5ff] font-semibold">Lámina {sheet.index}{sheet.boardMode === 'half' ? ' · MEDIA' : ''}</div>
           <div className="text-[11px] uppercase tracking-wide text-[#6f7a97]">{sheet.pieces.length} piezas · {utilization.toFixed(1)}% uso</div>
         </div>
       )}
@@ -234,7 +234,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
   );
 }
 
-export default function DespieceNestingModal({ isOpen, onClose, boardName, boardDimensions, estimatedSheets, pieceCount, estimate, preview, rows = [], cantos = [], boardWidth = 0, boardHeight = 0, projectName = 'Proyecto sin título', clientName = 'Cliente sin nombre' }) {
+export default function DespieceNestingModal({ isOpen, onClose, boardName, boardDimensions, estimatedSheets, pieceCount, estimate, preview, rows = [], cantos = [], boardWidth = 0, boardHeight = 0, projectName = 'Proyecto sin título', clientName = 'Cliente sin nombre', commercialPacking = null }) {
   const [zoom, setZoom] = useState(1);
   const [ignoreBeta, setIgnoreBeta] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -256,21 +256,109 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
     boardMode,
   }), [rows, boardWidth, boardHeight, settings, boardMode]);
 
-  const effectivePreview = useMemo(() => (
-    buildNestingPreview({
+// When commercial packing is available, use it for sheet display (it has boardMode per sheet)
+  // Otherwise fall back to the manual board mode preview
+  const effectiveSheets = useMemo(() => {
+    if (commercialPacking?.sheets?.length) {
+      const refX = settings?.refiladoX ?? 20;
+      const refY = settings?.refiladoY ?? 20;
+      const enriched = commercialPacking.sheets.map(sheet => {
+        const isHalf = sheet.boardMode === 'half';
+        const bw = isHalf ? boardWidth : boardWidth;
+        const bh = isHalf ? boardHeight / 2 : boardHeight;
+        return {
+          ...sheet,
+          sheetUsableWidth: Math.max(0, bw - refX),
+          sheetUsableHeight: Math.max(0, bh - refY),
+        };
+      });
+
+      const fullSheets = enriched.filter((sheet) => sheet.boardMode !== 'half');
+      const halfSheets = enriched.filter((sheet) => sheet.boardMode === 'half');
+      const groupedSheets = [...fullSheets];
+
+      for (let i = 0; i < halfSheets.length; i += 2) {
+        const top = halfSheets[i];
+        const bottom = halfSheets[i + 1];
+        if (!bottom) {
+          groupedSheets.push({ ...top });
+          continue;
+        }
+
+        // Build a fresh full-sheet layout from the combined pieces
+        // so the preview shows optimal packing instead of naive vertical stacking
+        const combinedRows = [
+          ...(top.pieces || []).map((p) => ({
+            largo: p.width,
+            ancho: p.height,
+            cantidad: 1,
+            rotar: p.rotated ? '1' : '0',
+            id: p.instanceId || p.id || 'piece',
+            detalle: p.label || '',
+          })),
+          ...(bottom.pieces || []).map((p) => ({
+            largo: p.width,
+            ancho: p.height,
+            cantidad: 1,
+            rotar: p.rotated ? '1' : '0',
+            id: p.instanceId || p.id || 'piece',
+            detalle: p.label || '',
+          })),
+        ];
+
+        const fullUsableW = Math.max(0, boardWidth - refX);
+        const fullUsableH = Math.max(0, boardHeight - refY);
+
+        const repacked = buildNestingPreview({
+          rows: combinedRows,
+          boardWidth: fullUsableW,
+          boardHeight: fullUsableH,
+          kerf: settings.sawKerf ?? 5,
+          allowGlobalRotation: ignoreBeta,
+        });
+
+        const repackedSheet = repacked.sheets[0] || { pieces: [], freeRects: [] };
+
+        // Reconstruct instanceIds so SheetPreview keys stay stable
+        const topOffset = top.sheetUsableHeight || 0;
+
+        groupedSheets.push({
+          ...top,
+          boardMode: 'full',
+          _displayFromTwoHalves: true,
+          sheetUsableHeight: topOffset + (bottom.sheetUsableHeight || 0),
+          pieces: repackedSheet.pieces.map((p, idx) => ({
+            ...p,
+            instanceId: `${p.instanceId || p.id || 'piece'}_repacked_${i}_${idx}`,
+          })),
+          freeRects: repackedSheet.freeRects.map((r, idx) => ({
+            ...r,
+          })),
+        });
+      }
+
+      return groupedSheets.map((sheet, index) => ({ ...sheet, index: index + 1 }));
+    }
+    const result = buildNestingPreview({
       rows,
       boardWidth: modalEstimate.usableLargo || boardWidth || 0,
       boardHeight: modalEstimate.usableAncho || boardHeight || 0,
       kerf: settings.sawKerf ?? 5,
       allowGlobalRotation: ignoreBeta,
-    })
-  ), [ignoreBeta, rows, settings.sawKerf, modalEstimate.usableLargo, modalEstimate.usableAncho, boardWidth, boardHeight]);
+    });
+    return result.sheets.map(s => ({ ...s, sheetUsableWidth: modalEstimate.usableLargo || 0, sheetUsableHeight: modalEstimate.usableAncho || 0 }));
+  }, [ignoreBeta, rows, settings, boardWidth, boardHeight, modalEstimate, commercialPacking]);
+
+  const effectiveUnplaced = commercialPacking?.unplaced ?? [];
+
+  // Whether commercial packing overrides the manual board mode selector
+  const usingCommercialPacking = commercialPacking?.sheets?.length > 0;
 
   if (!isOpen) return null;
 
-  const unplacedPiecesCount = effectivePreview?.unplaced?.length || 0;
-  const totalBoardArea = (modalEstimate?.boardAncho || 0) * (modalEstimate?.boardLargo || 0) * (effectivePreview?.sheets?.length || 0);
-  const placedArea = effectivePreview?.sheets?.reduce((total, sheet) => total + sheet.pieces.reduce((sheetTotal, piece) => sheetTotal + (piece.width * piece.height), 0), 0) || 0;
+  const unplacedPiecesCount = effectiveUnplaced?.length || 0;
+  const totalBoardArea = (modalEstimate?.boardAncho || 0) * (modalEstimate?.boardLargo || 0) * (effectiveSheets?.length || 0);
+  const placedArea = effectiveSheets?.reduce((total, sheet) => total + sheet.pieces.reduce((sheetTotal, piece) => sheetTotal + (piece.width * piece.height), 0), 0) || 0;
   const globalUtilization = totalBoardArea > 0 ? (placedArea / totalBoardArea) * 100 : 0;
   const previewColumns = zoom >= 0.95 ? 1 : zoom >= 0.7 ? 2 : 3;
   const previewGridStyle = {
@@ -278,7 +366,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
   };
 
   const handleExportPDF = async () => {
-    if (!effectivePreview?.sheets?.length) return;
+    if (!effectiveSheets?.length) return;
 
     setIsExporting(true);
 
@@ -288,7 +376,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
 
       // Capture each sheet preview as an image
       const sheetImages = {};
-      for (const sheet of effectivePreview.sheets) {
+      for (const sheet of effectiveSheets) {
         const element = document.getElementById(`sheet-preview-${sheet.index}`);
         if (element) {
           const originalStyle = element.style.cssText;
@@ -323,9 +411,9 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
       }
 
       const doc = await generateNestingPDF({
-        sheets: effectivePreview.sheets,
+        sheets: effectiveSheets,
         sheetImages: sheetImages,
-        unplacedPieces: effectivePreview.unplaced,
+        unplacedPieces: effectiveUnplaced,
         projectName,
         clientName,
         materialName: boardName,
@@ -349,8 +437,8 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
   };
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-7xl bg-[#0a1122] border border-[#1a233a] rounded-2xl shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
+    <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
+      <div className="w-[96vw] max-w-[1800px] bg-[#0a1122] border border-[#1a233a] rounded-2xl shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a233a] bg-[#060e20]">
           <div>
             <h2 className="text-lg font-bold text-white">Optimización de láminas</h2>
@@ -373,7 +461,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
               </select>
               <button
                 onClick={handleExportPDF}
-                disabled={isExporting || !effectivePreview?.sheets?.length}
+                disabled={isExporting || !effectiveSheets?.length}
                 className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-2 py-1.5 bg-[#0f172b] disabled:opacity-50"
               >
                 <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
@@ -405,16 +493,25 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                   <span>Desp. tapacantos</span>
                   <input type="number" value={settings.edgeAllowance} onChange={(e) => setSettings((prev) => ({ ...prev, edgeAllowance: Number(e.target.value) || 0 }))} className="w-full bg-[#060e20] border border-[#1a233a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#00e0fe]/50" />
                 </label>
-                <label className="text-sm text-[#a3aac4] flex flex-col gap-1">
-                  <span>Formato tablero</span>
-                  <select value={boardMode} onChange={(e) => setBoardMode(e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#00e0fe]/50">
-                    <option value="full">Tablero entero</option>
-                    <option value="half">Medio tablero</option>
-                  </select>
-                </label>
-                <div className="text-sm text-[#6f7a97] flex items-end">
-                  El medio tablero toma la mitad del lado ancho del tablero activo.
-                </div>
+                {!usingCommercialPacking && (
+                  <>
+                    <label className="text-sm text-[#a3aac4] flex flex-col gap-1">
+                      <span>Formato tablero</span>
+                      <select value={boardMode} onChange={(e) => setBoardMode(e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#00e0fe]/50">
+                        <option value="full">Tablero entero</option>
+                        <option value="half">Medio tablero</option>
+                      </select>
+                    </label>
+                    <div className="text-sm text-[#6f7a97] flex items-end">
+                      El medio tablero toma la mitad del lado ancho del tablero activo.
+                    </div>
+                  </>
+                )}
+                {usingCommercialPacking && (
+                  <div className="text-sm text-[#6f7a97] flex items-end">
+                    Escenario: {commercialPacking.scenario === 'all-full' ? 'Tablero entero' : commercialPacking.scenario === 'all-half' ? 'Medio tablero' : 'Mixto entero+medio'} · {commercialPacking.commercialCount} láminas comerciales
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -423,7 +520,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
             <div className="flex flex-wrap items-center gap-3">
               <div className="px-3 py-2 rounded-xl bg-[#060e20] border border-[#1a233a]">
                 <div className="text-[10px] uppercase tracking-wide text-[#6f7a97]">Láminas</div>
-                <div className="text-[#dee5ff] font-bold text-xl">{effectivePreview?.sheets?.length || modalEstimate.estimatedSheets}</div>
+                <div className="text-[#dee5ff] font-bold text-xl">{commercialPacking?.commercialCount ?? (effectiveSheets?.length || modalEstimate.estimatedSheets)}</div>
               </div>
               <div className="px-3 py-2 rounded-xl bg-[#060e20] border border-[#1a233a]">
                 <div className="text-[10px] uppercase tracking-wide text-[#6f7a97]">Piezas</div>
@@ -451,12 +548,12 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
           </div>
 
           <div className="border border-dashed border-[#1a233a] rounded-2xl p-5 bg-[#060e20]/40">
-            {effectivePreview?.sheets?.length ? (
+            {effectiveSheets?.length ? (
               <div className="space-y-4 text-left">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-[#dee5ff] font-bold">Visual preliminar de láminas</h3>
                   <div className="flex items-center gap-2">
-                    <div className="text-sm text-[#a3aac4]">{effectivePreview.sheets.length} láminas generadas</div>
+                    <div className="text-sm text-[#a3aac4]">{effectiveSheets.length} láminas generadas</div>
                     <div className="flex items-center gap-1 rounded-lg border border-[#1a233a] bg-[#0f172b] px-2 py-1">
                       <button type="button" onClick={() => setZoom((prev) => Math.max(0.3, +(prev - 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
                         <span className="material-symbols-outlined text-[16px]">remove</span>
@@ -470,30 +567,37 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                 </div>
 
                 <div className="grid gap-4 justify-center items-start" style={previewGridStyle}>
-                  {effectivePreview.sheets.map((sheet) => (
+                  {effectiveSheets.map((sheet) => {
+                    const isHalf = sheet.boardMode === 'half';
+                    const physW = isHalf ? boardWidth : boardWidth;
+                    const physH = isHalf ? boardHeight / 2 : boardHeight;
+                    const utilW = sheet.sheetUsableWidth ?? (modalEstimate.usableLargo || 0);
+                    const utilH = sheet.sheetUsableHeight ?? (modalEstimate.usableAncho || 0);
+                    return (
                     <SheetPreview
                       key={sheet.index}
                       id={`sheet-preview-${sheet.index}`}
                       sheet={sheet}
-                      boardWidth={modalEstimate.boardLargo || boardWidth || 0}
-                      boardHeight={modalEstimate.boardAncho || boardHeight || 0}
-                      usableWidth={modalEstimate.usableLargo || 0}
-                      usableHeight={modalEstimate.usableAncho || 0}
+                      boardWidth={physW}
+                      boardHeight={physH}
+                      usableWidth={utilW}
+                      usableHeight={utilH}
                       insetX={modalEstimate.settings?.refiladoX || 0}
                       insetY={modalEstimate.settings?.refiladoY || 0}
                       zoom={zoom}
                       rows={rows}
                       cantos={cantos}
                       isPrintMode={isExporting}
-                    />
-                  ))}
+                      boardMode={sheet.boardMode || 'full'}
+                    />);
+                  })}
                 </div>
 
-                {effectivePreview.unplaced?.length ? (
+                {effectiveUnplaced?.length ? (
                   <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 space-y-2">
-                    <div>{effectivePreview.unplaced.length} piezas no pudieron ubicarse en la vista preliminar.</div>
+                    <div>{effectiveUnplaced.length} piezas no pudieron ubicarse en la vista preliminar.</div>
                     <div className="flex flex-wrap gap-2">
-                      {effectivePreview.unplaced.map((piece) => (
+                      {effectiveUnplaced.map((piece) => (
                         <span key={piece.instanceId} className="px-2.5 py-1 rounded-lg bg-[#0f172b] border border-amber-500/20 text-[11px] text-amber-100">
                           {piece.label} · {piece.width}×{piece.height}
                         </span>

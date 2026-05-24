@@ -157,7 +157,13 @@ export default function ResumenPanel({
             </div>
             <div className="flex justify-between">
               <span className="text-[#6f7a97] text-sm">Láminas:</span>
-              <span className="text-[#dee5ff] font-semibold">{despieceStats.laminaCount}</span>
+              <span className="text-[#dee5ff] font-semibold">
+                {(() => {
+                  const lc = despieceStats.laminaCount;
+                  if (lc == null) return '0';
+                  return Number.isInteger(lc) ? lc.toString() : lc.toFixed(1);
+                })()}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-[#6f7a97] text-sm">Materiales:</span>
