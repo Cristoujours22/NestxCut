@@ -4,6 +4,28 @@ import { calculateEstimatedSheetsWithSettings } from '../../features/despiece/ut
 import { groupIdenticalSheets, generateNestingPDF, getPieceCantoInfo } from '../../features/despiece/utils/pdfExport';
 import { toJpeg } from 'html-to-image';
 
+function formatSheetCount(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) return '0';
+  const integer = Math.floor(numeric);
+  const decimal = numeric - integer;
+  if (decimal === 0) return String(integer);
+  if (decimal === 0.5) {
+    if (integer === 0) return '1/2';
+    return `${integer} 1/2`;
+  }
+  return String(numeric);
+}
+
+function formatPhysicalSheetSummary(sheets = []) {
+  const fullCount = sheets.filter((sheet) => sheet.boardMode !== 'half').length;
+  const halfCount = sheets.filter((sheet) => sheet.boardMode === 'half').length;
+  const parts = [];
+  if (fullCount > 0) parts.push(`${fullCount} entera${fullCount === 1 ? '' : 's'}`);
+  if (halfCount > 0) parts.push(`${halfCount} media${halfCount === 1 ? '' : 's'}`);
+  return parts.length ? parts.join(' + ') : '0';
+}
+
 function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeight, insetX = 0, insetY = 0, zoom = 1, rows = [], cantos = [], id, isPrintMode = false, boardMode = 'full' }) {
   const boardInset = 3;
 
@@ -216,20 +238,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-[#6f7a97]">
-        <div className="space-y-1">
-          <div><span className="text-[#a3aac4]">Tablero bruto:</span> {boardWidth} × {boardHeight} mm</div>
-          <div><span className="text-[#99f7ff]">Área útil:</span> {usableWidth} × {usableHeight} mm</div>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {insetX > 0 ? <span className="text-[10px] text-amber-200 bg-amber-500/10 px-2 py-1 rounded border border-amber-400/20">Ref. X: {insetX} mm</span> : null}
-            {insetY > 0 ? <span className="text-[10px] text-rose-200 bg-rose-500/10 px-2 py-1 rounded border border-rose-400/20">Ref. Y: {insetY} mm</span> : null}
-          </div>
-        </div>
-        <div className="space-y-1 md:text-right">
-          <div>{sheet.pieces.filter((piece) => piece.rotated).length} rotadas · área útil {Math.round((usableWidth * usableHeight) / 1000000 * 100) / 100} m²</div>
-          <div><span className="text-rose-300">Refilado visual:</span> {Math.round((refiladoArea / 1000000) * 100) / 100} m²</div>
-        </div>
-      </div>
+      {null}
     </div>
   );
 }
@@ -364,6 +373,8 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
   const previewGridStyle = {
     gridTemplateColumns: `repeat(${previewColumns}, minmax(320px, max-content))`,
   };
+  const displaySheetCount = formatSheetCount(commercialPacking?.commercialCount ?? modalEstimate?.estimatedSheets ?? estimatedSheets ?? 0);
+  const physicalSheetSummary = formatPhysicalSheetSummary(effectiveSheets || []);
 
   const handleExportPDF = async () => {
     if (!effectiveSheets?.length) return;
@@ -439,12 +450,19 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
   return (
     <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
       <div className="w-[96vw] max-w-[1800px] bg-[#0a1122] border border-[#1a233a] rounded-2xl shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a233a] bg-[#060e20]">
-          <div>
-            <h2 className="text-lg font-bold text-white">Optimización de láminas</h2>
-            <p className="text-sm text-[#a3aac4] mt-1">{boardName || 'Sin material seleccionado'}{boardDimensions ? ` · ${boardDimensions}` : ''}</p>
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="px-6 py-4 border-b border-[#1a233a] bg-[#060e20]">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="text-lg font-bold text-white">Optimización de láminas</div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-[#a3aac4]">
+                <span className="text-[#dee5ff] font-bold">Láminas: {displaySheetCount}</span>
+                <span className="truncate">{boardName || 'Sin material seleccionado'}{boardDimensions ? ` · ${boardDimensions}` : ''}</span>
+                <span><span className="text-[#99f7ff]">Área útil base:</span> {modalEstimate.usableLargo || 0} × {modalEstimate.usableAncho || 0} mm</span>
+                <span><span className="text-amber-300">Ref. X:</span> {modalEstimate.settings?.refiladoX || 0} mm</span>
+                <span><span className="text-rose-300">Ref. Y:</span> {modalEstimate.settings?.refiladoY || 0} mm</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 xl:shrink-0">
             <button onClick={() => setShowSettings((prev) => !prev)} className="text-[#a3aac4] hover:text-white inline-flex items-center gap-1 text-sm border border-[#1a233a] rounded-lg px-3 py-2 bg-[#0f172b]">
               <span className="material-symbols-outlined text-[18px]">tune</span>
               Ajustes
@@ -468,12 +486,22 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                 {isExporting ? 'Generando...' : 'Exportar PDF'}
               </button>
             </div>
+            <label className="flex items-center gap-2 text-sm text-[#dee5ff] font-medium cursor-pointer shrink-0 border border-[#1a233a] rounded-lg px-3 py-2 bg-[#0f172b]">
+              <input
+                type="checkbox"
+                checked={ignoreBeta}
+                onChange={(e) => setIgnoreBeta(e.target.checked)}
+                className="w-4 h-4 rounded border-[#40485d] bg-[#060e20] text-[#00e0fe] focus:ring-[#00e0fe]/40"
+              />
+              <span>No respetar veta</span>
+            </label>
             <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
+            </div>
           </div>
         </div>
 
-        <div className="p-5 space-y-4 overflow-y-auto">
-          {showSettings && (
+          <div className="p-5 space-y-4 overflow-y-auto">
+            {showSettings && (
             <div className="rounded-2xl border border-[#1a233a] bg-[#0f172b] p-4 space-y-4">
               <div className="text-[#dee5ff] font-semibold">Ajustes de optimización</div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -516,57 +544,29 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#1a233a] bg-[#0f172b] px-4 py-3 text-sm">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="px-3 py-2 rounded-xl bg-[#060e20] border border-[#1a233a]">
-                <div className="text-[10px] uppercase tracking-wide text-[#6f7a97]">Láminas</div>
-                <div className="text-[#dee5ff] font-bold text-xl">{commercialPacking?.commercialCount ?? (effectiveSheets?.length || modalEstimate.estimatedSheets)}</div>
-              </div>
-              <div className="px-3 py-2 rounded-xl bg-[#060e20] border border-[#1a233a]">
-                <div className="text-[10px] uppercase tracking-wide text-[#6f7a97]">Piezas</div>
-                <div className="text-[#dee5ff] font-bold text-xl">{pieceCount}</div>
-              </div>
-              <div className="px-3 py-2 rounded-xl bg-[#060e20] border border-[#1a233a]">
-                <div className="text-[10px] uppercase tracking-wide text-[#6f7a97]">Uso</div>
-                <div className="text-[#99f7ff] font-bold text-xl">{globalUtilization.toFixed(1)}%</div>
-              </div>
-              <div className="px-3 py-2 rounded-xl bg-[#060e20] border border-[#1a233a]">
-                <div className="text-[10px] uppercase tracking-wide text-[#6f7a97]">Sin ubicar</div>
-                <div className={`font-bold text-xl ${unplacedPiecesCount > 0 ? 'text-amber-300' : 'text-[#dee5ff]'}`}>{unplacedPiecesCount}</div>
-              </div>
-            </div>
-
-            <label className="flex items-center gap-3 text-sm text-[#dee5ff] font-medium cursor-pointer shrink-0">
-              <input
-                type="checkbox"
-                checked={ignoreBeta}
-                onChange={(e) => setIgnoreBeta(e.target.checked)}
-                className="w-4 h-4 rounded border-[#40485d] bg-[#060e20] text-[#00e0fe] focus:ring-[#00e0fe]/40"
-              />
-              <span>No respetar veta</span>
-            </label>
-          </div>
-
           <div className="border border-dashed border-[#1a233a] rounded-2xl p-5 bg-[#060e20]/40">
             {effectiveSheets?.length ? (
               <div className="space-y-4 text-left">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-[#dee5ff] font-bold">Visual preliminar de láminas</h3>
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-[#a3aac4]">{effectiveSheets.length} láminas generadas</div>
-                    <div className="flex items-center gap-1 rounded-lg border border-[#1a233a] bg-[#0f172b] px-2 py-1">
-                      <button type="button" onClick={() => setZoom((prev) => Math.max(0.3, +(prev - 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
-                        <span className="material-symbols-outlined text-[16px]">remove</span>
-                      </button>
-                      <span className="text-[11px] text-[#dee5ff] w-12 text-center">{Math.round(zoom * 100)}%</span>
-                      <button type="button" onClick={() => setZoom((prev) => Math.min(2, +(prev + 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
-                        <span className="material-symbols-outlined text-[16px]">add</span>
-                      </button>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="text-sm text-[#a3aac4]">Comercial: {displaySheetCount} · Físico: {physicalSheetSummary}</div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-sm text-[#a3aac4]">Zoom</div>
+                      <div className="flex items-center gap-1 rounded-lg border border-[#1a233a] bg-[#0f172b] px-2 py-1">
+                        <button type="button" onClick={() => setZoom((prev) => Math.max(0.3, +(prev - 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
+                          <span className="material-symbols-outlined text-[16px]">remove</span>
+                        </button>
+                        <span className="text-[11px] text-[#dee5ff] w-12 text-center">{Math.round(zoom * 100)}%</span>
+                        <button type="button" onClick={() => setZoom((prev) => Math.min(2, +(prev + 0.1).toFixed(2)))} className="text-[#a3aac4] hover:text-white">
+                          <span className="material-symbols-outlined text-[16px]">add</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid gap-4 justify-center items-start" style={previewGridStyle}>
+                <div className="grid gap-3 justify-center items-start" style={previewGridStyle}>
                   {effectiveSheets.map((sheet) => {
                     const isHalf = sheet.boardMode === 'half';
                     const physW = isHalf ? boardWidth : boardWidth;
