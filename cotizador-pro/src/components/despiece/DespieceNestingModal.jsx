@@ -79,7 +79,7 @@ function SheetPreview({ sheet, boardWidth, boardHeight, usableWidth, usableHeigh
   const refiladoArea = Math.max(0, brutoArea - boardArea);
 
   return (
-    <div className={`${colors.cardBg} border ${colors.cardBorder} rounded-2xl p-4 space-y-3 w-fit max-w-full min-w-[320px] overflow-hidden`}>
+    <div className={`${colors.cardBg} border ${colors.cardBorder} rounded-2xl p-3 space-y-2 w-fit max-w-full min-w-[320px] overflow-hidden`}>
       {!isPrintMode && (
         <div className="flex items-center justify-between gap-3">
           <div className="text-[#dee5ff] font-semibold">Lámina {sheet.index}{sheet.boardMode === 'half' ? ' · MEDIA' : ''}</div>
@@ -500,7 +500,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
           </div>
         </div>
 
-          <div className="p-5 space-y-4 overflow-y-auto">
+          <div className="p-4 space-y-3 overflow-y-auto">
             {showSettings && (
             <div className="rounded-2xl border border-[#1a233a] bg-[#0f172b] p-4 space-y-4">
               <div className="text-[#dee5ff] font-semibold">Ajustes de optimización</div>
@@ -544,7 +544,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
             </div>
           )}
 
-          <div className="border border-dashed border-[#1a233a] rounded-2xl p-5 bg-[#060e20]/40">
+          <div className="border border-dashed border-[#1a233a] rounded-2xl p-4 bg-[#060e20]/40">
             {effectiveSheets?.length ? (
               <div className="space-y-4 text-left">
                 <div className="flex items-center justify-between gap-3">
