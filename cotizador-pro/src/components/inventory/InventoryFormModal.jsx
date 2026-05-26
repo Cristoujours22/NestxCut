@@ -9,7 +9,7 @@ const defaultByType = {
   herraje: {
     item_type: 'herraje',
     nombre: '', codigo: '', tipo: '', subtipo: '', medida: '', presentacion: 'unidad', cantidad_disponible: '', cantidad_reservada: 0,
-    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'unidad', notas: '', activo: true,
+    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'unidad', notas: '', activo: true, tipologia: '',
   },
   canto: {
     item_type: 'canto',
@@ -161,6 +161,7 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
               <>
                 <Field label="Tipo"><input value={form.tipo || ''} onChange={(e) => set('tipo', e.target.value)} className={inputClass('tipo')} />{errors.tipo && <span className="text-red-400 text-xs">{errors.tipo}</span>}</Field>
                 <Field label="Subtipo"><input value={form.subtipo || ''} onChange={(e) => set('subtipo', e.target.value)} className={inputClass('subtipo')} /></Field>
+                <Field label="Tipología"><select value={form.tipologia || ''} onChange={(e) => set('tipologia', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50"><option value="">Sin tipología</option><option value="puerta">Puerta</option><option value="mueble">Mueble</option></select></Field>
                 <Field label="Medida"><input value={form.medida || ''} onChange={(e) => set('medida', e.target.value)} className={inputClass('medida')} /></Field>
                 <Field label="Presentación"><input value={form.presentacion || ''} onChange={(e) => set('presentacion', e.target.value)} className={inputClass('presentacion')} /></Field>
               </>

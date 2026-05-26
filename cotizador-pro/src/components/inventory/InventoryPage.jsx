@@ -98,7 +98,7 @@ function MovementsView({ movements, items, filters, onFiltersChange, onClearSele
                 <td className="px-4 py-3 text-[#dee5ff]">{movement.cantidad}</td>
                 <td className="px-4 py-3 text-[#a3aac4]">${Number(movement.unit_cost || 0).toLocaleString('es-CO')}</td>
                 <td className="px-4 py-3 text-[#dee5ff] font-semibold">${Number(movement.total_cost || 0).toLocaleString('es-CO')}</td>
-                <td className="px-4 py-3 text-[#a3aac4]">{movement.reason || movement.motivo || '—'}</td>
+                <td className="px-4 py-3 text-[#6f7a97] text-xs">{movement.motivo}</td>
               </tr>
             );
           })}
@@ -109,88 +109,116 @@ function MovementsView({ movements, items, filters, onFiltersChange, onClearSele
   );
 }
 
-function ProvidersView({ providers, onEdit, onDelete }) {
-  if (!providers.length) {
-    return <div className="border border-dashed border-[#1a233a] rounded-2xl p-10 text-center bg-[#0a1122]/30 text-[#6f7a97]">No hay proveedores registrados.</div>;
-  }
+function SuppliersView({ providers, onEdit, onDelete }) {
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return providers;
+    const q = search.toLowerCase();
+    return providers.filter((p) =>
+      [p.nombre, p.documento, p.celular, p.email].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [providers, search]);
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[#1a233a] bg-[#0a1122]">
-      <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className="bg-[#060e20]/60 text-[#a3aac4] text-[11px] font-bold tracking-widest uppercase">
-          <tr>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Proveedor</th>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Documento</th>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Celular</th>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Email</th>
-            <th className="px-4 py-3 border-b border-[#1a233a] text-right">Acciones</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#1a233a]">
-          {providers.map((provider) => (
-            <tr key={provider.id} className="hover:bg-[#1a233a]/20 transition-colors">
-              <td className="px-4 py-3 text-[#dee5ff] font-semibold">{provider.nombre}</td>
-              <td className="px-4 py-3 text-[#a3aac4]">{provider.documento || '—'}</td>
-              <td className="px-4 py-3 text-[#a3aac4]">{provider.celular || '—'}</td>
-              <td className="px-4 py-3 text-[#a3aac4]">{provider.email || '—'}</td>
-              <td className="px-4 py-3">
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => onEdit(provider)} className="w-9 h-9 rounded-lg border border-[#1a233a] bg-[#10182d] text-[#99f7ff] hover:bg-[#15213b] inline-flex items-center justify-center"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                  <button onClick={() => onDelete(provider)} className="w-9 h-9 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/15 inline-flex items-center justify-center"><span className="material-symbols-outlined text-[18px]">delete</span></button>
-                </div>
-              </td>
+    <div className="space-y-4">
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6f7a97] text-[18px]">search</span>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar proveedor..."
+          className="w-full bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-[#99f7ff]/50"
+        />
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-[#1a233a] bg-[#0a1122]">
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="bg-[#060e20]/60 text-[#a3aac4] text-[11px] font-bold tracking-widest uppercase">
+            <tr>
+              <th className="px-4 py-3 border-b border-[#1a233a]">Nombre / Razón social</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]">Documento</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]">Celular</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]">Email</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[#1a233a]">
+            {filtered.length === 0 ? (
+              <tr><td colSpan="5" className="px-4 py-10 text-[#6f7a97] text-center">No hay proveedores registrados.</td></tr>
+            ) : filtered.map((p) => (
+              <tr key={p.id} className="hover:bg-[#0f1930]/40">
+                <td className="px-4 py-3 text-[#dee5ff]">{p.nombre}</td>
+                <td className="px-4 py-3 text-[#a3aac4]">{p.documento || '—'}</td>
+                <td className="px-4 py-3 text-[#a3aac4]">{p.celular || '—'}</td>
+                <td className="px-4 py-3 text-[#a3aac4]">{p.email || '—'}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => onEdit(p)} className="text-[#6f7a97] hover:text-[#99f7ff] p-1" title="Editar">
+                      <span className="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button onClick={() => { if (confirm(`Eliminar proveedor "${p.nombre}"?`)) onDelete(p); }} className="text-[#6f7a97] hover:text-red-400 p-1" title="Eliminar">
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 function PurchasesView({ purchases, onEdit, onReceive }) {
-  if (!purchases.length) {
-    return <div className="border border-dashed border-[#1a233a] rounded-2xl p-10 text-center bg-[#0a1122]/30 text-[#6f7a97]">No hay órdenes de compra registradas.</div>;
-  }
-
+  const statusBadge = (status) => {
+    switch (status) {
+      case 'received': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'partial': return 'bg-amber-500/10 text-amber-300 border-amber-500/20';
+      default: return 'bg-[#1a233a] text-[#6f7a97] border-[#1a233a]';
+    }
+  };
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[#1a233a] bg-[#0a1122]">
-      <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className="bg-[#060e20]/60 text-[#a3aac4] text-[11px] font-bold tracking-widest uppercase">
-          <tr>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Orden</th>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Proveedor</th>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Items</th>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Total</th>
-            <th className="px-4 py-3 border-b border-[#1a233a]">Estado</th>
-            <th className="px-4 py-3 border-b border-[#1a233a] text-right">Acciones</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#1a233a]">
-          {purchases.map((purchase) => (
-            <tr key={purchase.id} className="hover:bg-[#1a233a]/20 transition-colors">
-              <td className="px-4 py-3 text-[#dee5ff] font-semibold">{purchase.id}</td>
-              <td className="px-4 py-3 text-[#dee5ff]">{purchase.proveedor_nombre}</td>
-              <td className="px-4 py-3 text-[#a3aac4]">{purchase.items?.length || 0}</td>
-              <td className="px-4 py-3 text-[#dee5ff] font-semibold">${Number(purchase.total || 0).toLocaleString('es-CO')}</td>
-              <td className="px-4 py-3">
-                <span className={`inline-flex px-3 py-1 rounded-full text-[11px] font-bold border uppercase ${purchase.status === 'recibida' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>
-                  {purchase.status || 'pendiente'}
-                </span>
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex justify-end gap-2">
-                  {purchase.status !== 'recibida' && (
-                    <button onClick={() => onEdit(purchase)} className="w-9 h-9 rounded-lg border border-[#1a233a] bg-[#10182d] text-[#99f7ff] hover:bg-[#15213b] inline-flex items-center justify-center"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                  )}
-                  {purchase.status !== 'recibida' && (
-                    <button onClick={() => onReceive(purchase)} className="px-3 py-1.5 rounded-lg border border-green-500/20 bg-green-500/10 text-green-400 hover:bg-green-500/15 text-xs font-bold">Recibir</button>
-                  )}
-                </div>
-              </td>
+    <div className="space-y-4">
+      <div className="overflow-x-auto rounded-2xl border border-[#1a233a] bg-[#0a1122]">
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="bg-[#060e20]/60 text-[#a3aac4] text-[11px] font-bold tracking-widest uppercase">
+            <tr>
+              <th className="px-4 py-3 border-b border-[#1a233a]">ID</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]">Fecha</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]">Proveedor</th>
+              <th className="px-4 py-3 border-b border-[#1a233a] text-right">Total</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]">Estado</th>
+              <th className="px-4 py-3 border-b border-[#1a233a]"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[#1a233a]">
+            {purchases.length === 0 ? (
+              <tr><td colSpan="6" className="px-4 py-10 text-[#6f7a97] text-center">Sin órdenes de compra.</td></tr>
+            ) : purchases.map((p) => (
+              <tr key={p.id} className="hover:bg-[#0f1930]/40">
+                <td className="px-4 py-3 text-[#dee5ff] font-mono text-xs">{p.id.slice(0, 10)}</td>
+                <td className="px-4 py-3 text-[#a3aac4]">{new Date(p.created_at).toLocaleDateString('es-CO')}</td>
+                <td className="px-4 py-3 text-[#dee5ff]">{p.proveedor_nombre}</td>
+                <td className="px-4 py-3 text-[#dee5ff] text-right">${Number(p.total || 0).toLocaleString('es-CO')}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase ${statusBadge(p.status)}`}>{p.status}</span>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2">
+                    {p.status !== 'received' && (
+                      <button onClick={() => onReceive(p)} className="text-xs text-[#00e0fe] hover:underline">Recibir</button>
+                    )}
+                    <button onClick={() => onEdit(p)} className="text-xs text-[#6f7a97] hover:text-[#dee5ff]">Ver</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -206,6 +234,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('todos');
   const [specificFilter, setSpecificFilter] = useState('todos');
+  const [tipologiaFilter, setTipologiaFilter] = useState('todos');
   const [modalState, setModalState] = useState({ open: false, type: 'tablero', item: null });
   const [deleteState, setDeleteState] = useState({ open: false, item: null });
   const [stockEntryState, setStockEntryState] = useState({ open: false, item: null, mode: 'entry' });
@@ -255,6 +284,7 @@ export default function InventoryPage() {
     setSearch('');
     setStatus('todos');
     setSpecificFilter('todos');
+    setTipologiaFilter('todos');
   }, [activeTab]);
 
   const itemType = activeTab === 'herrajes' ? 'herraje' : activeTab === 'cantos' ? 'canto' : 'tablero';
@@ -266,7 +296,8 @@ export default function InventoryPage() {
       field: itemType === 'tablero' ? 'material' : 'tipo',
       value: specificFilter === 'todos' ? '' : specificFilter,
     },
-  }), [items, itemType, search, status, specificFilter]);
+    tipologiaFilter: itemType === 'herraje' ? tipologiaFilter : undefined,
+  }), [items, itemType, search, status, specificFilter, tipologiaFilter]);
   const columns = activeTab === 'herrajes' ? HERRAJE_COLUMNS : activeTab === 'cantos' ? CANTO_COLUMNS : TABLERO_COLUMNS;
   const filteredProviders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -495,6 +526,29 @@ export default function InventoryPage() {
         submitError={purchaseError}
       />
 
+      <InventoryStockEntryModal
+        isOpen={stockEntryState.open}
+        item={stockEntryState.item}
+        mode={stockEntryState.mode}
+        onClose={() => {
+          setStockEntryError('');
+          setStockEntryState({ open: false, item: null, mode: 'entry' });
+        }}
+        onSubmit={handleStockEntry}
+        submitError={stockEntryError}
+      />
+
+      <InventoryFormModal
+        isOpen={modalState.open}
+        type={modalState.type}
+        item={modalState.item}
+        existingItems={items}
+        providers={providers}
+        onClose={() => setModalState({ open: false, type: 'tablero', item: null })}
+        onSubmit={handleSubmit}
+        submitError={submitError}
+      />
+
       <section className="rounded-3xl bg-gradient-to-br from-[#0f1930] to-[#1a233a] border border-[#40485d]/30 p-8 shadow-xl">
         <div className="max-w-3xl">
           <h1 className="font-['Space_Grotesk'] text-4xl font-bold text-white mb-3">Inventario</h1>
@@ -514,6 +568,8 @@ export default function InventoryPage() {
           specificFilter={specificFilter}
           specificFilterOptions={specificFilterOptions}
           onSpecificFilterChange={setSpecificFilter}
+          tipologiaFilter={tipologiaFilter}
+          onTipologiaFilterChange={setTipologiaFilter}
           onNewItem={() => {
             if (activeTab === 'proveedores') {
               setProviderError('');
@@ -556,7 +612,7 @@ export default function InventoryPage() {
             onClearSelectedItem={() => setMovementFilters((prev) => ({ ...prev, itemId: '' }))}
           />
         ) : activeTab === 'proveedores' ? (
-          <ProvidersView
+          <SuppliersView
             providers={filteredProviders}
             onEdit={(provider) => {
               setProviderError('');
@@ -597,32 +653,6 @@ export default function InventoryPage() {
                 />
           )}
         </section>
-
-      <InventoryStockEntryModal
-        isOpen={stockEntryState.open}
-        item={stockEntryState.item}
-        mode={stockEntryState.mode}
-        onClose={() => {
-          setStockEntryError('');
-          setStockEntryState({ open: false, item: null, mode: 'entry' });
-        }}
-        onSubmit={handleStockEntry}
-        error={stockEntryError}
-      />
-
-      <InventoryFormModal
-        isOpen={modalState.open}
-        type={modalState.type}
-        item={modalState.item}
-        existingItems={items}
-        providers={providers}
-        onClose={() => {
-          setSubmitError('');
-          setModalState({ open: false, type: itemType, item: null });
-        }}
-        onSubmit={handleSubmit}
-        submitError={submitError}
-      />
     </div>
   );
 }

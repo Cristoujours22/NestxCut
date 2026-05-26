@@ -8,6 +8,8 @@ export default function InventoryToolbar({
   specificFilterOptions,
   onSpecificFilterChange,
   onNewItem,
+  tipologiaFilter,
+  onTipologiaFilterChange,
 }) {
   const title = activeTab === 'herrajes' ? 'Nuevo herraje' : activeTab === 'cantos' ? 'Nuevo canto' : 'Nuevo tablero';
   const specificLabel = activeTab === 'herrajes' ? 'Tipo' : activeTab === 'cantos' ? 'Tipo' : 'Material';
@@ -49,6 +51,18 @@ export default function InventoryToolbar({
             {specificFilterOptions.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
+          </select>
+        )}
+
+        {activeTab === 'herrajes' && (
+          <select
+            value={tipologiaFilter || 'todos'}
+            onChange={(event) => onTipologiaFilterChange(event.target.value)}
+            className="bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-[#00e0fe]/50"
+          >
+            <option value="todos">Todas tipologías</option>
+            <option value="puerta">Puerta</option>
+            <option value="mueble">Mueble</option>
           </select>
         )}
       </div>

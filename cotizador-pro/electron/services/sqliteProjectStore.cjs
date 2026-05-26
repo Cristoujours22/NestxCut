@@ -115,6 +115,12 @@ function createSqliteProjectStore({ app }) {
   `);
 
   try {
+    sqlite.exec('ALTER TABLE inventory_items ADD COLUMN tipologia TEXT');
+  } catch (err) {
+    if (!String(err.message || '').includes('duplicate column name')) throw err;
+  }
+
+  try {
     sqlite.exec('ALTER TABLE projects ADD COLUMN owner_uid TEXT');
   } catch (err) {
     if (!String(err.message || '').includes('duplicate column name')) throw err;
@@ -169,8 +175,8 @@ function createSqliteProjectStore({ app }) {
   const getItemByIdStmt = sqlite.prepare('SELECT * FROM inventory_items WHERE id = ?');
   const getItemByCodeStmt = sqlite.prepare('SELECT * FROM inventory_items WHERE lower(codigo) = lower(?)');
   const saveItemStmt = sqlite.prepare(`
-    INSERT INTO inventory_items (id, codigo, nombre, item_type, proveedor_id, cantidad_disponible, cantidad_reservada, stock_minimo, stock_objetivo, costo_unitario, payload, created_at, updated_at)
-    VALUES (@id, @codigo, @nombre, @item_type, @proveedor_id, @cantidad_disponible, @cantidad_reservada, @stock_minimo, @stock_objetivo, @costo_unitario, @payload, COALESCE(@created_at, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+    INSERT INTO inventory_items (id, codigo, nombre, item_type, proveedor_id, cantidad_disponible, cantidad_reservada, stock_minimo, stock_objetivo, costo_unitario, payload, tipologia, created_at, updated_at)
+    VALUES (@id, @codigo, @nombre, @item_type, @proveedor_id, @cantidad_disponible, @cantidad_reservada, @stock_minimo, @stock_objetivo, @costo_unitario, @payload, @tipologia, COALESCE(@created_at, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET
       codigo = excluded.codigo,
       nombre = excluded.nombre,
@@ -182,6 +188,7 @@ function createSqliteProjectStore({ app }) {
       stock_objetivo = excluded.stock_objetivo,
       costo_unitario = excluded.costo_unitario,
       payload = excluded.payload,
+      tipologia = excluded.tipologia,
       updated_at = CURRENT_TIMESTAMP
   `);
   const deleteItemStmt = sqlite.prepare('DELETE FROM inventory_items WHERE id = ?');
@@ -228,6 +235,7 @@ function createSqliteProjectStore({ app }) {
       stock_minimo: Number(row.stock_minimo || 0),
       stock_objetivo: Number(row.stock_objetivo || 0),
       costo_unitario: Number(row.costo_unitario || 0),
+      tipologia: row.tipologia || '',
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
@@ -514,6 +522,7 @@ function createSqliteProjectStore({ app }) {
         stock_objetivo: Number(item.stock_objetivo || 0),
         costo_unitario: Number(item.costo_unitario || 0),
         payload: toJson({ ...item, id }),
+        tipologia: item.tipologia || '',
         created_at: item.created_at || null,
       });
       return { success: true, id };
@@ -535,6 +544,7 @@ function createSqliteProjectStore({ app }) {
         stock_objetivo: Number(item.stock_objetivo || 0),
         costo_unitario: Number(item.costo_unitario || 0),
         payload: toJson({ ...asJson(current.payload, {}), ...item }),
+        tipologia: item.tipologia || '',
         created_at: current.created_at,
       });
       return { success: true };
@@ -636,6 +646,7 @@ function createSqliteProjectStore({ app }) {
             stock_objetivo: Number(item.stock_objetivo || 0),
             costo_unitario: Number(line.costo_unitario || item.costo_unitario || 0),
             payload: toJson({ ...item, cantidad_disponible: nextQuantity, costo_unitario: Number(line.costo_unitario || item.costo_unitario || 0) }),
+            tipologia: item.tipologia || '',
             created_at: item.created_at,
           });
           this.addInventoryMovement({

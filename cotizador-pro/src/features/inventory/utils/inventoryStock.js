@@ -34,7 +34,7 @@ export function getRestockPriority(item) {
   return { level: 'normal', label: 'Normal', score: 0, faltante: 0 };
 }
 
-export function filterInventoryItems(items, { type, search, status, specificFilter }) {
+export function filterInventoryItems(items, { type, search, status, specificFilter, tipologiaFilter }) {
   return items.filter((item) => {
     if (type && item.item_type !== type) return false;
 
@@ -62,6 +62,18 @@ export function filterInventoryItems(items, { type, search, status, specificFilt
       }
     }
 
+    if (type === 'herraje' && tipologiaFilter && tipologiaFilter !== 'todos') {
+      const itemTipologia = item.tipologia || '';
+      if (itemTipologia !== tipologiaFilter) return false;
+    }
+
     return true;
+  });
+}
+
+export function filterHerrajesForPuertas(herrajes) {
+  return herrajes.filter((item) => {
+    const tipologia = item.tipologia || '';
+    return tipologia === 'puerta';
   });
 }

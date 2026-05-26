@@ -2,6 +2,7 @@ export const HERRAJE_COLUMNS = [
   { key: 'codigo', label: 'Código' },
   { key: 'nombre', label: 'Nombre' },
   { key: 'tipo', label: 'Tipo' },
+  { key: 'tipologia', label: 'Tipología' },
   { key: 'medida', label: 'Medida' },
   { key: 'presentacion', label: 'Presentación' },
   { key: 'cantidad_disponible', label: 'Disponible', align: 'right' },

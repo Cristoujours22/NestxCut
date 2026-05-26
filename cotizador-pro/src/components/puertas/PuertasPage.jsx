@@ -4,6 +4,7 @@ import { DEFAULT_PUERTA_CONFIG, PUERTAS_TABS } from '../../features/puertas/conf
 import { createPuertaConfig, createPuertaDraft } from '../../features/puertas/utils/puertasModel';
 import { calcularPuerta } from '../../features/puertas/utils/puertasCalculations';
 import { buildFondosNestingPreview } from '../../features/puertas/utils/puertasNestingAdapter';
+import { filterHerrajesForPuertas } from '../../features/inventory/utils/inventoryStock';
 import DespieceNestingModal from '../despiece/DespieceNestingModal';
 import PuertasMaterialDropdown from './PuertasMaterialDropdown';
 import PuertasMultiSelectDropdown from './PuertasMultiSelectDropdown';
@@ -143,10 +144,12 @@ export default function PuertasPage() {
     [tableros]
   );
 
-  const herrajes = useMemo(
+  const allHerrajes = useMemo(
     () => inventoryItems.filter((item) => item.item_type === 'herraje'),
     [inventoryItems]
   );
+
+  const herrajes = useMemo(() => filterHerrajesForPuertas(allHerrajes), [allHerrajes]);
 
   const cantos = useMemo(
     () => inventoryItems.filter((item) => item.item_type === 'canto'),
@@ -162,19 +165,19 @@ export default function PuertasPage() {
   );
 
   const peganteOptions = useMemo(
-    () => herrajes.filter((item) => (
+    () => allHerrajes.filter((item) => (
       matchesSome(item.nombre, ['pegante', 'cola', 'adhesivo', 'colbon'])
       || matchesSome(item.tipo, ['pegante', 'cola', 'adhesivo'])
     )),
-    [herrajes]
+    [allHerrajes]
   );
 
   const honeycombOptions = useMemo(
-    () => herrajes.filter((item) => (
+    () => allHerrajes.filter((item) => (
       matchesSome(item.nombre, ['honeycomb', 'alma', 'panal', 'abeja'])
       || matchesSome(item.tipo, ['honeycomb', 'alma', 'panal', 'abeja'])
     )),
-    [herrajes]
+    [allHerrajes]
   );
 
   const selectedMaterial = useMemo(
@@ -266,11 +269,11 @@ export default function PuertasPage() {
   const selectedHerrajes = useMemo(
     () => draft.herrajesSeleccionados
       .map((selected) => {
-        const item = herrajes.find((entry) => entry.id === selected.id);
+        const item = allHerrajes.find((entry) => entry.id === selected.id);
         return item ? { ...item, selectedQuantity: Number(selected.cantidad || 1) } : null;
       })
       .filter(Boolean),
-    [herrajes, draft.herrajesSeleccionados]
+    [allHerrajes, draft.herrajesSeleccionados]
   );
 
   useEffect(() => {
@@ -681,7 +684,7 @@ export default function PuertasPage() {
 
     const selectedHardwareWithQty = draft.herrajesSeleccionados
       .map((selected) => {
-        const item = herrajes.find((entry) => entry.id === selected.id);
+        const item = allHerrajes.find((entry) => entry.id === selected.id);
         return item ? { ...item, selectedQuantity: Number(selected.cantidad || 1) } : null;
       })
       .filter(Boolean);
