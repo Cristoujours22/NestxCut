@@ -486,15 +486,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
                 {isExporting ? 'Generando...' : 'Exportar PDF'}
               </button>
             </div>
-            <label className="flex items-center gap-2 text-sm text-[#dee5ff] font-medium cursor-pointer shrink-0 border border-[#1a233a] rounded-lg px-3 py-2 bg-[#0f172b]">
-              <input
-                type="checkbox"
-                checked={ignoreBeta}
-                onChange={(e) => setIgnoreBeta(e.target.checked)}
-                className="w-4 h-4 rounded border-[#40485d] bg-[#060e20] text-[#00e0fe] focus:ring-[#00e0fe]/40"
-              />
-              <span>No respetar veta</span>
-            </label>
+            {null}
             <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
             </div>
           </div>

@@ -202,6 +202,8 @@ export default function PuertasPage() {
     [cantos, draft.insumosSeleccionados?.cantoItemId]
   );
 
+  const calculation = useMemo(() => calcularPuerta(draft, config), [draft, config]);
+
 
   const supplyValidation = useMemo(() => {
     const selectedIsFondo6mm = Boolean(selectedMaterial) && Number(selectedMaterial.espesor_mm || 0) === 6;
@@ -293,8 +295,6 @@ export default function PuertasPage() {
     }),
     [inventoryItems]
   );
-
-  const calculation = useMemo(() => calcularPuerta(draft, config), [draft, config]);
 
   const scrapSuggestions = useMemo(() => {
     if (!selectedMaterial) return [];

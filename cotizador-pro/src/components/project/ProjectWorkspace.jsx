@@ -43,7 +43,7 @@ function buildBoardReservationMap(despieceData = []) {
 
     const filas = Array.isArray(despiece?.filas) ? despiece.filas : [];
     const fallbackCount = Math.ceil(filas.reduce((sum, row) => sum + (parseInt(row?.cantidad || 0, 10) || 0), 0) / 4) || 0;
-    const reservedBoards = Number(despiece?.cantidad || despiece?.laminas || fallbackCount || 0);
+    const reservedBoards = Number((despiece?.commercialCount ?? despiece?.laminaCount ?? despiece?.cantidad ?? despiece?.laminas ?? fallbackCount) || 0);
 
     acc[materialId] = (acc[materialId] || 0) + reservedBoards;
     return acc;

@@ -67,11 +67,6 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
     loadInventory();
   }, []);
 
-  const emitChange = useCallback((next) => {
-    setDespieces(next);
-    onChange?.(next);
-  }, [onChange]);
-
   const activeDespiece = useMemo(
     () => despieces.find((item) => item.id === activeDespieceId) || despieces[0],
     [despieces, activeDespieceId]
@@ -81,6 +76,32 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
     () => inventoryItems.filter((item) => item.item_type === 'tablero' || item.tipo === 'tablero' || item.type === 'tablero'),
     [inventoryItems]
   );
+
+  const emitChange = useCallback((next) => {
+    const nextWithCounts = next.map((despiece) => {
+      const material = materialOptions.find((item) => item.id === despiece.material_id) || null;
+      if (!material) return despiece;
+
+      const commercialPackingForDespiece = calculateCommercialPacking({
+        rows: despiece.filas || [],
+        material,
+        settings: {},
+      });
+
+      const laminaCountValue = commercialPackingForDespiece?.commercialCount != null
+        ? commercialPackingForDespiece.commercialCount
+        : 0;
+
+      return {
+        ...despiece,
+        laminaCount: laminaCountValue,
+        commercialCount: laminaCountValue,
+      };
+    });
+
+    setDespieces(nextWithCounts);
+    onChange?.(nextWithCounts);
+  }, [onChange, materialOptions]);
 
   const inventoryCantos = useMemo(
     () => inventoryItems.filter((item) => item.item_type === 'canto' || item.tipo === 'canto' || item.type === 'canto'),

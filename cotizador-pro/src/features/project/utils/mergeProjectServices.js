@@ -100,7 +100,7 @@ function detectarServiciosPorMaterial(despieceData, servicios, inventoryItems = 
       inventoryMaterial?.precio || 
       0
     );
-    const cantidadLaminas = Number(despiece.cantidad || despiece.laminas || Math.ceil(filas.reduce((acc, r) => acc + (parseInt(r.cantidad || 0) || 0), 0) / 4) || 1);
+    const cantidadLaminas = Number((despiece.commercialCount ?? despiece.laminaCount ?? despiece.cantidad ?? despiece.laminas ?? Math.ceil(filas.reduce((acc, r) => acc + (parseInt(r.cantidad || 0) || 0), 0) / 4) ?? 1) || 1);
     const valorTotalLaminas = precioUnitarioLamina * cantidadLaminas;
     
     filas.forEach((row) => {
