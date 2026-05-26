@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleCollapsed }) {
+export default function Sidebar({ onOpenNewProject, onOpenFeedback, collapsed = false, onToggleCollapsed }) {
   const { user } = useAuth();
   const location = useLocation();
   const [companyName, setCompanyName] = useState('Workshop Alpha');
@@ -119,7 +119,7 @@ export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleC
       </div>
 
       {/* Primary Action Button (Bottom) */}
-      <div className={`${collapsed ? 'mt-auto p-4' : 'mt-auto p-6'}`}>
+      <div className={`${collapsed ? 'mt-auto p-4' : 'mt-auto p-6 space-y-3'}`}>
         <button 
           onClick={onOpenNewProject}
           title={collapsed ? 'Nuevo Proyecto' : undefined}
@@ -127,6 +127,15 @@ export default function Sidebar({ onOpenNewProject, collapsed = false, onToggleC
         >
           <span className="material-symbols-outlined text-[20px]">add_circle</span>
           {!collapsed && 'Nuevo Proyecto'}
+        </button>
+
+        <button 
+          onClick={onOpenFeedback}
+          title={collapsed ? 'Enviar sugerencia' : undefined}
+          className={`w-full border border-[#40485d]/30 text-[#a3aac4] ${collapsed ? 'py-3 px-0' : 'py-2.5 px-4'} rounded-xl font-medium flex items-center justify-center gap-2 hover:border-[#99f7ff]/30 hover:text-[#dee5ff] transition-colors`}
+        >
+          <span className="material-symbols-outlined text-[18px]">lightbulb</span>
+          {!collapsed && 'Enviar sugerencia'}
         </button>
       </div>
     </aside>

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function UpdateChecker() {
   const [status, setStatus] = useState(null);
   const [version, setVersion] = useState(null);
   const [percent, setPercent] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+  const autoDismissRef = useRef(null);
 
   useEffect(() => {
     if (!window.electronAPI?.onUpdateStatus) return;
@@ -18,6 +19,16 @@ export default function UpdateChecker() {
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
+  // Auto-dismiss "up-to-date" toast after 5 seconds
+  useEffect(() => {
+    if (status === 'up-to-date') {
+      autoDismissRef.current = setTimeout(() => setDismissed(true), 5000);
+    }
+    return () => {
+      if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+    };
+  }, [status]);
+
   const handleInstall = () => {
     window.electronAPI?.installUpdate?.();
   };
@@ -25,10 +36,13 @@ export default function UpdateChecker() {
   // Don't show anything if dismissed or no status
   if (dismissed || !status) return null;
 
-  // Show up-to-date message briefly then hide
+  // Show up-to-date message briefly then hide. Click or auto-dismiss.
   if (status === 'up-to-date') {
     return (
-      <div className="fixed bottom-4 right-4 z-[100] w-72 rounded-xl border border-green-800 bg-green-950 shadow-2xl p-4">
+      <div
+        onClick={() => setDismissed(true)}
+        className="fixed bottom-4 right-4 z-[100] w-72 rounded-xl border border-green-800 bg-green-950 shadow-2xl p-4 cursor-pointer hover:opacity-80 transition-opacity"
+      >
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-green-400 text-[20px]">check_circle</span>
           <p className="text-green-200 text-sm font-bold">Estás actualizado</p>
