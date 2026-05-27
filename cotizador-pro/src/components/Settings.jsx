@@ -41,7 +41,6 @@ export default function Settings() {
             contact_phone: s.contact_phone || '',
             address: s.address || '',
             nit: s.nit || '',
-            instTodoCosto: Number(s.instTodoCosto) || 0,
             instMetroLineal: Number(s.instMetroLineal) || 0,
             instMetroCuadrado: Number(s.instMetroCuadrado) || 0,
             instPorcentaje: Number(s.instPorcentaje) || 0,
@@ -72,7 +71,6 @@ export default function Settings() {
         contact_phone: company.contact_phone || '',
         address: company.address || '',
         nit: company.nit || '',
-        instTodoCosto: Number(company.instTodoCosto) || 0,
         instMetroLineal: Number(company.instMetroLineal) || 0,
         instMetroCuadrado: Number(company.instMetroCuadrado) || 0,
         instPorcentaje: Number(company.instPorcentaje) || 0,
@@ -400,14 +398,6 @@ export default function Settings() {
                       Métodos de cobro de instalación
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[#a3aac4] text-[11px] uppercase tracking-wider font-bold mb-2">
-                          Todo costo (fijo)
-                        </label>
-                        <input type="number" value={company.instTodoCosto || ''} onChange={(e) => set('instTodoCosto', parseFloat(e.target.value) || 0)}
-                          className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff] placeholder:text-[#40485d]"
-                          placeholder="0" />
-                      </div>
                       <div>
                         <label className="block text-[#a3aac4] text-[11px] uppercase tracking-wider font-bold mb-2">
                           Metro lineal
