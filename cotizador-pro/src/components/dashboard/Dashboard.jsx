@@ -195,14 +195,13 @@ export default function Dashboard() {
             <p className="text-sm text-[#a3aac4]">Gestión de estados y presupuestos en tiempo real</p>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative w-full sm:w-64">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#a3aac4] text-[18px]">search</span>
+            <div className="w-full sm:w-64">
               <input 
                 type="text" 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar proyecto..." 
-                className="w-full bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-[#99f7ff]/50 transition-colors placeholder:text-[#40485d]"
+                className="w-full bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-lg pl-3 pr-4 py-2 focus:outline-none focus:border-[#99f7ff]/50 transition-colors placeholder:text-[#40485d]"
               />
             </div>
             <button

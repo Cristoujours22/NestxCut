@@ -31,13 +31,12 @@ export default function DespieceMaterialSearchSelector({
         </div>
 
         <div className="flex-1 min-w-[250px]">
-          <div className="relative mb-2">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6f7a97] text-[18px]">search</span>
+          <div className="mb-2">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={placeholder}
-              className="w-full bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-[#00e0fe]/50"
+              className="w-full bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-xl pl-3 pr-4 py-2.5 focus:outline-none focus:border-[#00e0fe]/50"
             />
           </div>
 
