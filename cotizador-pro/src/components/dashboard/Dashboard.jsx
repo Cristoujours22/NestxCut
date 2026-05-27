@@ -159,52 +159,48 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* KPI Cards (Mezclado Imagen 1 & 2) */}
+      {/* KPI Cards */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
         {/* Card 1 */}
-        <div className="bg-gradient-to-br from-[#0b162b] to-[#091120] border border-[#00e0fe]/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(0,224,254,0.08)] flex flex-col hover:border-[#00e0fe]/40 hover:-translate-y-0.5 transition-all min-h-[140px]">
-          <div className="flex justify-between items-start mb-5 gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-[#00e0fe]/12 flex items-center justify-center border border-[#00e0fe]/25 shadow-[0_0_30px_rgba(0,224,254,0.12)] shrink-0">
-                <span className="material-symbols-outlined text-[#00e0fe] text-[22px]">request_quote</span>
-              </div>
-              <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase leading-tight">Ventas del Mes</span>
-            </div>
+        <div className="bg-gradient-to-br from-[#0b162b] to-[#091120] border border-[#00e0fe]/20 rounded-[24px] p-5 shadow-[0_10px_40px_rgba(0,224,254,0.08)] flex items-center hover:border-[#00e0fe]/40 hover:-translate-y-0.5 transition-all">
+          <div className="w-11 h-11 rounded-xl bg-[#00e0fe]/12 flex items-center justify-center border border-[#00e0fe]/25 shadow-[0_0_30px_rgba(0,224,254,0.12)] shrink-0 mr-4">
+            <span className="material-symbols-outlined text-[#00e0fe] text-[20px]">request_quote</span>
           </div>
-          <span className="text-3xl md:text-4xl font-extrabold text-white tracking-[-0.04em] leading-none">{formatCurrency(currentMonthSales)}</span>
-          <span className="text-[#7f8ba8] text-sm mt-3">Ventas cerradas este mes</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase truncate">Ventas del Mes</span>
+              <span className="text-xl md:text-2xl font-extrabold text-white tracking-[-0.04em] leading-none shrink-0">{formatCurrency(currentMonthSales)}</span>
+            </div>
+            <span className="text-[#7f8ba8] text-xs mt-0.5 block">Ventas cerradas este mes</span>
+          </div>
         </div>
 
         {/* Card 2 */}
-        <div className="bg-gradient-to-br from-[#0c162c] to-[#091120] border border-blue-500/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(59,130,246,0.08)] flex flex-col hover:border-blue-400/40 hover:-translate-y-0.5 transition-all min-h-[140px]">
-          <div className="flex justify-between items-start mb-5 gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/12 flex items-center justify-center border border-blue-500/25 shadow-[0_0_30px_rgba(59,130,246,0.12)] shrink-0">
-                <span className="material-symbols-outlined text-blue-400 text-[22px]">build</span>
-              </div>
-              <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase leading-tight">Proyectos en Curso</span>
+        <div className="bg-gradient-to-br from-[#0c162c] to-[#091120] border border-blue-500/20 rounded-[24px] p-5 shadow-[0_10px_40px_rgba(59,130,246,0.08)] flex items-center hover:border-blue-400/40 hover:-translate-y-0.5 transition-all">
+          <div className="w-11 h-11 rounded-xl bg-blue-500/12 flex items-center justify-center border border-blue-500/25 shadow-[0_0_30px_rgba(59,130,246,0.12)] shrink-0 mr-4">
+            <span className="material-symbols-outlined text-blue-400 text-[20px]">build</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase truncate">Proyectos en Curso</span>
+              <span className="text-xl md:text-2xl font-extrabold text-white tracking-[-0.04em] leading-none shrink-0">{activeProjects}</span>
             </div>
+            <span className="text-[#7f8ba8] text-xs mt-0.5 block">Actualmente en ejecución</span>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.04em] leading-none">{activeProjects}</span>
-          </div>
-          <span className="text-[#7f8ba8] text-sm mt-3">Actualmente en ejecución</span>
         </div>
 
         {/* Card 3 */}
-        <div className="bg-gradient-to-br from-[#0f1726] to-[#091120] border border-emerald-500/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(16,185,129,0.08)] flex flex-col hover:border-emerald-400/40 hover:-translate-y-0.5 transition-all min-h-[140px]">
-          <div className="flex justify-between items-start mb-5 gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/12 flex items-center justify-center border border-emerald-500/25 shadow-[0_0_30px_rgba(16,185,129,0.12)] shrink-0">
-                <span className="material-symbols-outlined text-emerald-400 text-[22px]">description</span>
-              </div>
-              <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase leading-tight">Cotizaciones Pendientes</span>
+        <div className="bg-gradient-to-br from-[#0f1726] to-[#091120] border border-emerald-500/20 rounded-[24px] p-5 shadow-[0_10px_40px_rgba(16,185,129,0.08)] flex items-center hover:border-emerald-400/40 hover:-translate-y-0.5 transition-all">
+          <div className="w-11 h-11 rounded-xl bg-emerald-500/12 flex items-center justify-center border border-emerald-500/25 shadow-[0_0_30px_rgba(16,185,129,0.12)] shrink-0 mr-4">
+            <span className="material-symbols-outlined text-emerald-400 text-[20px]">description</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase truncate">Cotizaciones Pendientes</span>
+              <span className="text-xl md:text-2xl font-extrabold text-white tracking-[-0.04em] leading-none shrink-0">{pendingQuotes}</span>
             </div>
+            <span className="text-[#7f8ba8] text-xs mt-0.5 block">Pendientes por revisar</span>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.04em] leading-none">{pendingQuotes}</span>
-          </div>
-          <span className="text-[#7f8ba8] text-sm mt-3">Pendientes por revisar</span>
         </div>
       </section>
 
