@@ -127,18 +127,6 @@ export default function Dashboard() {
     }
   };
 
-  const greetingSummary = useMemo(() => {
-    const parts = [];
-    if (!loading) {
-      if (projects.length > 0) parts.push(`${projects.length} proyecto${projects.length !== 1 ? 's' : ''}`);
-      if (activeProjects > 0) parts.push(`${activeProjects} en curso`);
-      if (currentMonthSales > 0) parts.push(`${formatCurrency(currentMonthSales)} este mes`);
-    }
-    if (parts.length > 0) return parts.join(' · ') + '.';
-    if (loading) return 'Cargando...';
-    return 'Creá tu primer proyecto para empezar.';
-  }, [loading, projects.length, activeProjects, currentMonthSales]);
-
   return (
     <div className="p-6 md:p-8 space-y-8 pb-20 max-w-[1600px] mx-auto">
       {/* Header Panel (Mezclado Imagen 2) */}
@@ -146,14 +134,9 @@ export default function Dashboard() {
         <div className="relative z-10">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
             <div className="max-w-4xl">
-              <h1 className="font-['Space_Grotesk'] text-[42px] leading-[0.95] sm:text-5xl md:text-6xl font-bold text-white mb-5 tracking-[-0.04em]">
+              <h1 className="font-['Space_Grotesk'] text-[42px] leading-[0.95] sm:text-5xl md:text-6xl font-bold text-white tracking-[-0.04em]">
                 Buenos días, <span className="text-[#99f7ff]">{companyName}</span>
               </h1>
-              <div className="max-w-[690px]">
-                <p className="text-[#a9b6d3] text-[14px] md:text-[15px] leading-7">
-                  {greetingSummary}
-                </p>
-              </div>
             </div>
           </div>
         </div>
