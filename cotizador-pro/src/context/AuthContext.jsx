@@ -6,6 +6,9 @@ import { doc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { getAccessDecision, getOrCreateUser, getUserAccessState, normalizeDeviceLicense } from '../utils/subscription';
 import { getDeviceIds } from '../utils/deviceId';
 
+const DEV = import.meta.env.DEV;
+const log = (...args) => DEV && console.log(...args);
+
 // Create the context
 const AuthContext = createContext(null);
 
@@ -21,14 +24,14 @@ export const AuthProvider = ({ children }) => {
     const loadDeviceLicense = useCallback(async () => {
         const { stableHid, legacyHid } = await getDeviceIds();
         setResolvedStableHid(stableHid);
-        console.log('[AuthContext] Stable HID:', stableHid, 'Legacy HID:', legacyHid);
+        log('[AuthContext] Stable HID:', stableHid, 'Legacy HID:', legacyHid);
 
         const stableRef = doc(db, 'licenses', stableHid);
         const stableSnap = await getDoc(stableRef);
         if (stableSnap.exists()) {
             const rawLicense = stableSnap.data();
             const normalized = normalizeDeviceLicense(rawLicense);
-            console.log('[AuthContext] Stable license found:', rawLicense);
+            log('[AuthContext] Stable license found:', rawLicense);
             if (!normalized.isValid) {
                 console.warn('[AuthContext] Invalid stable device license shape:', normalized.reason, rawLicense);
                 return { ...rawLicense, estado: 'bloqueado', diasRestantes: 0, invalidReason: normalized.reason };
@@ -42,7 +45,7 @@ export const AuthProvider = ({ children }) => {
             if (legacySnap.exists()) {
                 const legacyData = legacySnap.data();
                 const normalizedLegacy = normalizeDeviceLicense(legacyData);
-                console.log('[AuthContext] Legacy license found, migrating to stable HID:', legacyHid, '->', stableHid);
+                log('[AuthContext] Legacy license found, migrating to stable HID:', legacyHid, '->', stableHid);
                 await setDoc(stableRef, {
                     ...legacyData,
                     hid: stableHid,
@@ -171,7 +174,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             await setDoc(licenseRef, trialLicense)
-            console.log('[AuthContext] Trial device license created automatically:', stableHid)
+            log('[AuthContext] Trial device license created automatically:', stableHid)
             return trialLicense
         } catch (err) {
             try {
@@ -195,7 +198,7 @@ export const AuthProvider = ({ children }) => {
 
     const loadUserDocument = useCallback(async (firebaseUser) => {
         const data = await getOrCreateUser(firebaseUser.uid, firebaseUser.email);
-        console.log('[AuthContext] User data from Firestore:', data);
+        log('[AuthContext] User data from Firestore:', data);
         return data;
     }, []);
 
@@ -223,7 +226,7 @@ export const AuthProvider = ({ children }) => {
 
             if (Object.keys(patch).length > 0) {
                 await updateDoc(userRef, patch);
-                console.log('[AuthContext] Firestore sync after email verification:', patch);
+                log('[AuthContext] Firestore sync after email verification:', patch);
             }
         } catch (err) {
             console.error('[AuthContext] Error syncing verified email status:', err);
@@ -241,7 +244,7 @@ export const AuthProvider = ({ children }) => {
     }, [ensureTrialDeviceLicense, loadDeviceLicense, loadUserDocument, syncDevicePresence, syncVerifiedEmailStatus]);
 
     useEffect(() => {
-        console.log("[AuthContext] Setting up Firebase auth listener...");
+        log("[AuthContext] Setting up Firebase auth listener...");
         
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             try {
@@ -250,7 +253,7 @@ export const AuthProvider = ({ children }) => {
                     const freshUser = auth.currentUser || firebaseUser
 
                     if (!freshUser.emailVerified) {
-                        console.log('[AuthContext] Usuario autenticado pero sin email verificado. Se omite validación HID por ahora.');
+                        log('[AuthContext] Usuario autenticado pero sin email verificado. Se omite validación HID por ahora.');
                         setUser(freshUser)
                         setUserData({ email: freshUser.email, status: 'pending_verification' })
                         setLicenseData(null)
@@ -264,10 +267,10 @@ export const AuthProvider = ({ children }) => {
                         setLicenseData(license);
 
                         if (accessDecision.hasAccess) {
-                            console.log('[AuthContext] Acceso permitido:', accessDecision.reason);
+                            log('[AuthContext] Acceso permitido:', accessDecision.reason);
                             setUser(freshUser);
                         } else {
-                            console.log('[AuthContext] Acceso denegado:', accessDecision.reason);
+                            log('[AuthContext] Acceso denegado:', accessDecision.reason);
                             // Si no tiene acceso, cerrar sesión para que vaya al login
                             await signOut(auth);
                             setUser(null);
@@ -280,7 +283,7 @@ export const AuthProvider = ({ children }) => {
                         setUser(freshUser);
                     }
                 } else {
-                    console.log("[AuthContext] User not authenticated");
+                    log("[AuthContext] User not authenticated");
                     setUser(null);
                     setUserData(null);
                     setLicenseData(null);
@@ -297,15 +300,15 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = useCallback(async (email, password) => {
-        console.log("[AuthContext] Logging in with Firebase...");
+        log("[AuthContext] Logging in with Firebase...");
         try {
             const result = await signInWithEmailAndPassword(auth, email, password);
             await result.user.reload()
             const freshUser = auth.currentUser || result.user
-            console.log("[AuthContext] Login successful:", freshUser.email);
+            log("[AuthContext] Login successful:", freshUser.email);
             
             if (!freshUser.emailVerified) {
-                console.log('[AuthContext] Email no verificado en login');
+                log('[AuthContext] Email no verificado en login');
                 await signOut(auth)
                 throw new Error('EMAIL_NO_VERIFICADO')
             }
@@ -316,12 +319,12 @@ export const AuthProvider = ({ children }) => {
             setUser(freshUser);
 
             if (!accessDecision.hasAccess) {
-                console.log('[AuthContext] Acceso denegado en login:', accessDecision.reason);
+                log('[AuthContext] Acceso denegado en login:', accessDecision.reason);
                 await signOut(auth);
                 throw new Error(accessDecision.reason === 'device-license-missing' ? 'DEVICE_ACCESS_DENIED' : 'LICENCIA_EXPIRADA');
             }
             
-            console.log("[AuthContext] Email verificado y licencia válida, acceso concedido");
+            log("[AuthContext] Email verificado y licencia válida, acceso concedido");
             return { success: true, user: freshUser };
         } catch (error) {
             console.error("[AuthContext] Login error:", error);
@@ -330,7 +333,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const logout = useCallback(async () => {
-        console.log("[AuthContext] Logging out...");
+        log("[AuthContext] Logging out...");
         try {
           await signOut(auth);
         } catch (error) {

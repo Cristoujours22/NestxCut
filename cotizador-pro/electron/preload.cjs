@@ -10,7 +10,6 @@ const validInvokeChannels = [
   'add-servicio',
   'update-servicio',
   'delete-servicio',
-  'get-env',
   'get-stable-hid',
   'open-external',
   'get-projects',
@@ -39,7 +38,14 @@ const validInvokeChannels = [
   'get-door-config',
   'save-door-config',
   'get-manual-quotes',
-  'save-manual-quote'
+  'save-manual-quote',
+  'get-client-by-document',
+  'save-client',
+  'save-company-logo',
+  'get-file-data',
+  'get-inventory-purchases',
+  'save-inventory-purchase',
+  'receive-inventory-purchase'
 ]; // Add other DB channels
 const validSendChannels = []; // Channels for sending one-way messages to main
 const validOnChannels = ['update-status'];   // Channels for receiving messages from main
@@ -75,8 +81,6 @@ getCompanySettings: () => ipcRenderer.invoke('get-company-settings'),
   getClientByDocument: (documento) => ipcRenderer.invoke('get-client-by-document', documento),
   saveClient: (client) => ipcRenderer.invoke('save-client', client),
 
-  // Get Paddle config from main process
-  getPaddleConfig: () => ipcRenderer.invoke('get-env'),
   getStableHid: () => ipcRenderer.invoke('get-stable-hid'),
 
   // Open URL in system browser
