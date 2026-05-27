@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const { machineIdSync } = require('node-machine-id');
@@ -189,6 +189,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1024,
     height: 768,
+    autoHideMenuBar: true,
     webPreferences: {
       sandbox: true,
       nodeIntegration: false,
@@ -235,6 +236,7 @@ app.whenReady().then(() => {
   });
   registerDoorConfigHandlers({ ipcMain });
   registerManualQuoteHandlers({ ipcMain });
+  Menu.setApplicationMenu(null);
   createWindow();
 
   // Check for updates always
