@@ -40,7 +40,11 @@ export default function Settings() {
             contact_email: s.contact_email || '',
             contact_phone: s.contact_phone || '',
             address: s.address || '',
-            nit: s.nit || ''
+            nit: s.nit || '',
+            instTodoCosto: Number(s.instTodoCosto) || 0,
+            instMetroLineal: Number(s.instMetroLineal) || 0,
+            instMetroCuadrado: Number(s.instMetroCuadrado) || 0,
+            instPorcentaje: Number(s.instPorcentaje) || 0,
           });
           if (s.logo_data) {
             setPreviewUrl(s.logo_data);
@@ -68,6 +72,10 @@ export default function Settings() {
         contact_phone: company.contact_phone || '',
         address: company.address || '',
         nit: company.nit || '',
+        instTodoCosto: Number(company.instTodoCosto) || 0,
+        instMetroLineal: Number(company.instMetroLineal) || 0,
+        instMetroCuadrado: Number(company.instMetroCuadrado) || 0,
+        instPorcentaje: Number(company.instPorcentaje) || 0,
         updatedAt: new Date().toISOString()
       };
 
@@ -384,6 +392,50 @@ export default function Settings() {
                       Dirección
                     </label>
                     <textarea value={company.address} onChange={(e) => set('address', e.target.value)} rows={2} className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] font-medium focus:outline-none focus:border-[#99f7ff] transition-all placeholder:text-[#40485d] resize-none" placeholder="Dirección completa del taller" />
+                  </div>
+
+                  <div className="relative z-10 pt-5 mt-2 border-t border-[#1a233a]">
+                    <h3 className="font-['Space_Grotesk'] text-[13px] font-bold text-[#99f7ff] uppercase tracking-wider mb-4 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px]">construction</span>
+                      Métodos de cobro de instalación
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[#a3aac4] text-[11px] uppercase tracking-wider font-bold mb-2">
+                          Todo costo (fijo)
+                        </label>
+                        <input type="number" value={company.instTodoCosto || ''} onChange={(e) => set('instTodoCosto', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff] placeholder:text-[#40485d]"
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-[#a3aac4] text-[11px] uppercase tracking-wider font-bold mb-2">
+                          Metro lineal
+                        </label>
+                        <input type="number" value={company.instMetroLineal || ''} onChange={(e) => set('instMetroLineal', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff] placeholder:text-[#40485d]"
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-[#a3aac4] text-[11px] uppercase tracking-wider font-bold mb-2">
+                          Metro cuadrado
+                        </label>
+                        <input type="number" value={company.instMetroCuadrado || ''} onChange={(e) => set('instMetroCuadrado', parseFloat(e.target.value) || 0)}
+                          className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff] placeholder:text-[#40485d]"
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-[#a3aac4] text-[11px] uppercase tracking-wider font-bold mb-2">
+                          % valor facturado
+                        </label>
+                        <div className="relative">
+                          <input type="number" step="0.1" value={company.instPorcentaje || ''} onChange={(e) => set('instPorcentaje', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg pl-4 pr-8 py-2.5 text-[#dee5ff] focus:outline-none focus:border-[#99f7ff] placeholder:text-[#40485d]"
+                            placeholder="0" />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#a3aac4] font-bold">%</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-4 pt-4 mt-2 border-t border-[#1a233a] relative z-10">

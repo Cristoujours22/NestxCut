@@ -9,6 +9,7 @@ export default function PuertasMaterialDropdown({
   subtitle,
   buttonPlaceholder,
   searchPlaceholder,
+  status, // undefined = no badge, true = green check, false = red x
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -51,10 +52,26 @@ export default function PuertasMaterialDropdown({
   return (
     <div className={compact ? 'flex flex-col gap-2 min-w-0' : 'bg-[#0a1122] border border-[#1a233a] rounded-2xl p-4'} ref={containerRef}>
       <div className={compact ? 'text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em]' : 'flex flex-col lg:flex-row lg:items-start gap-3'}>
-        {compact ? (title || 'Material visible') : (
+        {compact ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em]">{title || 'Material visible'}</span>
+            {status !== undefined && (
+              <span className={`material-symbols-outlined text-[16px] ${status ? 'text-emerald-300' : 'text-red-400'}`}>
+                {status ? 'check_circle' : 'error'}
+              </span>
+            )}
+          </div>
+        ) : (
           <>
             <div className="min-w-[180px]">
-              <div className="text-[#a3aac4] text-xs uppercase tracking-widest font-bold">{title || 'Material del despiece'}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-[#a3aac4] text-xs uppercase tracking-widest font-bold">{title || 'Material del despiece'}</div>
+                {status !== undefined && (
+                  <span className={`material-symbols-outlined text-[16px] ${status ? 'text-emerald-300' : 'text-red-400'}`}>
+                    {status ? 'check_circle' : 'error'}
+                  </span>
+                )}
+              </div>
               <div className="text-[#6f7a97] text-sm mt-1">{subtitle || 'Definí el tablero base para conectar inventario y cotización.'}</div>
             </div>
           </>

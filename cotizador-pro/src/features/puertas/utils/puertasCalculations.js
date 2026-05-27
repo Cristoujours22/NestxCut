@@ -103,26 +103,52 @@ export function calcularBastidores(hoja, config) {
   const anchoHorizontal = toNumber(config?.composition?.anchoBastidorHorizontalMm);
   const espesor = toNumber(config?.composition?.bastidorInternoMm);
   const incluirInferior = Boolean(config?.composition?.incluirBastidorInferior);
+  const incluirChapero = Boolean(config?.composition?.incluirChapero);
+  const chaperoAlto = toNumber(config?.composition?.chaperoAltoMm);
   const largoHorizontal = Math.max(0, toNumber(hoja?.anchoMm) - (anchoVertical * 2));
 
-  const piezas = [
-    {
+  const piezas = [];
+
+  if (incluirChapero && chaperoAlto > 0) {
+    // Lado chapa: bastidor vertical partido en 2 por el chapero
+    const altoSobreChapero = Math.max(0, hoja.altoMm - chaperoAlto);
+    piezas.push({
+      id: 'bastidor_vertical_chapa_sup',
+      detalle: 'Bastidor vertical lado chapa (superior)',
+      cantidad: 1,
+      largoMm: altoSobreChapero,
+      anchoMm: anchoVertical,
+      espesorMm: espesor,
+    });
+    // Lado bisagra: bastidor vertical completo
+    piezas.push({
+      id: 'bastidor_vertical_bisagra',
+      detalle: 'Bastidor vertical lado bisagra',
+      cantidad: 1,
+      largoMm: hoja.altoMm,
+      anchoMm: anchoVertical,
+      espesorMm: espesor,
+    });
+  } else {
+    // Sin chapero: 2 bastidores verticales iguales
+    piezas.push({
       id: 'bastidor_vertical',
       detalle: 'Bastidor vertical',
       cantidad: 2,
       largoMm: hoja.altoMm,
       anchoMm: anchoVertical,
       espesorMm: espesor,
-    },
-    {
-      id: 'bastidor_superior',
-      detalle: 'Bastidor superior',
-      cantidad: 1,
-      largoMm: largoHorizontal,
-      anchoMm: anchoHorizontal,
-      espesorMm: espesor,
-    },
-  ];
+    });
+  }
+
+  piezas.push({
+    id: 'bastidor_superior',
+    detalle: 'Bastidor superior',
+    cantidad: 1,
+    largoMm: largoHorizontal,
+    anchoMm: anchoHorizontal,
+    espesorMm: espesor,
+  });
 
   if (incluirInferior) {
     piezas.push({
@@ -136,6 +162,24 @@ export function calcularBastidores(hoja, config) {
   }
 
   return piezas;
+}
+
+export function calcularChapero(hoja, config) {
+  const incluirChapero = Boolean(config?.composition?.incluirChapero);
+  if (!incluirChapero) return null;
+
+  const espesor = toNumber(config?.composition?.bastidorInternoMm);
+  const alto = toNumber(config?.composition?.chaperoAltoMm);
+  const ancho = toNumber(config?.composition?.chaperoAnchoMm || toNumber(config?.composition?.anchoBastidorVerticalMm));
+
+  return {
+    id: 'chapero',
+    detalle: 'Chapero (refuerzo chapa)',
+    cantidad: 1,
+    largoMm: alto,
+    anchoMm: ancho,
+    espesorMm: espesor,
+  };
 }
 
 export function calcularAlma(hoja, config) {
@@ -174,6 +218,7 @@ export function calcularPuerta(definition, config) {
   const marco = calcularMarco(definition, config, hoja);
   const fondos = calcularFondos(hoja, config);
   const bastidores = calcularBastidores(hoja, config);
+  const chapero = calcularChapero(hoja, config);
   const alma = calcularAlma(hoja, config);
   const cantoLinealMm = calcularCanto(hoja);
   const pegante = calcularPegante(hoja, config);
@@ -185,6 +230,7 @@ export function calcularPuerta(definition, config) {
     estructuraInterna: {
       fondos,
       bastidores,
+      chapero,
       alma,
       canto: { linealesMm: cantoLinealMm },
       pegante,

@@ -1,5 +1,5 @@
 // src/components/project/ResumenPanel.jsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { formatPrice as formatPriceUtil } from '../../utils/serviceCalculator';
 import { calculateServicesTotal } from '../../features/project/utils/mergeProjectServices';
 import { calculateCommercialQuote, DEFAULT_COMMERCIAL_CONFIG } from '../../features/project/utils/commercialQuote';
@@ -49,6 +49,61 @@ export default function ResumenPanel({
   const [expandedMaterials, setExpandedMaterials] = useState({});
   const [editingManual, setEditingManual] = useState(null);
 
+  // Instalación — multiple entries
+  const [instalacionEntries, setInstalacionEntries] = useState([]);
+  const [instalacionPrecios, setInstalacionPrecios] = useState({ metroLineal: 0, metroCuadrado: 0, porcentaje: 0 });
+
+  useEffect(() => {
+    const cargarPrecios = async () => {
+      try {
+        const s = await window.electronAPI?.getCompanySettings?.() || {};
+        setInstalacionPrecios({
+          metroLineal: Number(s.instMetroLineal) || 0,
+          metroCuadrado: Number(s.instMetroCuadrado) || 0,
+          porcentaje: Number(s.instPorcentaje) || 0,
+        });
+      } catch (e) { /* silencioso */ }
+    };
+    cargarPrecios();
+  }, []);
+
+  // Calculate subtotal for an entry
+  const calcSubtotal = (entry, totalGeneral) => {
+    if (entry.metodo === 'metroLineal') return entry.cantidad * instalacionPrecios.metroLineal;
+    if (entry.metodo === 'metroCuadrado') return entry.cantidad * instalacionPrecios.metroCuadrado;
+    if (entry.metodo === 'porcentaje') return totalGeneral * instalacionPrecios.porcentaje / 100;
+    return 0;
+  };
+
+  // Update entry field
+  const updateEntry = (id, field, value) => {
+    setInstalacionEntries(entries => entries.map(e => {
+      if (e.id !== id) return e;
+      const updated = { ...e, [field]: value };
+      updated.subtotal = calcSubtotal(updated, totalGeneral);
+      return updated;
+    }));
+  };
+
+  // Add new entry
+  const addInstalacionEntry = () => {
+    const id = Date.now().toString();
+    const defaultEntry = {
+      id,
+      label: '',
+      metodo: 'metroLineal',
+      cantidad: 0,
+      precioUnitario: instalacionPrecios.metroLineal,
+      subtotal: 0
+    };
+    setInstalacionEntries(entries => [...entries, defaultEntry]);
+  };
+
+  // Remove entry
+  const removeInstalacionEntry = (id) => {
+    setInstalacionEntries(entries => entries.filter(e => e.id !== id));
+  };
+
   // === FASE 1A/1B: Capa comercial — estado local o externo ===
   // Si viene config externa (Phase 1B persistencia), úsala; si no, usa default
   const [internalCommercialConfig, setInternalCommercialConfig] = useState(DEFAULT_COMMERCIAL_CONFIG);
@@ -64,13 +119,20 @@ export default function ResumenPanel({
     setInternalCommercialConfig(next => typeof updater === 'function' ? updater(next) : updater);
   };
 
+  // Instalación total = sum of all entries
+  const instalacionCosto = useMemo(() => {
+    return instalacionEntries.reduce((sum, e) => sum + (e.subtotal || 0), 0);
+  }, [instalacionEntries]);
+
   // Calcular costo directo (lo que ya existía)
-  const costoDirecto = totalGeneral;
+  const costoDirecto = totalGeneral + instalacionCosto;
 
   // Cálculo comercial en memoria
   const commercialResult = useMemo(() => {
     return calculateCommercialQuote(costoDirecto, commercialConfig);
   }, [costoDirecto, commercialConfig]);
+
+  const totalConInstalacion = costoDirecto + instalacionCosto;
 
   // Handler para toggle modo comercial
   const handleToggleCommercial = () => {
@@ -231,7 +293,7 @@ export default function ResumenPanel({
             <div className="border-t border-[#00d1ed]/30 pt-3 mt-2">
               <div className="flex justify-between items-center">
                 <span className="text-[#00d1ed] font-bold">TOTAL:</span>
-                <span className="text-[#00e0fe] font-bold text-2xl">{formatPrice(totalGeneral)}</span>
+                <span className="text-[#00e0fe] font-bold text-2xl">{formatPrice(totalGeneral + instalacionCosto)}</span>
               </div>
             </div>
           </div>
@@ -350,6 +412,92 @@ export default function ResumenPanel({
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Instalación — múltiples cargos */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[#6f7a97] text-xs uppercase">Cargos de Instalación</label>
+                <button
+                  onClick={addInstalacionEntry}
+                  className="text-xs text-[#00d1ed] hover:text-[#00e0fe] flex items-center gap-1 px-2 py-1 rounded hover:bg-[#00d1ed]/10 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[14px]">add</span>
+                  Agregar cobro
+                </button>
+              </div>
+
+              {instalacionEntries.length === 0 && (
+                <p className="text-[#40485d] text-xs text-center py-2">Sin cargos de instalación</p>
+              )}
+
+              {instalacionEntries.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-2 mb-2">
+                  {/* Label */}
+                  <input
+                    type="text"
+                    placeholder="Descripción"
+                    value={entry.label}
+                    onChange={(e) => updateEntry(entry.id, 'label', e.target.value)}
+                    className="bg-[#0d1320] border border-[#1a233a] text-[#dee5ff] rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:border-[#00e0fe]/50"
+                  />
+                  {/* Method */}
+                  <select
+                    value={entry.metodo}
+                    onChange={(e) => {
+                      const metodo = e.target.value;
+                      updateEntry(entry.id, 'metodo', metodo);
+                      updateEntry(entry.id, 'precioUnitario',
+                        metodo === 'metroLineal' ? instalacionPrecios.metroLineal :
+                        metodo === 'metroCuadrado' ? instalacionPrecios.metroCuadrado :
+                        instalacionPrecios.porcentaje
+                      );
+                    }}
+                    className="bg-[#0d1320] border border-[#1a233a] text-[#dee5ff] rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-[#00e0fe]/50"
+                  >
+                    <option value="metroLineal">Metro lineal</option>
+                    <option value="metroCuadrado">Metro cuadrado</option>
+                    <option value="porcentaje">% facturado</option>
+                  </select>
+                  {/* Quantity */}
+                  {entry.metodo === 'porcentaje' ? (
+                    <div className="text-[#6f7a97] text-xs w-20 text-center">{instalacionPrecios.porcentaje}%</div>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Cant."
+                      value={entry.cantidad || ''}
+                      onChange={(e) => updateEntry(entry.id, 'cantidad', parseFloat(e.target.value) || 0)}
+                      className="bg-[#0d1320] border border-[#1a233a] text-[#dee5ff] rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:border-[#00e0fe]/50"
+                    />
+                  )}
+                  {/* Unit price (read-only) */}
+                  {entry.metodo !== 'porcentaje' && (
+                    <div className="text-[#6f7a97] text-xs w-20 text-right">
+                      {formatPrice(entry.precioUnitario || 0)}
+                    </div>
+                  )}
+                  {/* Subtotal */}
+                  <span className="text-[#facc15] text-xs font-semibold w-24 text-right">
+                    {formatPrice(entry.subtotal || 0)}
+                  </span>
+                  {/* Delete */}
+                  <button
+                    onClick={() => removeInstalacionEntry(entry.id)}
+                    className="text-[#ef4444] hover:text-red-400 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                  </button>
+                </div>
+              ))}
+
+              {instalacionEntries.length > 0 && (
+                <div className="flex justify-end mt-2">
+                  <span className="text-[#6f7a97] text-xs">Total instalación: </span>
+                  <span className="text-[#facc15] text-sm font-bold ml-2">{formatPrice(instalacionCosto)}</span>
+                </div>
+              )}
             </div>
 
             {/* Totales desglosados */}

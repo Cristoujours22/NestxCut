@@ -142,11 +142,29 @@ export default function Register() {
       });
       
       console.log('[Register] Usuario creado exitosamente:', uid);
+
+      // 4. Pre-fill company settings from registration data
+      try {
+        if (window.electronAPI?.getCompanySettings && window.electronAPI?.saveCompanySettings) {
+          const existing = await window.electronAPI.getCompanySettings() || {};
+          await window.electronAPI.saveCompanySettings({
+            ...existing,
+            company_name: formData.empresa?.trim() || `${formData.nombre} ${formData.apellido}`.trim(),
+            contact_phone: formData.celular?.trim() || '',
+            address: formData.direccion?.trim() || '',
+            nit: formData.cedula?.trim() || '',
+            contact_email: formData.email?.toLowerCase().trim() || '',
+            updatedAt: now.toISOString(),
+          });
+        }
+      } catch (e) {
+        console.warn('[Register] Could not save company settings:', e);
+      }
       
-      // 4. Sign out until verifique email
+      // 5. Sign out until verifies email
       await auth.signOut();
       
-      // 5. Redirect to login with message
+      // 6. Redirect to login with message
       navigate('/login', { state: { message: 'Registro exitoso. Se envió un email de verificación a tu correo. Por favor, verifica tu email antes de iniciar sesión.' } });
       
     } catch (error) {

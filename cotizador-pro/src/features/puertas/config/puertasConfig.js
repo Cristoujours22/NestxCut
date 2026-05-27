@@ -20,10 +20,12 @@ export const DEFAULT_PUERTA_CONFIG = {
     anchoBastidorVerticalMm: 80,
     anchoBastidorHorizontalMm: 80,
     incluirBastidorInferior: true,
+    incluirChapero: true,
+    chaperoAltoMm: 250,
+    chaperoAnchoMm: 80,
     tipoAlmaDefault: 'honeycomb',
   },
   production: {
-    consumoPegantePorM2: 0,
     usarNestingParaFondos: true,
   },
 };
