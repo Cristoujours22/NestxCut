@@ -190,6 +190,7 @@ function createWindow() {
     width: 1024,
     height: 768,
     webPreferences: {
+      sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs')
@@ -263,16 +264,6 @@ ipcMain.handle('get-stable-hid', async () => {
     console.error('Error generating stable HID:', err.message);
     throw err;
   }
-});
-
-// IPC to expose environment variables for Paddle
-ipcMain.handle('get-env', async () => {
-  return {
-    PADDLE_ENV: process.env.PADDLE_ENV || 'sandbox',
-    PADDLE_VENDOR_ID: process.env.PADDLE_VENDOR_ID || '54972',
-    PADDLE_PRICE_ID: process.env.PADDLE_PRICE_ID || 'pri_01kn8jhf5wjg2pjfdfbfw522pp',
-    PADDLE_CLIENT_TOKEN: process.env.PADDLE_CLIENT_TOKEN || 'test_a1214e7982f9490b485c72877e0'
-  };
 });
 
 

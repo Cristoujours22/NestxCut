@@ -28,7 +28,8 @@ if (typeof window !== 'undefined') {
 
   if (!isElectron) {
     if (import.meta.env.DEV) {
-      window.FIREBASE_APPCHECK_DEBUG_TOKEN = '3FDBB90F-14FB-46BE-B4C7-DC1441ED7031';
+      const stored = localStorage.getItem('FIREBASE_APPCHECK_DEBUG_TOKEN');
+      if (stored) window.FIREBASE_APPCHECK_DEBUG_TOKEN = stored;
     }
 
     try {
