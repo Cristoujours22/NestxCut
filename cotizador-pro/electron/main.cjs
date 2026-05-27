@@ -5,6 +5,7 @@ const { machineIdSync } = require('node-machine-id');
 const { registerInventoryHandlers } = require('./ipc/inventoryHandlers.cjs');
 const { registerServiceHandlers } = require('./ipc/serviceHandlers.cjs');
 const { registerDoorFabricationHandlers } = require('./ipc/doorFabricationHandlers.cjs');
+const { registerDoorDraftHandlers } = require('./ipc/doorDraftHandlers.cjs');
 const { registerDoorConfigHandlers } = require('./ipc/doorConfigHandlers.cjs');
 const { registerManualQuoteHandlers } = require('./ipc/manualQuoteHandlers.cjs');
 const { createSqliteProjectStore } = require('./services/sqliteProjectStore.cjs');
@@ -226,6 +227,10 @@ app.whenReady().then(() => {
   registerDoorFabricationHandlers({
     ipcMain,
     getInventoryStore: () => sqliteProjectStore,
+  });
+  registerDoorDraftHandlers({
+    ipcMain,
+    getProjectStore: () => sqliteProjectStore,
   });
   registerDoorConfigHandlers({ ipcMain });
   registerManualQuoteHandlers({ ipcMain });

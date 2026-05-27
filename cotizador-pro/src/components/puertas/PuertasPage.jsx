@@ -3,7 +3,7 @@ import PuertasTabs from './PuertasTabs';
 import { DEFAULT_PUERTA_CONFIG, PUERTAS_TABS } from '../../features/puertas/config/puertasConfig';
 import { createPuertaConfig, createPuertaDraft } from '../../features/puertas/utils/puertasModel';
 import { calcularPuerta } from '../../features/puertas/utils/puertasCalculations';
-import { buildFondosNestingPreview } from '../../features/puertas/utils/puertasNestingAdapter';
+import { buildFondosNestingPreview, buildPuertasNestingSummary } from '../../features/puertas/utils/puertasNestingAdapter';
 import { filterHerrajesForPuertas } from '../../features/inventory/utils/inventoryStock';
 import DespieceNestingModal from '../despiece/DespieceNestingModal';
 import PuertasMaterialDropdown from './PuertasMaterialDropdown';
@@ -84,17 +84,21 @@ export default function PuertasPage() {
   const [inventoryItems, setInventoryItems] = useState([]);
   const [servicios, setServicios] = useState([]);
   const [showNestingModal, setShowNestingModal] = useState(false);
+  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
   const [fabricationStatus, setFabricationStatus] = useState({ type: '', message: '' });
   const [isConfirmingFabrication, setIsConfirmingFabrication] = useState(false);
   const [configStatus, setConfigStatus] = useState({ type: '', message: '' });
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [historyStatus, setHistoryStatus] = useState({ type: '', message: '' });
   const [historialRecords, setHistorialRecords] = useState([]);
+const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [draftRecords, setDraftRecords] = useState([]);
+  const confirmingFabricationRef = useRef(false);
   const inventoryReservationBaselineRef = useRef({});
   const inventoryItemsRef = useRef([]);
   const inventoryReservationSessionIdRef = useRef(`door_draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const reservationSequenceRef = useRef(0);
-  const confirmingFabricationRef = useRef(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -132,6 +136,22 @@ export default function PuertasPage() {
       }
     };
     loadHistorial();
+  }, [activeTab]);
+
+  // Load door drafts when tab changes to historial
+  useEffect(() => {
+    if (activeTab !== 'historial') return;
+    const loadDrafts = async () => {
+      try {
+        const API = window.electronAPI;
+        if (!API?.getDoorDrafts) return;
+        const drafts = await API.getDoorDrafts();
+        setDraftRecords(Array.isArray(drafts) ? drafts : []);
+      } catch (error) {
+        console.error('Error loading door drafts:', error);
+      }
+    };
+    loadDrafts();
   }, [activeTab]);
 
   const tableros = useMemo(
@@ -350,11 +370,12 @@ export default function PuertasPage() {
   const nestingData = useMemo(() => {
     if (!selectedMaterial) return null;
 
-    return buildFondosNestingPreview({
+    return buildPuertasNestingSummary({
       hoja: calculation.hoja,
       config,
       cantidad: draft.cantidad,
-      material: selectedMaterial,
+      fondoMaterial: selectedMaterial,
+      bastidorItem: selectedBastidor,
       settings: {
         refiladoX: PUERTAS_NESTING_DEFAULTS.refiladoX,
         refiladoY: PUERTAS_NESTING_DEFAULTS.refiladoY,
@@ -363,7 +384,7 @@ export default function PuertasPage() {
       },
       boardMode: PUERTAS_NESTING_DEFAULTS.boardMode,
     });
-  }, [selectedMaterial, calculation.hoja, config, draft.cantidad]);
+  }, [selectedMaterial, selectedBastidor, calculation.hoja, config, draft.cantidad]);
 
   const selectedSupplyItemsWithQty = useMemo(() => {
     const qtyDoors = Math.max(1, Number(draft.cantidad || 1));
@@ -394,9 +415,9 @@ export default function PuertasPage() {
   }, [selectedSupplyItemsWithQty]);
 
   const nestingInterpretation = useMemo(() => {
-    if (!nestingData?.preview?.sheets?.length || !nestingData?.estimate) return null;
+    if (!nestingData?.fondos?.preview?.sheets?.length || !nestingData?.fondos?.estimate) return null;
 
-    const primarySheet = nestingData.preview.sheets[0];
+    const primarySheet = nestingData.fondos.preview.sheets[0];
     const freeRects = [...(primarySheet?.freeRects || [])]
       .map((rect) => ({
         ...rect,
@@ -405,28 +426,53 @@ export default function PuertasPage() {
       .sort((a, b) => b.area - a.area);
 
     return {
-      usableLargo: nestingData.estimate.usableLargo,
-      usableAncho: nestingData.estimate.usableAncho,
+      usableLargo: nestingData.fondos.estimate.usableLargo,
+      usableAncho: nestingData.fondos.estimate.usableAncho,
       freeRects,
     };
   }, [nestingData]);
 
   const costSummary = useMemo(() => {
-    const materialCost = Number(selectedMaterial?.costo_unitario || 0) * Number(nestingData?.estimate?.estimatedSheets || 0);
+    // Use actual nested sheet counts from the combined nesting summary
+    const fondoSheets = nestingData?.fondos?.sheetCount || 0;
+    const bastidorSheets = nestingData?.bastidores?.sheetCount || 0;
+
+    const fondoCost = Number(selectedMaterial?.costo_unitario || 0) * fondoSheets;
+    const bastidorCost = Number(selectedBastidor?.costo_unitario || 0) * bastidorSheets;
+    const materialCost = fondoCost + bastidorCost;
+
+    // Pegante cost
+    const peganteCost = selectedPegante
+      ? (Number(selectedPegante.costo_unitario || 0) * Math.max(1, Math.ceil(Number(calculation?.estructuraInterna?.pegante?.cantidad || 0))) * Math.max(1, Number(draft.cantidad || 1)))
+      : 0;
+
+    // Canto cost
+    const cantoCost = selectedCanto
+      ? (Number(selectedCanto.costo_unitario || 0) * Math.max(1, Math.ceil(Number(calculation?.estructuraInterna?.canto?.linealesMm || 0) / 1000)) * Math.max(1, Number(draft.cantidad || 1)))
+      : 0;
+
     const hardwareCost = selectedHerrajes.reduce((total, item) => total + (Number(item.costo_unitario || 0) * Number(item.selectedQuantity || 1)), 0);
     const servicesCost = selectedServicios.reduce((total, item) => total + (Number(item.precio_base || item.precio || 0) * Number(item.selectedQuantity || 1)), 0);
+
     const unitDoorCost = Math.max(1, Number(draft.cantidad || 1)) > 0
-      ? (materialCost + hardwareCost + servicesCost) / Math.max(1, Number(draft.cantidad || 1))
+      ? (materialCost + peganteCost + cantoCost + hardwareCost + servicesCost) / Math.max(1, Number(draft.cantidad || 1))
       : 0;
 
     return {
       materialCost,
+      fondoCost,
+      bastidorCost,
+      peganteCost,
+      cantoCost,
       hardwareCost,
       servicesCost,
-      total: materialCost + hardwareCost + servicesCost,
+      total: materialCost + peganteCost + cantoCost + hardwareCost + servicesCost,
       unitDoorCost,
+      // Expose sheet counts for UI
+      fondoSheets,
+      bastidorSheets,
     };
-  }, [selectedMaterial, selectedHerrajes, selectedServicios, draft.cantidad, nestingData]);
+  }, [selectedMaterial, selectedBastidor, selectedPegante, selectedCanto, selectedHerrajes, selectedServicios, nestingData, calculation, draft.cantidad]);
 
   const updateDraft = (path, value) => {
     setDraft((current) => {
@@ -613,12 +659,12 @@ export default function PuertasPage() {
   }, []);
 
   const buildScrapItemsFromPreview = () => {
-    if (!nestingData?.preview?.sheets?.length || !selectedMaterial) return [];
+    if (!nestingData?.fondos?.preview?.sheets?.length || !selectedMaterial) return [];
 
     const timestamp = Date.now();
     const scraps = [];
 
-    nestingData.preview.sheets.forEach((sheet) => {
+    nestingData.fondos.preview.sheets.forEach((sheet) => {
       (sheet.freeRects || []).forEach((rect, index) => {
         if (Number(rect.width || 0) < 120 || Number(rect.height || 0) < 120) return;
 
@@ -870,10 +916,13 @@ export default function PuertasPage() {
             precio: item.precio_base || item.precio || 0,
           })),
           nestingSummary: {
-            estimatedSheets: nestingData.estimate.estimatedSheets,
-            utilization: nestingData.estimate.utilization,
-            totalPieces: nestingData.rows.reduce((t, r) => t + Number(r.cantidad || r.cant || 0), 0),
-            unplacedCount: nestingData.preview.unplaced.length,
+            estimatedSheets: nestingData.summary.totalSheets,
+            fondosSheets: nestingData.summary.fondosSheetCount,
+            bastidoresSheets: nestingData.summary.bastidoresSheetCount,
+            utilization: nestingData.summary.avgUtilization,
+            totalPieces: nestingData.summary.totalPieces,
+            unplacedCount: nestingData.fondos?.preview?.unplaced?.length || 0,
+            almaStatus: 'pending',
           },
           inventoryImpact: {
             boardsConsumed: requiredBoards,
@@ -1018,6 +1067,82 @@ export default function PuertasPage() {
     }
   };
 
+  const reloadDrafts = async () => {
+    try {
+      const API = window.electronAPI;
+      if (!API?.getDoorDrafts) return;
+      const drafts = await API.getDoorDrafts();
+      setDraftRecords(Array.isArray(drafts) ? drafts : []);
+    } catch (error) {
+      console.error('Error loading drafts:', error);
+    }
+  };
+
+  const saveDoorDraft = async () => {
+    const API = window.electronAPI;
+    if (!API?.saveDoorDraft) {
+      setDraftStatus({ type: 'error', message: 'No existe el método para guardar borradores.' });
+      return;
+    }
+    setIsSavingDraft(true);
+    setDraftStatus({ type: '', message: '' });
+    try {
+      await API.saveDoorDraft({
+        nombre: draft.nombre || '',
+        cantidad: Number(draft.cantidad || 1),
+        vano: { ...draft.vano },
+        material: {
+          materialId: draft.material.materialId,
+          nombre: selectedMaterial?.nombre || '',
+          color: draft.material.color || '',
+        },
+        insumosSeleccionados: { ...draft.insumosSeleccionados },
+        herrajesSeleccionados: [...draft.herrajesSeleccionados],
+        serviciosSeleccionados: [...draft.serviciosSeleccionados],
+      });
+      await reloadDrafts();
+      setDraftStatus({ type: 'success', message: 'Borrador guardado correctamente.' });
+    } catch (error) {
+      setDraftStatus({ type: 'error', message: error?.message || 'No se pudo guardar el borrador.' });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const openDraft = (draftRecord) => {
+    setDraft(createPuertaDraft({
+      nombre: draftRecord.nombre || '',
+      cantidad: Number(draftRecord.cantidad || 1),
+      material: {
+        materialId: draftRecord.material?.materialId || null,
+        nombre: draftRecord.material?.nombre || '',
+        color: draftRecord.material?.color || '',
+      },
+      vano: {
+        altoMm: Number(draftRecord.vano?.altoMm || 2340),
+        anchoMm: Number(draftRecord.vano?.anchoMm || 860),
+        profundidadMm: Number(draftRecord.vano?.profundidadMm || 120),
+      },
+      insumosSeleccionados: { ...draftRecord.insumosSeleccionados },
+      herrajesSeleccionados: [...(draftRecord.herrajesSeleccionados || [])],
+      serviciosSeleccionados: [...(draftRecord.serviciosSeleccionados || [])],
+    }));
+    setActiveTab('nueva');
+    setDraftStatus({ type: 'success', message: `Borrador "${draftRecord.nombre || 'Sin nombre'}" cargado.` });
+  };
+
+  const deleteDraft = async (draftRecord) => {
+    const confirmed = window.confirm(`¿Eliminar borrador "${draftRecord.nombre || 'Sin nombre'}"?`);
+    if (!confirmed) return;
+    try {
+      await window.electronAPI.deleteDoorDraft(draftRecord.id);
+      await reloadDrafts();
+      setDraftStatus({ type: 'success', message: 'Borrador eliminado.' });
+    } catch (error) {
+      setDraftStatus({ type: 'error', message: error?.message || 'No se pudo eliminar el borrador.' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#060e20] text-[#dee5ff] p-6 md:p-8">
       <div className="max-w-[1600px] mx-auto space-y-8">
@@ -1031,9 +1156,7 @@ export default function PuertasPage() {
             <h1 className="font-['Space_Grotesk'] text-[42px] leading-[0.95] sm:text-5xl md:text-6xl font-bold text-white mb-5 tracking-[-0.04em]">
               Puertas
             </h1>
-            <p className="text-[#a9b6d3] text-[14px] md:text-[15px] leading-7 max-w-[780px]">
-              Este módulo va a calcular hojas, marcos, recibidores e insumos de puertas entamboradas, para luego conectarse con nesting, inventario y sobrantes reutilizables.
-            </p>
+
           </div>
         </section>
 
@@ -1067,26 +1190,6 @@ export default function PuertasPage() {
                 </div>
               ) : null}
 
-              {selectedMaterial && (
-                <div className="mt-5 rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                  <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Material base seleccionado</div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <div className="text-[#a3aac4]">Nombre</div>
-                      <div className="text-white font-semibold mt-1">{selectedMaterial.nombre}</div>
-                    </div>
-                    <div>
-                      <div className="text-[#a3aac4]">Medida</div>
-                      <div className="text-white font-semibold mt-1">{selectedMaterial.largo_mm || '-'} × {selectedMaterial.ancho_mm || '-'} mm</div>
-                    </div>
-                    <div>
-                      <div className="text-[#a3aac4]">Costo base</div>
-                      <div className="text-white font-semibold mt-1">{formatCurrency(selectedMaterial.costo_unitario || 0)}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div className="mt-6 rounded-2xl border border-[#1a233a] bg-[#060e20] p-5">
                 <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Materiales e insumos</div>
                 <p className="text-[#6f7a97] text-sm mb-4">
@@ -1102,6 +1205,7 @@ export default function PuertasPage() {
                     onChange={(value) => updateDraft('insumosSeleccionados.bastidorItemId', value)}
                     buttonPlaceholder="Seleccionar bastidor / pino..."
                     searchPlaceholder="Buscar bastidor o pino..."
+                    status={supplyValidation.checks.find((c) => c.key === 'pino')?.ok}
                   />
                   <PuertasMaterialDropdown
                     compact
@@ -1111,6 +1215,7 @@ export default function PuertasPage() {
                     onChange={(value) => updateDraft('insumosSeleccionados.peganteItemId', value)}
                     buttonPlaceholder="Seleccionar pegante..."
                     searchPlaceholder="Buscar pegante..."
+                    status={supplyValidation.checks.find((c) => c.key === 'pegante')?.ok}
                   />
                   <PuertasMaterialDropdown
                     compact
@@ -1120,6 +1225,7 @@ export default function PuertasPage() {
                     onChange={(value) => updateDraft('insumosSeleccionados.honeycombItemId', value)}
                     buttonPlaceholder="Seleccionar honeycomb / alma..."
                     searchPlaceholder="Buscar honeycomb o alma..."
+                    status={supplyValidation.checks.find((c) => c.key === 'honeycomb')?.ok}
                   />
                   <PuertasMaterialDropdown
                     compact
@@ -1129,7 +1235,17 @@ export default function PuertasPage() {
                     onChange={(value) => updateDraft('insumosSeleccionados.cantoItemId', value)}
                     buttonPlaceholder="Seleccionar canto..."
                     searchPlaceholder="Buscar canto..."
+                    status={supplyValidation.checks.find((c) => c.key === 'canto')?.ok}
                   />
+                </div>
+
+                {/* Compact supply status bar */}
+                <div className={`mt-4 rounded-xl px-4 py-2 text-sm font-semibold ${supplyValidation.canFabricate
+                  ? 'bg-emerald-400/10 border border-emerald-400/20 text-emerald-300'
+                  : 'bg-amber-400/10 border border-amber-400/20 text-amber-300'}`}>
+                  {supplyValidation.canFabricate
+                    ? '✅ Insumos: todos presentes'
+                    : `⚠️ Faltan: ${supplyValidation.missing.map((m) => m.label).join(', ')}`}
                 </div>
               </div>
             </SectionCard>
@@ -1177,7 +1293,7 @@ export default function PuertasPage() {
                 <div>
                   <div className="text-[#99f7ff] font-bold uppercase tracking-[0.18em] text-[11px] mb-2">Estructura interna</div>
                   <div className="space-y-2">
-                    {[...calculation.estructuraInterna.fondos, ...calculation.estructuraInterna.bastidores].map((piece) => (
+                    {[...calculation.estructuraInterna.fondos, ...calculation.estructuraInterna.bastidores, ...(calculation.estructuraInterna.chapero ? [calculation.estructuraInterna.chapero] : [])].map((piece) => (
                       <div key={piece.id} className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3 flex items-center justify-between gap-4">
                         <div>
                           <div className="text-white font-semibold">{piece.detalle}</div>
@@ -1194,50 +1310,6 @@ export default function PuertasPage() {
                 </div>
               </div>
             </SectionCard>
-          </section>
-        )}
-
-        {activeTab === 'nueva' && (
-          <section className="rounded-[28px] border border-[#1a233a] bg-[#0a1122] p-6 md:p-8 shadow-xl">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl border border-[#40485d]/30 bg-[#10182d] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[#99f7ff]">fact_check</span>
-              </div>
-              <div className="flex-1">
-                <h2 className="text-white text-xl font-bold font-['Space_Grotesk'] tracking-[-0.03em] mb-2">
-                  Validación de insumos obligatorios
-                </h2>
-                <p className="text-[#a3aac4] text-sm leading-7 max-w-4xl mb-4">
-                  Para fabricar puertas deben existir estos insumos en inventario. El sistema solo valida su presencia y bloquea la fabricación si falta alguno.
-                </p>
-
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                  {supplyValidation.checks.map((check) => (
-                    <div key={check.key} className={`rounded-2xl border px-4 py-4 ${check.ok ? 'border-emerald-400/20 bg-emerald-400/10' : 'border-red-400/20 bg-red-400/10'}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className={`font-semibold ${check.ok ? 'text-emerald-300' : 'text-red-300'}`}>{check.label}</div>
-                          <div className="text-sm text-[#a3aac4] mt-1">{check.help}</div>
-                        </div>
-                        <span className={`material-symbols-outlined ${check.ok ? 'text-emerald-300' : 'text-red-300'}`}>
-                          {check.ok ? 'check_circle' : 'error'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {!supplyValidation.canFabricate ? (
-                  <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
-                    La fabricación queda bloqueada hasta que existan todos los insumos obligatorios en inventario.
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
-                    Validación completa. Ya podés fabricar esta puerta con los insumos obligatorios presentes.
-                  </div>
-                )}
-              </div>
-            </div>
           </section>
         )}
 
@@ -1378,44 +1450,55 @@ export default function PuertasPage() {
         )}
 
         {activeTab === 'nueva' && (
-          <section className="grid grid-cols-1 md:grid-cols-4 gap-5">
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Material base</div>
-              <div className="text-2xl font-extrabold text-white tracking-[-0.04em]">{formatCurrency(costSummary.materialCost)}</div>
+          <section className="rounded-[28px] border border-[#1a233a] bg-[#0a1122] p-4 md:p-6 shadow-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl border border-[#40485d]/30 bg-[#10182d] flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[#99f7ff]">payments</span>
+                </div>
+                <div>
+                  <div className="text-white font-bold font-['Space_Grotesk'] tracking-[-0.03em]">Total estimado</div>
+                  <div className="text-2xl font-extrabold text-[#00e0fe] tracking-[-0.04em]">{formatCurrency(costSummary.total)}</div>
+                  <div className="mt-2 flex items-center gap-4 text-sm text-[#a3aac4]">
+                    <span>Unitario: <span className="text-[#dee5ff] font-semibold">{formatCurrency(costSummary.unitDoorCost)}</span></span>
+                    <span>Láminas: <span className="text-[#dee5ff] font-semibold">{nestingData?.summary?.totalSheets || 0}</span></span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCostBreakdown((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-xl border border-[#40485d]/30 bg-[#10182d] px-4 py-2 text-sm font-semibold text-[#a3aac4] hover:text-[#dee5ff] hover:border-[#99f7ff]/30 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">{showCostBreakdown ? 'expand_less' : 'expand_more'}</span>
+                {showCostBreakdown ? 'Ocultar desglose' : 'Ver desglose'}
+              </button>
             </div>
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Herrajes</div>
-              <div className="text-2xl font-extrabold text-cyan-300 tracking-[-0.04em]">{formatCurrency(costSummary.hardwareCost)}</div>
-            </div>
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Servicios</div>
-              <div className="text-2xl font-extrabold text-blue-300 tracking-[-0.04em]">{formatCurrency(costSummary.servicesCost)}</div>
-            </div>
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Total estimado</div>
-              <div className="text-2xl font-extrabold text-emerald-300 tracking-[-0.04em]">{formatCurrency(costSummary.total)}</div>
-            </div>
-          </section>
-        )}
 
-        {activeTab === 'nueva' && selectedMaterial && nestingData && (
-          <section className="grid grid-cols-1 md:grid-cols-4 gap-5">
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Costo tablero unitario</div>
-              <div className="text-xl font-extrabold text-white tracking-[-0.04em]">{formatCurrency(selectedMaterial.costo_unitario || 0)}</div>
-            </div>
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Láminas reales</div>
-              <div className="text-xl font-extrabold text-cyan-300 tracking-[-0.04em]">{nestingData.estimate.estimatedSheets}</div>
-            </div>
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Costo unitario puerta</div>
-              <div className="text-xl font-extrabold text-blue-300 tracking-[-0.04em]">{formatCurrency(costSummary.unitDoorCost)}</div>
-            </div>
-            <div className="bg-[#0a1122] border border-[#1a233a] rounded-[24px] p-6 shadow-xl">
-              <div className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase mb-2">Cantidad puertas</div>
-              <div className="text-xl font-extrabold text-emerald-300 tracking-[-0.04em]">{draft.cantidad}</div>
-            </div>
+            {showCostBreakdown && (
+              <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Fondos 6mm</div>
+                  <div className="text-lg font-extrabold text-white">{formatCurrency(costSummary.fondoCost)}</div>
+                </div>
+                <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Bastidor / pino</div>
+                  <div className="text-lg font-extrabold text-cyan-300">{formatCurrency(costSummary.bastidorCost)}</div>
+                </div>
+                <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Herrajes</div>
+                  <div className="text-lg font-extrabold text-emerald-300">{formatCurrency(costSummary.hardwareCost)}</div>
+                </div>
+                <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Peg + canto</div>
+                  <div className="text-lg font-extrabold text-amber-300">{formatCurrency(costSummary.peganteCost + costSummary.cantoCost)}</div>
+                </div>
+                <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Servicios</div>
+                  <div className="text-lg font-extrabold text-blue-300">{formatCurrency(costSummary.servicesCost)}</div>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -1483,11 +1566,11 @@ export default function PuertasPage() {
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#99f7ff]/15 bg-[#99f7ff]/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#99f7ff] mb-3">
                   <span className="w-2 h-2 rounded-full bg-[#00e0fe]"></span>
-                  Nesting de fondos
+                  Nesting completo
                 </div>
-                <h2 className="text-white text-2xl font-bold font-['Space_Grotesk'] tracking-[-0.03em] mb-2">Aprovechamiento inicial</h2>
+                <h2 className="text-white text-2xl font-bold font-['Space_Grotesk'] tracking-[-0.03em] mb-2">Aprovechamiento nesting</h2>
                 <p className="text-[#a3aac4] text-sm leading-7 max-w-3xl">
-                  Esta vista usa solo los fondos exteriores de la hoja y el tablero base seleccionado para estimar láminas requeridas, utilización y futuros sobrantes reutilizables.
+                  Incluye nesting de fondos 6mm y bastidores/listones con板材 real del inventario. Alma honeycomb excluded pending.
                 </p>
               </div>
 
@@ -1501,28 +1584,74 @@ export default function PuertasPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+            {/* Combined nesting stats */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Láminas estimadas</div>
-                <div className="text-2xl font-extrabold text-white">{nestingData.estimate.estimatedSheets}</div>
+                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Láminas fondos</div>
+                <div className="text-2xl font-extrabold text-white">{nestingData.summary.fondosSheetCount}</div>
               </div>
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Utilización</div>
-                <div className="text-2xl font-extrabold text-cyan-300">{nestingData.estimate.utilization.toFixed(1)}%</div>
+                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Láminas bastidores</div>
+                <div className="text-2xl font-extrabold text-cyan-300">{nestingData.summary.bastidoresSheetCount}</div>
               </div>
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Piezas enviadas</div>
-                <div className="text-2xl font-extrabold text-blue-300">
-                  {nestingData.rows.reduce((total, row) => total + Number(row.cantidad || row.cant || 0), 0)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Sin ubicar</div>
-                <div className="text-2xl font-extrabold text-amber-300">{nestingData.preview.unplaced.length}</div>
+                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Sin ubicar (fondos)</div>
+                <div className="text-2xl font-extrabold text-amber-300">{nestingData.fondos.preview?.unplaced?.length || 0}</div>
               </div>
             </div>
 
-            {nestingInterpretation ? (
+            {/* Bastidor nesting detail when selected */}
+            {nestingData.bastidores && (
+              <div className="mt-5 rounded-2xl border border-cyan-400/15 bg-[#060e20] p-4">
+                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle nesting bastidores</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-[#6f7a97]">Board bastidor</div>
+                    <div className="text-white font-semibold">{nestingData.bastidores.boardName}</div>
+                    <div className="text-[#6f7a7a] text-xs">{nestingData.bastidores.boardDimensions}</div>
+                  </div>
+                  <div>
+                    <div className="text-[#6f7a97]">Láminas estimadas</div>
+                    <div className="text-cyan-300 font-bold text-lg">{nestingData.bastidores.sheetCount}</div>
+                  </div>
+                  <div>
+                    <div className="text-[#6f7a97]">Costo unitario</div>
+                    <div className="text-white font-semibold">{formatCurrency(nestingData.bastidores.unitCost || 0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[#6f7a97]">Utilización</div>
+                    <div className="text-cyan-300 font-bold text-lg">{nestingData.bastidores.estimate?.utilization?.toFixed(1) || 0}%</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Fondo nesting detail */}
+            {nestingData.fondos && (
+              <div className="mt-4 rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle nesting fondos 6mm</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-[#6f7a97]">Láminas estimadas</div>
+                    <div className="text-white font-bold text-lg">{nestingData.fondos.sheetCount}</div>
+                  </div>
+                  <div>
+                    <div className="text-[#6f7a97]">Costo unitario</div>
+                    <div className="text-white font-semibold">{formatCurrency(nestingData.fondos.unitCost || 0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[#6f7a97]">Utilización</div>
+                    <div className="text-cyan-300 font-bold text-lg">{nestingData.fondos.estimate?.utilization?.toFixed(1) || 0}%</div>
+                  </div>
+                  <div>
+                    <div className="text-[#6f7a97]">Piezas enviadas</div>
+                    <div className="text-blue-300 font-bold text-lg">{nestingData.fondos.rows?.reduce((t, r) => t + Number(r.cantidad || 0), 0) || 0}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {nestingInterpretation && nestingData.fondos?.preview ? (
               <div className="mt-6 grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
                   <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Lectura del tablero útil</div>
@@ -1535,7 +1664,7 @@ export default function PuertasPage() {
                 </div>
 
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                  <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Sobrantes detectados</div>
+                  <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Sobrantes detectados (fondos)</div>
                   {nestingInterpretation.freeRects.length === 0 ? (
                     <p className="text-[#6f7a97] text-sm">No quedaron áreas libres en la primera lámina.</p>
                   ) : (
@@ -1566,7 +1695,24 @@ export default function PuertasPage() {
               </div>
             ) : null}
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            {draftStatus.message ? (
+              <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${draftStatus.type === 'success'
+                ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                : 'border-red-400/20 bg-red-400/10 text-red-300'}`}>
+                {draftStatus.message}
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={saveDoorDraft}
+                disabled={isSavingDraft}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#99f7ff]/25 bg-[#99f7ff]/10 px-5 py-3 text-sm font-bold text-[#99f7ff] transition-colors hover:bg-[#99f7ff]/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-[18px]">save</span>
+                {isSavingDraft ? 'Guardando...' : 'Guardar borrador'}
+              </button>
               <button
                 type="button"
                 onClick={confirmFabrication}
@@ -1575,14 +1721,6 @@ export default function PuertasPage() {
               >
                 <span className="material-symbols-outlined text-[18px]">precision_manufacturing</span>
                 {isConfirmingFabrication ? 'Confirmando...' : 'Confirmar fabricación'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowNestingModal(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#99f7ff]/25 bg-[#99f7ff]/10 px-5 py-3 text-sm font-bold text-[#99f7ff] transition-colors hover:bg-[#99f7ff]/15"
-              >
-                <span className="material-symbols-outlined text-[18px]">view_in_ar</span>
-                Revisar nesting completo
               </button>
             </div>
           </section>
@@ -1607,7 +1745,8 @@ export default function PuertasPage() {
                 <ConfigField label="Bastidor interno" value={config.composition.bastidorInternoMm} onChange={(value) => updateConfig('composition', 'bastidorInternoMm', value)} />
                 <ConfigField label="Bastidor vertical" value={config.composition.anchoBastidorVerticalMm} onChange={(value) => updateConfig('composition', 'anchoBastidorVerticalMm', value)} />
                 <ConfigField label="Bastidor horizontal" value={config.composition.anchoBastidorHorizontalMm} onChange={(value) => updateConfig('composition', 'anchoBastidorHorizontalMm', value)} />
-                <ConfigField label="Pegante por m²" value={config.production.consumoPegantePorM2} onChange={(value) => updateConfig('production', 'consumoPegantePorM2', value)} />
+                <ConfigField label="Chapero alto" value={config.composition.chaperoAltoMm} onChange={(value) => updateConfig('composition', 'chaperoAltoMm', value)} />
+                <ConfigField label="Chapero ancho" value={config.composition.chaperoAnchoMm} onChange={(value) => updateConfig('composition', 'chaperoAnchoMm', value)} />
               </div>
             </SectionCard>
 
@@ -1653,7 +1792,7 @@ export default function PuertasPage() {
               </div>
             </div>
 
-            {historialRecords.length === 0 ? (
+            {draftRecords.length === 0 && historialRecords.length === 0 ? (
               <div className="rounded-[28px] border border-dashed border-[#1a233a] bg-[#0a1122] p-12 text-center">
                 <span className="material-symbols-outlined text-5xl text-[#40485d] mb-3">inventory_2</span>
                 <p className="text-[#6f7a97] text-sm">No hay fabricaciones registradas.</p>
@@ -1661,6 +1800,13 @@ export default function PuertasPage() {
               </div>
             ) : (
               <>
+                {draftStatus.message ? (
+                  <div className={`rounded-2xl border px-4 py-3 text-sm ${draftStatus.type === 'success'
+                    ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                    : 'border-red-400/20 bg-red-400/10 text-red-300'}`}>
+                    {draftStatus.message}
+                  </div>
+                ) : null}
                 {historyStatus.message ? (
                   <div className={`rounded-2xl border px-4 py-3 text-sm ${historyStatus.type === 'success'
                     ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
@@ -1668,6 +1814,41 @@ export default function PuertasPage() {
                     {historyStatus.message}
                   </div>
                 ) : null}
+                {draftRecords.length > 0 && (
+                  <div className="mb-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[#99f7ff] text-[18px]">draft</span>
+                      <h3 className="text-[#dee5ff] font-bold font-['Space_Grotesk']">Borradores</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {draftRecords.map((d) => (
+                        <div key={d.id} className="rounded-[24px] border border-amber-400/20 bg-[#0a1122] p-5 shadow-xl">
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <div>
+                              <div className="text-white font-bold text-base">{d.nombre || 'Borrador sin nombre'}</div>
+                              <div className="text-[#6f7a97] text-xs mt-1">
+                                {new Date(d.updated_at || d.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                            <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-300 uppercase tracking-[0.1em]">Borrador</span>
+                          </div>
+                          <div className="text-[#a3aac4] text-sm mb-3">
+                            {d.vano?.altoMm || '-'} × {d.vano?.anchoMm || '-'} mm
+                            {d.material?.nombre ? ` · ${d.material.nombre}` : ''}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => openDraft(d)} className="inline-flex items-center gap-1 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/15">
+                              <span className="material-symbols-outlined text-[14px]">edit</span>Abrir
+                            </button>
+                            <button onClick={() => deleteDraft(d)} className="inline-flex items-center gap-1 rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-400/15">
+                              <span className="material-symbols-outlined text-[14px]">delete</span>Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {historialRecords.map((record) => (
                     <div key={record.id} className="rounded-[24px] border border-[#1a233a] bg-[#0a1122] p-5 shadow-xl">
@@ -1889,22 +2070,6 @@ export default function PuertasPage() {
           </section>
         )}
 
-        <section className="rounded-[28px] border border-[#1a233a] bg-[#0a1122] p-6 md:p-8 shadow-xl">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl border border-[#40485d]/30 bg-[#10182d] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[#99f7ff]">construction</span>
-            </div>
-            <div>
-              <h2 className="text-white text-xl font-bold font-['Space_Grotesk'] tracking-[-0.03em] mb-2">
-                Estado actual
-              </h2>
-              <p className="text-[#a3aac4] text-sm leading-7 max-w-4xl">
-                T1 a T4 quedaron activos: ya existe el módulo, la configuración base, el formulario inicial y el cálculo geométrico puro. Lo siguiente es conectar inventario, herrajes, servicios y nesting.
-              </p>
-            </div>
-          </div>
-        </section>
-
         {selectedMaterial && nestingData ? (
           <DespieceNestingModal
             isOpen={showNestingModal}
@@ -1913,11 +2078,11 @@ export default function PuertasPage() {
             boardDimensions={`${selectedMaterial?.largo_mm || 0} × ${selectedMaterial?.ancho_mm || 0} mm`}
             boardWidth={Number(selectedMaterial?.largo_mm || 0)}
             boardHeight={Number(selectedMaterial?.ancho_mm || 0)}
-            estimatedSheets={nestingData.estimate.estimatedSheets}
-            pieceCount={nestingData.rows.reduce((total, row) => total + Number(row.cantidad || row.cant || 0), 0)}
-            estimate={nestingData.estimate}
-            preview={nestingData.preview}
-            rows={nestingData.rows}
+            estimatedSheets={nestingData.fondos?.estimate?.estimatedSheets || 0}
+            pieceCount={nestingData.fondos?.rows?.reduce((total, row) => total + Number(row.cantidad || row.cant || 0), 0) || 0}
+            estimate={nestingData.fondos?.estimate}
+            preview={nestingData.fondos?.preview}
+            rows={nestingData.fondos?.rows || []}
             cantos={[]}
             projectName={draft.nombre || 'Puerta'}
             clientName={draft.material.color || ''}

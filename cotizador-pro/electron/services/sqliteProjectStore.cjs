@@ -126,6 +126,23 @@ function createSqliteProjectStore({ app }) {
     if (!String(err.message || '').includes('duplicate column name')) throw err;
   }
 
+  // Door drafts table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS door_drafts (
+      id TEXT PRIMARY KEY,
+      nombre TEXT DEFAULT '',
+      cantidad INTEGER DEFAULT 1,
+      vano_json TEXT,
+      material_json TEXT,
+      insumos_json TEXT,
+      herrajes_json TEXT,
+      servicios_json TEXT,
+      payload TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   const getProjectsStmt = sqlite.prepare('SELECT id, title, client, state, total, created_at, updated_at FROM projects WHERE owner_uid = ? ORDER BY updated_at DESC');
   const getProjectStmt = sqlite.prepare('SELECT * FROM projects WHERE id = ? AND owner_uid = ?');
   const getProjectAnyOwnerStmt = sqlite.prepare('SELECT * FROM projects WHERE id = ?');
@@ -677,6 +694,57 @@ function createSqliteProjectStore({ app }) {
         });
       });
       tx();
+      return { success: true };
+    },
+
+    // Door draft methods
+    getDoorDrafts() {
+      const stmt = sqlite.prepare('SELECT * FROM door_drafts ORDER BY updated_at DESC');
+      return stmt.all().map((row) => ({
+        ...row,
+        vano: asJson(row.vano_json, {}),
+        material: asJson(row.material_json, {}),
+        insumosSeleccionados: asJson(row.insumos_json, {}),
+        herrajesSeleccionados: asJson(row.herrajes_json, []),
+        serviciosSeleccionados: asJson(row.servicios_json, []),
+      }));
+    },
+
+    saveDoorDraft(draft) {
+      const id = draft.id || `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const now = new Date().toISOString();
+      const stmt = sqlite.prepare(`
+        INSERT INTO door_drafts (id, nombre, cantidad, vano_json, material_json, insumos_json, herrajes_json, servicios_json, payload, created_at, updated_at)
+        VALUES (@id, @nombre, @cantidad, @vano_json, @material_json, @insumos_json, @herrajes_json, @servicios_json, @payload, COALESCE(@created_at, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          nombre = excluded.nombre,
+          cantidad = excluded.cantidad,
+          vano_json = excluded.vano_json,
+          material_json = excluded.material_json,
+          insumos_json = excluded.insumos_json,
+          herrajes_json = excluded.herrajes_json,
+          servicios_json = excluded.servicios_json,
+          payload = excluded.payload,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      stmt.run({
+        id,
+        nombre: draft.nombre || '',
+        cantidad: Number(draft.cantidad || 1),
+        vano_json: toJson(draft.vano || {}),
+        material_json: toJson(draft.material || {}),
+        insumos_json: toJson(draft.insumosSeleccionados || {}),
+        herrajes_json: toJson(draft.herrajesSeleccionados || []),
+        servicios_json: toJson(draft.serviciosSeleccionados || []),
+        payload: toJson(draft),
+        created_at: draft.created_at || null,
+      });
+      return { success: true, id };
+    },
+
+    deleteDoorDraft(id) {
+      const stmt = sqlite.prepare('DELETE FROM door_drafts WHERE id = ?');
+      stmt.run(id);
       return { success: true };
     },
   };
