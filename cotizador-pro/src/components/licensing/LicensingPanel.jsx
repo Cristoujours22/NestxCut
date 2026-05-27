@@ -223,30 +223,46 @@ export default function LicensingPanel() {
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-4">
-              {/* Estado */}
-              <div className="bg-gray-900 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
+            <div className="p-4 space-y-3">
+              {/* Estado + Plan + Rol */}
+              <div className="bg-gray-900 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2">
                   <span className={`h-3 w-3 rounded-full ${hasAccess ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                  <span className={`font-bold ${hasAccess ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className={`font-bold text-sm ${hasAccess ? 'text-green-400' : 'text-red-400'}`}>
                     {hasAccess ? 'SUSCRIPCIÓN ACTIVA' : 'SUSCRIPCIÓN VENCIDA'}
                   </span>
                 </div>
                 {subscriptionStatus.isUnlimited ? (
-                  <p className="text-cyan-400 text-sm">
-                    Acceso ILIMITADO (Admin)
-                  </p>
+                  <p className="text-cyan-400 text-sm">Acceso ILIMITADO (Admin)</p>
                 ) : remainingLabel ? (
                   <p className="text-gray-400 text-sm">
                     Tiempo restante: <strong className="text-white">{remainingLabel}</strong>
                   </p>
                 ) : null}
+                <div className="flex gap-4 text-sm border-t border-gray-700/50 pt-2 mt-1">
+                  <span className="text-gray-500">Plan</span>
+                  <span className="text-white capitalize">{userData?.plan || 'Trial'}</span>
+                  {userData?.role && (
+                    <>
+                      <span className="text-gray-500">·</span>
+                      <span className={userData.role === 'admin' ? 'text-cyan-400' : 'text-white'}>
+                        {userData.role === 'admin' ? 'Admin' : 'Usuario'}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* Fechas */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-gray-400 uppercase">Fechas</h4>
-                <div className="bg-gray-900 rounded-lg p-4 space-y-2">
+              {/* Fechas — incluye device expiration */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase">Fechas</h4>
+                <div className="bg-gray-900 rounded-lg p-4 space-y-2 text-sm">
+                  {!isAdmin && deviceAccess?.expiresAt && deviceAccess?.hasDeviceAccess && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Vence (equipo):</span>
+                      <span className="text-white font-semibold">{formatDate(deviceAccess.expiresAt)}</span>
+                    </div>
+                  )}
                   {subscriptionStatus.type === 'trial' && userData?.trialEnd && (
                     <div className="flex justify-between">
                       <span className="text-gray-400">Trial vence:</span>
@@ -265,22 +281,35 @@ export default function LicensingPanel() {
                       <span className="text-white">{formatDate(userData.createdAt)}</span>
                     </div>
                   )}
-                  {userData?.activatedAt && (
+                </div>
+              </div>
+
+              {/* Titular (solo datos esenciales) */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase">Titular</h4>
+                <div className="bg-gray-900 rounded-lg p-4 space-y-2 text-sm">
+                  {userData?.nombre && (
                     <div className="flex justify-between">
-                      <span className="text-gray-400">Activado:</span>
-                      <span className="text-white">{formatDate(userData.activatedAt)}</span>
+                      <span className="text-gray-400">Nombre:</span>
+                      <span className="text-white">{userData.nombre} {userData.apellido}</span>
+                    </div>
+                  )}
+                  {userData?.email && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Email:</span>
+                      <span className="text-white text-right truncate ml-4 max-w-[200px]">{userData.email}</span>
                     </div>
                   )}
                 </div>
               </div>
 
               {!isAdmin && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-gray-400 uppercase">Equipo</h4>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase">Equipo</h4>
                   <div className="bg-gray-900 rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between gap-3">
-                      <span className="text-gray-400">HID actual:</span>
-                      <code className="text-white text-right font-mono text-xs break-all">{deviceHid}</code>
+                    <div className="flex justify-between gap-3 text-sm">
+                      <span className="text-gray-400">HID:</span>
+                      <code className="text-white text-right font-mono text-xs break-all max-w-[220px]">{deviceHid}</code>
                     </div>
                     <button
                       type="button"
@@ -293,69 +322,6 @@ export default function LicensingPanel() {
                 </div>
               )}
 
-              {/* Datos del usuario */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-gray-400 uppercase">Datos</h4>
-                <div className="bg-gray-900 rounded-lg p-4 space-y-2">
-                  {userData?.nombre && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Nombre:</span>
-                      <span className="text-white">{userData.nombre} {userData.apellido}</span>
-                    </div>
-                  )}
-                  {userData?.email && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Email:</span>
-                      <span className="text-white text-right">{userData.email}</span>
-                    </div>
-                  )}
-                  {userData?.celular && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Celular:</span>
-                      <span className="text-white">{userData.celular}</span>
-                    </div>
-                  )}
-                  {userData?.direccion && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Dirección:</span>
-                      <span className="text-white text-right">{userData.direccion}</span>
-                    </div>
-                  )}
-                  {userData?.ocupacion && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Ocupación:</span>
-                      <span className="text-white">{userData.ocupacion}</span>
-                    </div>
-                  )}
-                  {userData?.empresa && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Empresa:</span>
-                      <span className="text-white">{userData.empresa}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Plan */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-gray-400 uppercase">Plan</h4>
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Tipo:</span>
-                    <span className="text-white capitalize">{userData?.plan || 'Trial'}</span>
-                  </div>
-                  {userData?.role && (
-                    <div className="flex justify-between mt-2">
-                      <span className="text-gray-400">Rol:</span>
-                      <span className={`${userData.role === 'admin' ? 'text-cyan-400' : 'text-white'}`}>
-                        {userData.role === 'admin' ? 'Administrador' : 'Usuario'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Botón para renovar */}
               {!hasAccess && (
                 <button
                   onClick={() => {
