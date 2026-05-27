@@ -128,19 +128,21 @@ export default function Dashboard() {
   };
 
   const greetingSummary = useMemo(() => {
-    if (loading) return 'Cargando el estado real de tus proyectos...';
-    if (!projects.length) return 'Todavía no tenés proyectos cargados. Cuando crees el primero, este panel se va a actualizar solo.';
-    return 'Revisá el estado general de tu operación y seguí trabajando desde el tablero principal.';
-  }, [loading, projects, activeProjects, pendingQuotes]);
+    const parts = [];
+    if (!loading) {
+      if (projects.length > 0) parts.push(`${projects.length} proyecto${projects.length !== 1 ? 's' : ''}`);
+      if (activeProjects > 0) parts.push(`${activeProjects} en curso`);
+      if (currentMonthSales > 0) parts.push(`${formatCurrency(currentMonthSales)} este mes`);
+    }
+    if (parts.length > 0) return parts.join(' · ') + '.';
+    if (loading) return 'Cargando...';
+    return 'Creá tu primer proyecto para empezar.';
+  }, [loading, projects.length, activeProjects, currentMonthSales]);
 
   return (
     <div className="p-6 md:p-8 space-y-8 pb-20 max-w-[1600px] mx-auto">
       {/* Header Panel (Mezclado Imagen 2) */}
       <section className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#0f1930] via-[#16233f] to-[#1a233a] border border-[#40485d]/30 px-7 py-8 md:px-9 md:py-10 shadow-[0_20px_60px_rgba(3,8,20,0.35)]">
-        {/* Decoraciones de fondo */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#00e0fe]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#99f7ff]/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4"></div>
-
         <div className="relative z-10">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
             <div className="max-w-4xl">
@@ -153,21 +155,6 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-
-            <div className="flex flex-col items-start lg:items-end gap-4 lg:pt-3 lg:shrink-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#99f7ff]/15 bg-[#99f7ff]/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#99f7ff]">
-                <span className="w-2 h-2 rounded-full bg-[#00e0fe] shadow-[0_0_12px_#00e0fe]"></span>
-                Panel principal
-              </div>
-              <button
-                disabled
-                title="Próximamente"
-                className="bg-[#002f33] border border-[#00e0fe]/20 text-[#5bd8e6] px-6 py-3 rounded-xl font-bold flex items-center gap-2 opacity-60 cursor-not-allowed shadow-lg"
-              >
-                <span className="material-symbols-outlined text-[20px]">analytics</span>
-                Reportes próximamente
-              </button>
-            </div>
           </div>
         </div>
       </section>
@@ -175,7 +162,7 @@ export default function Dashboard() {
       {/* KPI Cards (Mezclado Imagen 1 & 2) */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
         {/* Card 1 */}
-        <div className="bg-gradient-to-br from-[#0b162b] to-[#091120] border border-[#00e0fe]/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(0,224,254,0.08)] flex flex-col hover:border-[#00e0fe]/40 hover:-translate-y-0.5 transition-all min-h-[190px]">
+        <div className="bg-gradient-to-br from-[#0b162b] to-[#091120] border border-[#00e0fe]/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(0,224,254,0.08)] flex flex-col hover:border-[#00e0fe]/40 hover:-translate-y-0.5 transition-all min-h-[140px]">
           <div className="flex justify-between items-start mb-5 gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 rounded-xl bg-[#00e0fe]/12 flex items-center justify-center border border-[#00e0fe]/25 shadow-[0_0_30px_rgba(0,224,254,0.12)] shrink-0">
@@ -183,17 +170,13 @@ export default function Dashboard() {
               </div>
               <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase leading-tight">Ventas del Mes</span>
             </div>
-            <span className="bg-[#00e0fe]/10 text-[#00e0fe] text-xs font-bold px-2.5 py-1 rounded-lg border border-[#00e0fe]/20">
-              Mes actual
-            </span>
           </div>
           <span className="text-3xl md:text-4xl font-extrabold text-white tracking-[-0.04em] leading-none">{formatCurrency(currentMonthSales)}</span>
           <span className="text-[#7f8ba8] text-sm mt-3">Ventas cerradas este mes</span>
         </div>
 
         {/* Card 2 */}
-        <div className="bg-gradient-to-br from-[#0c162c] to-[#091120] border border-blue-500/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(59,130,246,0.08)] flex flex-col hover:border-blue-400/40 hover:-translate-y-0.5 transition-all relative overflow-hidden min-h-[190px]">
-          <div className="absolute right-0 top-0 w-28 h-28 bg-blue-500/8 rounded-bl-full pointer-events-none"></div>
+        <div className="bg-gradient-to-br from-[#0c162c] to-[#091120] border border-blue-500/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(59,130,246,0.08)] flex flex-col hover:border-blue-400/40 hover:-translate-y-0.5 transition-all min-h-[140px]">
           <div className="flex justify-between items-start mb-5 gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 rounded-xl bg-blue-500/12 flex items-center justify-center border border-blue-500/25 shadow-[0_0_30px_rgba(59,130,246,0.12)] shrink-0">
@@ -201,9 +184,6 @@ export default function Dashboard() {
               </div>
               <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase leading-tight">Proyectos en Curso</span>
             </div>
-            <span className="bg-blue-500/10 text-blue-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-blue-500/20">
-              Activos
-            </span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.04em] leading-none">{activeProjects}</span>
@@ -212,7 +192,7 @@ export default function Dashboard() {
         </div>
 
         {/* Card 3 */}
-        <div className="bg-gradient-to-br from-[#0f1726] to-[#091120] border border-emerald-500/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(16,185,129,0.08)] flex flex-col hover:border-emerald-400/40 hover:-translate-y-0.5 transition-all min-h-[190px]">
+        <div className="bg-gradient-to-br from-[#0f1726] to-[#091120] border border-emerald-500/20 rounded-[24px] p-6 shadow-[0_10px_40px_rgba(16,185,129,0.08)] flex flex-col hover:border-emerald-400/40 hover:-translate-y-0.5 transition-all min-h-[140px]">
           <div className="flex justify-between items-start mb-5 gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-12 h-12 rounded-xl bg-emerald-500/12 flex items-center justify-center border border-emerald-500/25 shadow-[0_0_30px_rgba(16,185,129,0.12)] shrink-0">
@@ -220,10 +200,6 @@ export default function Dashboard() {
               </div>
               <span className="text-[#a3aac4] text-[11px] font-bold tracking-[0.18em] uppercase leading-tight">Cotizaciones Pendientes</span>
             </div>
-            <span className="flex items-center gap-1.5 text-xs font-medium text-[#a3aac4]">
-              <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-              Estimado
-            </span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.04em] leading-none">{pendingQuotes}</span>
