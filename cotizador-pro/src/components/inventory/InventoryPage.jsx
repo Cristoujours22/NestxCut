@@ -109,28 +109,10 @@ function MovementsView({ movements, items, filters, onFiltersChange, onClearSele
 }
 
 function SuppliersView({ providers, onEdit, onDelete }) {
-  const [search, setSearch] = useState('');
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return providers;
-    const q = search.toLowerCase();
-    return providers.filter((p) =>
-      [p.nombre, p.documento, p.celular, p.email].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
-    );
-  }, [providers, search]);
+  const filtered = providers;
 
   return (
     <div className="space-y-4">
-      <div>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar proveedor..."
-          className="w-full bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-lg pl-3 pr-4 py-2 focus:outline-none focus:border-[#99f7ff]/50"
-        />
-      </div>
-
       <div className="overflow-x-auto rounded-2xl border border-[#1a233a] bg-[#0a1122]">
         <table className="w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-[#060e20]/60 text-[#a3aac4] text-[11px] font-bold tracking-widest uppercase">
