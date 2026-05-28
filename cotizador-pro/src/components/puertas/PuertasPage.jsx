@@ -225,7 +225,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     [cantos, draft.insumosSeleccionados?.cantoItemId]
   );
 
-  const calculation = useMemo(() => calcularPuerta(draft, config), [draft, config]);
+  const calculation = useMemo(() => calcularPuerta(draft, config, selectedHoneycomb), [draft, config, selectedHoneycomb]);
 
 
   const supplyValidation = useMemo(() => {

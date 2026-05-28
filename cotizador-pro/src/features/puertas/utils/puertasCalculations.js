@@ -182,18 +182,29 @@ export function calcularChapero(hoja, config) {
   };
 }
 
-export function calcularAlma(hoja, config) {
+export function calcularAlma(hoja, config, selectedItem) {
   const anchoVertical = toNumber(config?.composition?.anchoBastidorVerticalMm);
   const anchoHorizontal = toNumber(config?.composition?.anchoBastidorHorizontalMm);
   const espesor = toNumber(config?.composition?.bastidorInternoMm);
 
+  const altoCavidadMm = Math.max(0, hoja.altoMm - (anchoHorizontal * 2));
+  const anchoCavidadMm = Math.max(0, hoja.anchoMm - (anchoVertical * 2));
+
+  const tipo = selectedItem?.tipo || config?.composition?.tipoAlmaDefault || 'honeycomb';
+  const esMadera = tipo === 'alma' || tipo === 'madera';
+  const anchoTiraMm = esMadera ? (toNumber(selectedItem?.ancho_mm) || toNumber(selectedItem?.ancho) || 70) : anchoCavidadMm;
+
+  const cantidad = esMadera
+    ? Math.max(1, Math.ceil(anchoCavidadMm / anchoTiraMm))
+    : 1;
+
   return {
-    id: 'alma_honeycomb',
-    detalle: 'Alma honeycomb',
-    tipo: config?.composition?.tipoAlmaDefault || 'honeycomb',
-    cantidad: 1,
-    altoMm: Math.max(0, hoja.altoMm - (anchoHorizontal * 2)),
-    anchoMm: Math.max(0, hoja.anchoMm - (anchoVertical * 2)),
+    id: `alma_${tipo}`,
+    detalle: esMadera ? `Alma madera (${cantidad} tiras)` : 'Alma honeycomb',
+    tipo,
+    cantidad,
+    altoMm: altoCavidadMm,
+    anchoMm: esMadera ? anchoTiraMm : anchoCavidadMm,
     espesorMm: espesor,
   };
 }
@@ -212,14 +223,14 @@ export function calcularPegante(hoja, config) {
   };
 }
 
-export function calcularPuerta(definition, config) {
+export function calcularPuerta(definition, config, selectedHoneycomb) {
   const hoja = calcularHojaPuerta(definition, config);
   const recibidor = calcularRecibidor(definition, config, hoja);
   const marco = calcularMarco(definition, config, hoja);
   const fondos = calcularFondos(hoja, config);
   const bastidores = calcularBastidores(hoja, config);
   const chapero = calcularChapero(hoja, config);
-  const alma = calcularAlma(hoja, config);
+  const alma = calcularAlma(hoja, config, selectedHoneycomb);
   const cantoLinealMm = calcularCanto(hoja);
   const pegante = calcularPegante(hoja, config);
 

@@ -1,20 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 
+const TIPO_OPCIONES = [
+  'alma', 'bisagra', 'canto', 'chapa', 'corredera', 'honeycomb',
+  'jaladera', 'panel', 'pegante', 'perfil', 'pata', 'riel', 'soporte', 'tornillo',
+];
+
 const defaultByType = {
   tablero: {
     item_type: 'tablero',
-    nombre: '', codigo: '', material: '', acabado: '', espesor_mm: '', largo_mm: '', ancho_mm: '', cantidad_disponible: '', cantidad_reservada: 0,
-    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'lamina', notas: '', activo: true,
+    nombre: '', codigo: '', material: '', espesor_mm: '', largo_mm: '', ancho_mm: '',
+    cantidad_disponible: '', cantidad_reservada: 0, stock_minimo: '', stock_objetivo: '',
+    costo_unitario: '', proveedor: '', proveedor_id: '', marca: '', unidad_stock: 'lamina',
+    notas: '', activo: true,
   },
   herraje: {
     item_type: 'herraje',
-    nombre: '', codigo: '', tipo: '', subtipo: '', medida: '', presentacion: 'unidad', cantidad_disponible: '', cantidad_reservada: 0,
-    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'unidad', notas: '', activo: true, tipologia: '',
+    nombre: '', codigo: '', tipo: '', cantidad_disponible: '', cantidad_reservada: 0,
+    stock_minimo: '', stock_objetivo: '', costo_unitario: '',
+    proveedor: '', proveedor_id: '', marca: '', tipologia: '', unidad_stock: 'unidad',
+    notas: '', activo: true,
   },
   canto: {
     item_type: 'canto',
-    nombre: '', codigo: '', tipo_canto: 'rigido', calibre: '19', color: '', medida: '', presentacion: 'metro', cantidad_disponible: '', cantidad_reservada: 0,
-    stock_minimo: '', stock_objetivo: '', costo_unitario: '', proveedor: '', marca: '', ubicacion: '', unidad_stock: 'metro', notas: '', activo: true,
+    nombre: '', codigo: '', tipo_canto: 'rigido', calibre: '19', color: '',
+    cantidad_disponible: '', cantidad_reservada: 0, stock_minimo: '', stock_objetivo: '',
+    costo_unitario: '', proveedor: '', proveedor_id: '', marca: '', unidad_stock: 'metro',
+    notas: '', activo: true,
   },
 };
 
@@ -25,13 +36,22 @@ function Field({ label, children }) {
 export default function InventoryFormModal({ isOpen, type, item, existingItems = [], providers = [], onClose, onSubmit, submitError = '' }) {
   const [form, setForm] = useState(defaultByType.tablero);
   const [errors, setErrors] = useState({});
+  const [nuevaMarca, setNuevaMarca] = useState('');
   const isEdit = Boolean(item?.id);
   const currentType = type || item?.item_type || 'tablero';
 
   useEffect(() => {
     setForm(item || defaultByType[currentType]);
     setErrors({});
+    setNuevaMarca('');
   }, [item, currentType]);
+
+  const marcasExistentes = useMemo(() => {
+    const set = new Set();
+    existingItems.forEach((entry) => { if (entry.marca?.trim()) set.add(entry.marca.trim()); });
+    if (nuevaMarca.trim()) set.add(nuevaMarca.trim());
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [existingItems, nuevaMarca]);
 
   const title = useMemo(() => `${isEdit ? 'Editar' : 'Nuevo'} ${currentType === 'tablero' ? 'tablero' : currentType === 'canto' ? 'canto' : 'herraje'}`, [isEdit, currentType]);
 
@@ -44,13 +64,13 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
     const nextErrors = {};
 
     if (!form.nombre?.trim()) nextErrors.nombre = 'El nombre es obligatorio';
-    if (!form.codigo?.trim()) nextErrors.codigo = 'El código es obligatorio';
+    if (!form.codigo?.trim()) nextErrors.codigo = 'La referencia es obligatoria';
     if (String(form.cantidad_disponible ?? '').trim() === '') nextErrors.cantidad_disponible = 'La cantidad es obligatoria';
     const duplicatedCode = existingItems.some((entry) => (
       entry.codigo?.trim().toLowerCase() === form.codigo?.trim().toLowerCase()
       && entry.id !== item?.id
     ));
-    if (duplicatedCode) nextErrors.codigo = 'Ya existe un item con ese código';
+    if (duplicatedCode) nextErrors.codigo = 'Ya existe un item con esa referencia';
     if (Number(form.cantidad_disponible || 0) < 0) nextErrors.cantidad_disponible = 'La cantidad no puede ser negativa';
     if (Number(form.stock_minimo || 0) < 0) nextErrors.stock_minimo = 'El stock mínimo no puede ser negativo';
     if (Number(form.stock_objetivo || 0) < 0) nextErrors.stock_objetivo = 'El stock objetivo no puede ser negativo';
@@ -80,14 +100,16 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
       return;
     }
 
-    onSubmit({ ...form, item_type: currentType });
+    const payload = { ...form, item_type: currentType };
+    if (nuevaMarca.trim()) payload.marca = nuevaMarca.trim();
+    onSubmit(payload);
   };
 
   const inputClass = (field) => `w-full bg-[#060e20] border ${errors[field] ? 'border-red-500/60' : 'border-[#1a233a]'} rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50`;
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-[#0a1122] border border-[#1a233a] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-4xl bg-[#0a1122] border border-[#1a233a] rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a233a] bg-[#060e20]">
           <h2 className="text-lg font-bold text-white">{title}</h2>
           <button onClick={onClose} className="text-[#a3aac4] hover:text-white"><span className="material-symbols-outlined">close</span></button>
@@ -95,14 +117,40 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
 
         <form onSubmit={handleSubmit} noValidate className="p-6 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Row 1: Nombre | Referencia | Tipo */}
             <Field label="Nombre">
               <input value={form.nombre || ''} onChange={(e) => set('nombre', e.target.value)} required className={inputClass('nombre')} />
               {errors.nombre && <span className="text-red-400 text-xs">{errors.nombre}</span>}
             </Field>
-            <Field label="Código">
+            <Field label="Referencia">
               <input value={form.codigo || ''} onChange={(e) => set('codigo', e.target.value)} required className={inputClass('codigo')} />
               {errors.codigo && <span className="text-red-400 text-xs">{errors.codigo}</span>}
             </Field>
+            {currentType === 'herraje' ? (
+              <Field label="Tipo">
+                <select value={form.tipo || ''} onChange={(e) => set('tipo', e.target.value)} className={inputClass('tipo')}>
+                  <option value="">Seleccionar tipo...</option>
+                  {TIPO_OPCIONES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  <option value="otro">otro</option>
+                </select>
+                {errors.tipo && <span className="text-red-400 text-xs">{errors.tipo}</span>}
+              </Field>
+            ) : currentType === 'canto' ? (
+              <Field label="Tipo">
+                <select value={form.tipo_canto || 'rigido'} onChange={(e) => set('tipo_canto', e.target.value)} className={inputClass('tipo_canto')}>
+                  <option value="rigido">Rígido</option>
+                  <option value="flexible">Flexible</option>
+                </select>
+                {errors.tipo_canto && <span className="text-red-400 text-xs">{errors.tipo_canto}</span>}
+              </Field>
+            ) : (
+              <Field label="Material">
+                <input value={form.material || ''} onChange={(e) => set('material', e.target.value)} className={inputClass('material')} />
+                {errors.material && <span className="text-red-400 text-xs">{errors.material}</span>}
+              </Field>
+            )}
+
+            {/* Row 2: Cantidad | Stock mínimo | Stock objetivo */}
             <Field label="Cantidad disponible">
               <input type="number" value={form.cantidad_disponible || ''} onChange={(e) => set('cantidad_disponible', e.target.value)} className={inputClass('cantidad_disponible')} />
               {errors.cantidad_disponible && <span className="text-red-400 text-xs">{errors.cantidad_disponible}</span>}
@@ -115,12 +163,11 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
               <input type="number" value={form.stock_objetivo || ''} onChange={(e) => set('stock_objetivo', e.target.value)} className={inputClass('stock_objetivo')} />
               {errors.stock_objetivo && <span className="text-red-400 text-xs">{errors.stock_objetivo}</span>}
             </Field>
-            <Field label="Costo unitario">
+
+            {/* Row 3: Costo ($) | Proveedor | Marca */}
+            <Field label="Costo unitario ($)">
               <input type="number" value={form.costo_unitario || ''} onChange={(e) => set('costo_unitario', e.target.value)} className={inputClass('costo_unitario')} />
               {errors.costo_unitario && <span className="text-red-400 text-xs">{errors.costo_unitario}</span>}
-            </Field>
-            <Field label="Ubicación">
-              <input value={form.ubicacion || ''} onChange={(e) => set('ubicacion', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50" />
             </Field>
             <Field label="Proveedor">
               <select
@@ -139,31 +186,79 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
               </select>
             </Field>
             <Field label="Marca">
-              <input value={form.marca || ''} onChange={(e) => set('marca', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50" />
+              <select
+                value={nuevaMarca || form.marca || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '__nueva__') {
+                    setNuevaMarca('');
+                    set('marca', '');
+                  } else {
+                    setNuevaMarca('');
+                    set('marca', val);
+                  }
+                }}
+                className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50"
+              >
+                <option value="">Sin marca</option>
+                {marcasExistentes.map((m) => <option key={m} value={m}>{m}</option>)}
+                <option value="__nueva__">+ Nueva marca...</option>
+              </select>
+              {nuevaMarca !== null && !form.marca && (
+                <input
+                  value={nuevaMarca}
+                  onChange={(e) => setNuevaMarca(e.target.value)}
+                  placeholder="Escribí la nueva marca..."
+                  className="mt-1 w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#00e0fe]/50"
+                  autoFocus
+                />
+              )}
             </Field>
 
-            {currentType === 'tablero' ? (
+            {/* Row 4: Tipología (herraje) | Calibre (canto) | Espesor (tablero) */}
+            {currentType === 'herraje' && (
+              <Field label="Tipología">
+                <select value={form.tipologia || ''} onChange={(e) => set('tipologia', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50">
+                  <option value="">Sin tipología</option>
+                  <option value="puerta">Puerta</option>
+                  <option value="mueble">Mueble</option>
+                </select>
+              </Field>
+            )}
+            {currentType === 'canto' && (
               <>
-                <Field label="Material"><input value={form.material || ''} onChange={(e) => set('material', e.target.value)} className={inputClass('material')} />{errors.material && <span className="text-red-400 text-xs">{errors.material}</span>}</Field>
-                <Field label="Acabado"><input value={form.acabado || ''} onChange={(e) => set('acabado', e.target.value)} className={inputClass('acabado')} /></Field>
-                <Field label="Espesor (mm)"><input type="number" value={form.espesor_mm || ''} onChange={(e) => set('espesor_mm', e.target.value)} className={inputClass('espesor_mm')} />{errors.espesor_mm && <span className="text-red-400 text-xs">{errors.espesor_mm}</span>}</Field>
-                <Field label="Largo (mm)"><input type="number" value={form.largo_mm || ''} onChange={(e) => set('largo_mm', e.target.value)} className={inputClass('largo_mm')} />{errors.largo_mm && <span className="text-red-400 text-xs">{errors.largo_mm}</span>}</Field>
-                <Field label="Ancho (mm)"><input type="number" value={form.ancho_mm || ''} onChange={(e) => set('ancho_mm', e.target.value)} className={inputClass('ancho_mm')} />{errors.ancho_mm && <span className="text-red-400 text-xs">{errors.ancho_mm}</span>}</Field>
+                <Field label="Calibre">
+                  <select value={form.calibre || '19'} onChange={(e) => set('calibre', e.target.value)} className={inputClass('calibre')}>
+                    <option value="19">19</option><option value="22">22</option><option value="33">33</option><option value="41">41</option>
+                  </select>
+                  {errors.calibre && <span className="text-red-400 text-xs">{errors.calibre}</span>}
+                </Field>
+                <Field label="Color / acabado">
+                  <input value={form.color || ''} onChange={(e) => set('color', e.target.value)} className={inputClass('color')} />
+                </Field>
               </>
-            ) : currentType === 'canto' ? (
+            )}
+            {currentType === 'tablero' && (
               <>
-                <Field label="Tipo"><select value={form.tipo_canto || 'rigido'} onChange={(e) => set('tipo_canto', e.target.value)} className={inputClass('tipo_canto')}><option value="rigido">Rígido</option><option value="flexible">Flexible</option></select>{errors.tipo_canto && <span className="text-red-400 text-xs">{errors.tipo_canto}</span>}</Field>
-                <Field label="Calibre"><select value={form.calibre || '19'} onChange={(e) => set('calibre', e.target.value)} className={inputClass('calibre')}><option value="19">19</option><option value="22">22</option><option value="33">33</option><option value="41">41</option></select>{errors.calibre && <span className="text-red-400 text-xs">{errors.calibre}</span>}</Field>
-                <Field label="Color / acabado"><input value={form.color || ''} onChange={(e) => set('color', e.target.value)} className={inputClass('color')} /></Field>
-                <Field label="Presentación"><input value={form.presentacion || ''} onChange={(e) => set('presentacion', e.target.value)} className={inputClass('presentacion')} /></Field>
+                <Field label="Espesor (mm)">
+                  <input type="number" value={form.espesor_mm || ''} onChange={(e) => set('espesor_mm', e.target.value)} className={inputClass('espesor_mm')} />
+                  {errors.espesor_mm && <span className="text-red-400 text-xs">{errors.espesor_mm}</span>}
+                </Field>
+                <Field label="Largo (mm)">
+                  <input type="number" value={form.largo_mm || ''} onChange={(e) => set('largo_mm', e.target.value)} className={inputClass('largo_mm')} />
+                  {errors.largo_mm && <span className="text-red-400 text-xs">{errors.largo_mm}</span>}
+                </Field>
+                <Field label="Ancho (mm)">
+                  <input type="number" value={form.ancho_mm || ''} onChange={(e) => set('ancho_mm', e.target.value)} className={inputClass('ancho_mm')} />
+                  {errors.ancho_mm && <span className="text-red-400 text-xs">{errors.ancho_mm}</span>}
+                </Field>
               </>
-            ) : (
+            )}
+
+            {/* Fill remaining columns for herraje when only Tipología occupies one */}
+            {currentType === 'herraje' && (
               <>
-                <Field label="Tipo"><input value={form.tipo || ''} onChange={(e) => set('tipo', e.target.value)} className={inputClass('tipo')} />{errors.tipo && <span className="text-red-400 text-xs">{errors.tipo}</span>}</Field>
-                <Field label="Subtipo"><input value={form.subtipo || ''} onChange={(e) => set('subtipo', e.target.value)} className={inputClass('subtipo')} /></Field>
-                <Field label="Tipología"><select value={form.tipologia || ''} onChange={(e) => set('tipologia', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50"><option value="">Sin tipología</option><option value="puerta">Puerta</option><option value="mueble">Mueble</option></select></Field>
-                <Field label="Medida"><input value={form.medida || ''} onChange={(e) => set('medida', e.target.value)} className={inputClass('medida')} /></Field>
-                <Field label="Presentación"><input value={form.presentacion || ''} onChange={(e) => set('presentacion', e.target.value)} className={inputClass('presentacion')} /></Field>
+                <div /> <div />
               </>
             )}
           </div>
