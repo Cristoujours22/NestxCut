@@ -25,15 +25,6 @@ function MovementsView({ movements, items, filters, onFiltersChange, onClearSele
   return (
     <div className="space-y-4">
       <div className="flex flex-col lg:flex-row gap-3">
-        <div className="flex-1">
-          <input
-            type="text"
-            value={filters.search}
-            onChange={(e) => onFiltersChange({ search: e.target.value })}
-            placeholder="Buscar item o motivo..."
-            className="w-full bg-[#060e20] border border-[#1a233a] text-sm text-white rounded-lg pl-3 pr-4 py-2 focus:outline-none focus:border-[#99f7ff]/50 transition-colors placeholder:text-[#40485d]"
-          />
-        </div>
         <select
           value={filters.direction}
           onChange={(e) => onFiltersChange({ direction: e.target.value })}
@@ -224,7 +215,7 @@ export default function InventoryPage() {
   const [providerError, setProviderError] = useState('');
   const [purchaseState, setPurchaseState] = useState({ open: false, purchase: null });
   const [purchaseError, setPurchaseError] = useState('');
-  const [movementFilters, setMovementFilters] = useState({ search: '', direction: 'todos', type: 'todos', itemId: '' });
+  const [movementFilters, setMovementFilters] = useState({ direction: 'todos', type: 'todos', itemId: '' });
 
   const load = async () => {
     setLoading(true);
@@ -298,7 +289,7 @@ export default function InventoryPage() {
     });
   }, [purchases, search]);
   const filteredMovements = useMemo(() => {
-    const searchQuery = movementFilters.search.trim().toLowerCase();
+    const searchQuery = search.trim().toLowerCase();
     return movements.filter((movement) => {
       const matchesItem = !movementFilters.itemId || movement.item_id === movementFilters.itemId;
       const matchesDirection = movementFilters.direction === 'todos' || movement.direction === movementFilters.direction;
@@ -308,7 +299,7 @@ export default function InventoryPage() {
         .some((value) => String(value).toLowerCase().includes(searchQuery));
       return matchesItem && matchesDirection && matchesType && matchesSearch;
     });
-  }, [movements, movementFilters]);
+  }, [movements, movementFilters, search]);
   const specificFilterOptions = useMemo(() => {
     const field = itemType === 'tablero' ? 'material' : itemType === 'canto' ? 'tipo_canto' : 'tipo';
     return [...new Set(items.filter((item) => item.item_type === itemType).map((item) => item[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -627,7 +618,7 @@ export default function InventoryPage() {
                     setStockEntryState({ open: true, item, mode: 'exit' });
                   }}
                   onViewMovements={(item) => {
-                    setMovementFilters({ search: '', direction: 'todos', type: 'todos', itemId: item.id });
+                    setMovementFilters({ direction: 'todos', type: 'todos', itemId: item.id });
                     setActiveTab('movimientos');
                   }}
                 />
