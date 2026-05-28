@@ -78,38 +78,36 @@ function pruneFreeRects(freeRects) {
 
 function splitFreeRect(sheet, rectIndex, placed, kerf) {
   const rect = sheet.freeRects[rectIndex];
-  const rightX = rect.x + placed.width + kerf;
-  const bottomY = rect.y + placed.height + kerf;
-  const rightWidth = rect.width - placed.width - kerf;
-  const bottomHeight = rect.height - placed.height - kerf;
+  const remainingW = rect.width - placed.width - kerf;
+  const remainingH = rect.height - placed.height - kerf;
 
   const nextRects = sheet.freeRects.filter((_, index) => index !== rectIndex);
 
-  if (rightWidth > 0 && rect.width > 0) {
-    nextRects.push({
-      x: rightX,
-      y: rect.y,
-      width: rightWidth,
-      height: rect.height,
-    });
+  if (remainingW <= kerf && remainingH <= kerf) {
+    sheet.freeRects = nextRects;
+    return;
   }
 
-  if (bottomHeight > 0 && rect.height > 0) {
-    nextRects.push({
-      x: rect.x,
-      y: bottomY,
-      width: placed.width,
-      height: bottomHeight,
-    });
-  }
+  // Shorter leftover axis: choose the split that maximizes the larger free area.
+  // Option A: horizontal split first → right rect (full height) + bottom rect (piece width only)
+  // Option B: vertical split first   → right rect (piece height only) + bottom rect (full width)
+  const areaA = Math.max(remainingW * rect.height, placed.width * remainingH);
+  const areaB = Math.max(remainingW * placed.height, rect.width * remainingH);
 
-  if (rightWidth > 0 && bottomHeight > 0) {
-    nextRects.push({
-      x: rightX,
-      y: bottomY,
-      width: rightWidth,
-      height: bottomHeight,
-    });
+  if (areaA >= areaB) {
+    if (remainingW > kerf) {
+      nextRects.push({ x: rect.x + placed.width + kerf, y: rect.y, width: remainingW, height: rect.height });
+    }
+    if (remainingH > kerf) {
+      nextRects.push({ x: rect.x, y: rect.y + placed.height + kerf, width: placed.width, height: remainingH });
+    }
+  } else {
+    if (remainingW > kerf) {
+      nextRects.push({ x: rect.x + placed.width + kerf, y: rect.y, width: remainingW, height: placed.height });
+    }
+    if (remainingH > kerf) {
+      nextRects.push({ x: rect.x, y: rect.y + placed.height + kerf, width: rect.width, height: remainingH });
+    }
   }
 
   sheet.freeRects = pruneFreeRects(
