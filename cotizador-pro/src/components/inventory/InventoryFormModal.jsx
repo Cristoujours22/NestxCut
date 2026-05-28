@@ -36,13 +36,22 @@ function Field({ label, children }) {
 export default function InventoryFormModal({ isOpen, type, item, existingItems = [], providers = [], onClose, onSubmit, submitError = '' }) {
   const [form, setForm] = useState(defaultByType.tablero);
   const [errors, setErrors] = useState({});
+  const [nuevaMarca, setNuevaMarca] = useState('');
   const isEdit = Boolean(item?.id);
   const currentType = type || item?.item_type || 'tablero';
 
   useEffect(() => {
     setForm(item || defaultByType[currentType]);
     setErrors({});
+    setNuevaMarca('');
   }, [item, currentType]);
+
+  const marcasExistentes = useMemo(() => {
+    const set = new Set();
+    existingItems.forEach((entry) => { if (entry.marca?.trim()) set.add(entry.marca.trim()); });
+    if (nuevaMarca.trim()) set.add(nuevaMarca.trim());
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [existingItems, nuevaMarca]);
 
   const title = useMemo(() => `${isEdit ? 'Editar' : 'Nuevo'} ${currentType === 'tablero' ? 'tablero' : currentType === 'canto' ? 'canto' : 'herraje'}`, [isEdit, currentType]);
 
@@ -92,6 +101,7 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
     }
 
     const payload = { ...form, item_type: currentType };
+    if (nuevaMarca.trim()) payload.marca = nuevaMarca.trim();
     onSubmit(payload);
   };
 
@@ -176,7 +186,33 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
               </select>
             </Field>
             <Field label="Marca">
-              <input value={form.marca || ''} onChange={(e) => set('marca', e.target.value)} className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50" />
+              <select
+                value={nuevaMarca || form.marca || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '__nueva__') {
+                    setNuevaMarca('');
+                    set('marca', '');
+                  } else {
+                    setNuevaMarca('');
+                    set('marca', val);
+                  }
+                }}
+                className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50"
+              >
+                <option value="">Sin marca</option>
+                {marcasExistentes.map((m) => <option key={m} value={m}>{m}</option>)}
+                <option value="__nueva__">+ Nueva marca...</option>
+              </select>
+              {nuevaMarca !== null && !form.marca && (
+                <input
+                  value={nuevaMarca}
+                  onChange={(e) => setNuevaMarca(e.target.value)}
+                  placeholder="Escribí la nueva marca..."
+                  className="mt-1 w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#00e0fe]/50"
+                  autoFocus
+                />
+              )}
             </Field>
 
             {/* Row 4: Tipología (herraje) | Calibre (canto) | Espesor (tablero) */}
