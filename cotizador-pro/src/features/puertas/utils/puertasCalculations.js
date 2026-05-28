@@ -190,9 +190,8 @@ export function calcularAlma(hoja, config, selectedItem) {
   const altoCavidadMm = Math.max(0, hoja.altoMm - (anchoHorizontal * 2));
   const anchoCavidadMm = Math.max(0, hoja.anchoMm - (anchoVertical * 2));
 
-  const tipoFromItem = (selectedItem?.nombre || selectedItem?.tipo || '').toLowerCase();
-  const esHoneycomb = tipoFromItem.includes('honeycomb') || tipoFromItem.includes('panal') || tipoFromItem.includes('abeja');
-  const esMadera = !esHoneycomb && (tipoFromItem.includes('alma') || tipoFromItem.includes('madera') || selectedItem?.item_type === 'tablero');
+  const esHoneycomb = selectedItem?.tipo === 'honeycomb';
+  const esMadera = selectedItem?.tipo === 'alma';
   const anchoTiraMm = esMadera ? (toNumber(selectedItem?.ancho_mm) || toNumber(selectedItem?.ancho) || 70) : anchoCavidadMm;
 
   const cantidad = esMadera

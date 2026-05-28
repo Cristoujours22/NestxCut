@@ -68,14 +68,7 @@ function formatCurrency(value) {
   }).format(Number(value || 0));
 }
 
-function normalizeText(value) {
-  return String(value || '').trim().toLowerCase();
-}
 
-function matchesSome(value, keywords = []) {
-  const text = normalizeText(value);
-  return keywords.some((keyword) => text.includes(keyword));
-}
 
 export default function PuertasPage() {
   const [activeTab, setActiveTab] = useState('nueva');
@@ -177,27 +170,21 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
   );
 
   const bastidorOptions = useMemo(
-    () => tableros.filter((item) => (
-      matchesSome(item.nombre, ['pino', 'bastidor', 'liston', 'listón'])
-      || matchesSome(item.material, ['pino', 'bastidor', 'liston', 'listón'])
-    )),
+    () => tableros.filter((item) => item.tipo === 'bastidor'),
     [tableros]
   );
 
   const peganteOptions = useMemo(
-    () => allHerrajes.filter((item) => (
-      matchesSome(item.nombre, ['pegante', 'cola', 'adhesivo', 'colbon'])
-      || matchesSome(item.tipo, ['pegante', 'cola', 'adhesivo'])
-    )),
+    () => allHerrajes.filter((item) => item.tipo === 'pegante'),
     [allHerrajes]
   );
 
   const honeycombOptions = useMemo(
-    () => allHerrajes.filter((item) => (
-      matchesSome(item.nombre, ['honeycomb', 'alma', 'panal', 'abeja'])
-      || matchesSome(item.tipo, ['honeycomb', 'alma', 'panal', 'abeja'])
-    )),
-    [allHerrajes]
+    () => [
+      ...allHerrajes.filter((item) => item.tipo === 'honeycomb'),
+      ...tableros.filter((item) => item.tipo === 'alma'),
+    ],
+    [allHerrajes, tableros]
   );
 
   const selectedMaterial = useMemo(
