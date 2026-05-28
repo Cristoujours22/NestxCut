@@ -46,13 +46,6 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
     setNuevaMarca('');
   }, [item, currentType]);
 
-  const marcasExistentes = useMemo(() => {
-    const set = new Set();
-    existingItems.forEach((entry) => { if (entry.marca?.trim()) set.add(entry.marca.trim()); });
-    if (nuevaMarca.trim()) set.add(nuevaMarca.trim());
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [existingItems, nuevaMarca]);
-
   const title = useMemo(() => `${isEdit ? 'Editar' : 'Nuevo'} ${currentType === 'tablero' ? 'tablero' : currentType === 'canto' ? 'canto' : 'herraje'}`, [isEdit, currentType]);
 
   if (!isOpen) return null;
@@ -201,7 +194,6 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
                 className="w-full bg-[#060e20] border border-[#1a233a] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#00e0fe]/50"
               >
                 <option value="">Sin marca</option>
-                {marcasExistentes.map((m) => <option key={m} value={m}>{m}</option>)}
                 <option value="__nueva__">+ Nueva marca...</option>
               </select>
               {nuevaMarca !== null && !form.marca && (
