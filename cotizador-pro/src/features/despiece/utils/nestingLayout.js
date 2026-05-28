@@ -140,24 +140,16 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
       if (b.height - a.height !== 0) return b.height - a.height;
       return (b.width * b.height) - (a.width * a.height);
     },
-    // Strategy B: Height descending first (panels before divisions — fill tall gaps)
-    (a, b) => {
-      if (b.height - a.height !== 0) return b.height - a.height;
-      if (b.width - a.width !== 0) return b.width - a.width;
-      return (b.width * b.height) - (a.width * a.height);
-    },
-    // Strategy C: Largest dimension first (classic MaxRects optimal)
+    // Strategy B: Largest dimension first (classic MaxRects optimal)
     (a, b) => {
       const maxA = Math.max(a.width, a.height);
       const maxB = Math.max(b.width, b.height);
       if (maxB - maxA !== 0) return maxB - maxA;
       return (b.width * b.height) - (a.width * a.height);
     },
-    // Strategy D: Min-dimension ascending (narrow pieces first — fill gaps between wide pieces)
+    // Strategy C: Width ascending — narrow pieces first (panels before wide divisions)
     (a, b) => {
-      const minA = Math.min(a.width, a.height);
-      const minB = Math.min(b.width, b.height);
-      if (minA - minB !== 0) return minA - minB;
+      if (a.width - b.width !== 0) return a.width - b.width;
       return (b.width * b.height) - (a.width * a.height);
     },
   ];
