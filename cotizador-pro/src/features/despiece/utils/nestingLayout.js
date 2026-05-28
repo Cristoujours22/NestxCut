@@ -132,20 +132,34 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
     return { sheets: [], unplaced: pieces };
   }
 
-  const sheets = [];
-  const unplaced = [];
-
-  pieces
-    .sort((a, b) => {
+  // Try two sort strategies — shelf-grouped and largest-first — pick best
+  const strategies = [
+    // Strategy A: Width descending (shelf packing — group same-width pieces)
+    (a, b) => {
+      if (b.width - a.width !== 0) return b.width - a.width;
+      if (b.height - a.height !== 0) return b.height - a.height;
+      return (b.width * b.height) - (a.width * a.height);
+    },
+    // Strategy B: Largest dimension first (classic MaxRects optimal)
+    (a, b) => {
       const maxA = Math.max(a.width, a.height);
       const maxB = Math.max(b.width, b.height);
       if (maxB - maxA !== 0) return maxB - maxA;
       return (b.width * b.height) - (a.width * a.height);
-    })
-    .forEach((piece) => {
+    },
+  ];
+
+  let bestResult = null;
+
+  for (const sortFn of strategies) {
+    const sorted = [...pieces].sort(sortFn);
+    const localSheets = [];
+    const localUnplaced = [];
+
+    sorted.forEach((piece) => {
       let placed = false;
 
-      for (const sheet of sheets) {
+      for (const sheet of localSheets) {
         const best = pickBestFreeRect(sheet.freeRects, piece);
         if (!best) continue;
 
@@ -164,10 +178,10 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
       }
 
       if (!placed) {
-        const newSheet = createSheet(sheets.length + 1, boardWidth, boardHeight);
+        const newSheet = createSheet(localSheets.length + 1, boardWidth, boardHeight);
         const best = pickBestFreeRect(newSheet.freeRects, piece);
         if (!best) {
-          unplaced.push(piece);
+          localUnplaced.push(piece);
           return;
         }
 
@@ -181,14 +195,22 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
         };
         newSheet.pieces.push(placedPiece);
         splitFreeRect(newSheet, best.rectIndex, placedPiece, kerf);
-        sheets.push(newSheet);
+        localSheets.push(newSheet);
         placed = true;
       }
 
       if (!placed) {
-        unplaced.push(piece);
+        localUnplaced.push(piece);
       }
     });
 
-  return { sheets, unplaced };
+    const nonEmpty = localSheets.filter(s => s.pieces.length > 0);
+    const sheetCount = nonEmpty.length + localUnplaced.length * 0.1;
+
+    if (!bestResult || localUnplaced.length < bestResult.unplaced.length || (localUnplaced.length === bestResult.unplaced.length && nonEmpty.length < bestResult.sheets.length)) {
+      bestResult = { sheets: nonEmpty, unplaced: localUnplaced };
+    }
+  }
+
+  return bestResult;
 }
