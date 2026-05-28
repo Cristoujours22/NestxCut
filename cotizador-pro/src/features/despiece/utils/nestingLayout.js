@@ -133,16 +133,13 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
   }
 
   const sheets = [];
-
   const unplaced = [];
 
-pieces
+  pieces
     .sort((a, b) => {
-      // Priorizar piezas más largas (max dimension) para que no queden atrapadas
       const maxA = Math.max(a.width, a.height);
       const maxB = Math.max(b.width, b.height);
       if (maxB - maxA !== 0) return maxB - maxA;
-      // Luego por área descendente
       return (b.width * b.height) - (a.width * a.height);
     })
     .forEach((piece) => {
@@ -160,7 +157,6 @@ pieces
           width: best.option.width,
           height: best.option.height,
         };
-
         sheet.pieces.push(placedPiece);
         splitFreeRect(sheet, best.rectIndex, placedPiece, kerf);
         placed = true;
@@ -183,7 +179,6 @@ pieces
           width: best.option.width,
           height: best.option.height,
         };
-
         newSheet.pieces.push(placedPiece);
         splitFreeRect(newSheet, best.rectIndex, placedPiece, kerf);
         sheets.push(newSheet);
