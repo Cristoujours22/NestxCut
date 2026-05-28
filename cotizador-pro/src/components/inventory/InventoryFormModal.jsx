@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const TIPO_OPCIONES = [
-  'alma', 'bisagra', 'canto', 'chapa', 'corredera', 'honeycomb',
+  'alma', 'bisagra', 'chapa', 'corredera', 'honeycomb',
   'jaladera', 'panel', 'pegante', 'perfil', 'pata', 'riel', 'soporte', 'tornillo',
 ];
 
