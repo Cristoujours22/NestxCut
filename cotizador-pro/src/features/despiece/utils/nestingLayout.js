@@ -38,6 +38,21 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
     .flatMap(({ piece, originalRowIndex: ori }) => Array.from({ length: piece.quantity }, (_, idx) => ({ ...piece, instanceId: `${piece.id}_${idx}`, originalRowIndex: ori })));
   if (!boardWidth || !boardHeight || pieces.length === 0) return { sheets: [], unplaced: pieces };
 
+  const strategies = [
+    (a, b) => { if (b.width !== a.width) return b.width - a.width; if (a.height !== b.height) return a.height - b.height; return (b.width*b.height)-(a.width*a.height); },
+    (a, b) => { if (b.width !== a.width) return b.width - a.width; if (b.height !== a.height) return b.height - a.height; return (b.width*b.height)-(a.width*a.height); },
+    (a, b) => { const mA = Math.max(a.width, a.height), mB = Math.max(b.width, b.height); if (mB !== mA) return mB - mA; return (b.width*b.height)-(a.width*a.height); },
+    (a, b) => (b.width*b.height) - (a.width*a.height),
+  ];
+
+  function pack(sorted) {
+    const sheets = [], unplaced = [];
+    sorted.forEach(p => { let ok = false;
+      for (const s of sheets) { const b = pickBestFreeRect(s.freeRects, p); if (!b) continue; s.pieces.push({ ...p, rotated: b.option.rotated, x: b.rect.x, y: b.rect.y, width: b.option.width, height: b.option.height }); splitFreeRect(s, b.rectIndex, { width: b.option.width, height: b.option.height }, kerf); ok = true; break; }
+      if (!ok) { const ns = createSheet(sheets.length + 1, boardWidth, boardHeight); const b = pickBestFreeRect(ns.freeRects, p); if (!b) { unplaced.push(p); return; } ns.pieces.push({ ...p, rotated: b.option.rotated, x: b.rect.x, y: b.rect.y, width: b.option.width, height: b.option.height }); splitFreeRect(ns, b.rectIndex, { width: b.option.width, height: b.option.height }, kerf); sheets.push(ns); } });
+    return { sheets: sheets.filter(s => s.pieces.length > 0), unplaced };
+  }
+
   let best = null;
   for (const sf of strategies) { const r = pack([...pieces].sort(sf)); if (!best || r.unplaced.length < best.unplaced.length || (r.unplaced.length === best.unplaced.length && r.sheets.length < best.sheets.length)) best = r; }
 
