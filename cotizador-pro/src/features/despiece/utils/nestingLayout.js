@@ -153,6 +153,13 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
       if (maxB - maxA !== 0) return maxB - maxA;
       return (b.width * b.height) - (a.width * a.height);
     },
+    // Strategy D: Min-dimension ascending (narrow pieces first — fill gaps between wide pieces)
+    (a, b) => {
+      const minA = Math.min(a.width, a.height);
+      const minB = Math.min(b.width, b.height);
+      if (minA - minB !== 0) return minA - minB;
+      return (b.width * b.height) - (a.width * a.height);
+    },
   ];
 
   let bestResult = null;
