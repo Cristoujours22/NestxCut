@@ -212,5 +212,32 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
     }
   }
 
+  // Post-processing: try to fit unplaced pieces back into the winning sheets
+  if (bestResult && bestResult.unplaced.length > 0) {
+    const remaining = [];
+    for (const piece of bestResult.unplaced) {
+      let placed = false;
+      for (const sheet of bestResult.sheets) {
+        const candidate = pickBestFreeRect(sheet.freeRects, piece);
+        if (candidate) {
+          const placedPiece = {
+            ...piece,
+            rotated: candidate.option.rotated,
+            x: candidate.rect.x,
+            y: candidate.rect.y,
+            width: candidate.option.width,
+            height: candidate.option.height,
+          };
+          sheet.pieces.push(placedPiece);
+          splitFreeRect(sheet, candidate.rectIndex, placedPiece, kerf);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) remaining.push(piece);
+    }
+    bestResult.unplaced = remaining;
+  }
+
   return bestResult;
 }
