@@ -5,10 +5,12 @@ const TIPO_OPCIONES = [
   'jaladera', 'panel', 'pegante', 'perfil', 'pata', 'riel', 'soporte', 'tornillo',
 ];
 
+const TIPO_TABLERO = ['melamina', 'bastidor', 'alma'];
+
 const defaultByType = {
   tablero: {
     item_type: 'tablero',
-    nombre: '', codigo: '', material: '', espesor_mm: '', largo_mm: '', ancho_mm: '',
+    nombre: '', codigo: '', tipo: '', material: '', espesor_mm: '', largo_mm: '', ancho_mm: '',
     cantidad_disponible: '', cantidad_reservada: 0, stock_minimo: '', stock_objetivo: '',
     costo_unitario: '', proveedor: '', proveedor_id: '', marca: '', unidad_stock: 'lamina',
     notas: '', activo: true,
@@ -74,6 +76,7 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
 
     if (currentType === 'tablero') {
       if (!form.material?.trim()) nextErrors.material = 'El material es obligatorio';
+      if (!form.tipo?.trim()) nextErrors.tipo = 'La clasificación es obligatoria';
       if (Number(form.espesor_mm || 0) < 0) nextErrors.espesor_mm = 'El espesor no puede ser negativo';
       if (Number(form.largo_mm || 0) < 0) nextErrors.largo_mm = 'El largo no puede ser negativo';
       if (Number(form.ancho_mm || 0) < 0) nextErrors.ancho_mm = 'El ancho no puede ser negativo';
@@ -137,9 +140,12 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
                 {errors.tipo_canto && <span className="text-red-400 text-xs">{errors.tipo_canto}</span>}
               </Field>
             ) : (
-              <Field label="Material">
-                <input value={form.material || ''} onChange={(e) => set('material', e.target.value)} className={inputClass('material')} />
-                {errors.material && <span className="text-red-400 text-xs">{errors.material}</span>}
+              <Field label="Clasificación">
+                <select value={form.tipo || ''} onChange={(e) => set('tipo', e.target.value)} className={inputClass('tipo')}>
+                  <option value="">Seleccionar...</option>
+                  {TIPO_TABLERO.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                {errors.tipo && <span className="text-red-400 text-xs">{errors.tipo}</span>}
               </Field>
             )}
 
@@ -232,6 +238,10 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
             )}
             {currentType === 'tablero' && (
               <>
+                <Field label="Material">
+                  <input value={form.material || ''} onChange={(e) => set('material', e.target.value)} className={inputClass('material')} />
+                  {errors.material && <span className="text-red-400 text-xs">{errors.material}</span>}
+                </Field>
                 <Field label="Espesor (mm)">
                   <input type="number" value={form.espesor_mm || ''} onChange={(e) => set('espesor_mm', e.target.value)} className={inputClass('espesor_mm')} />
                   {errors.espesor_mm && <span className="text-red-400 text-xs">{errors.espesor_mm}</span>}
