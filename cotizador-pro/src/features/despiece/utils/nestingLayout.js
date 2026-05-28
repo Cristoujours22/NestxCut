@@ -20,6 +20,21 @@ function pickBestFreeRect(freeRects, piece) {
 function isContained(a, b) { return a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height; }
 function pruneFreeRects(freeRects) { return freeRects.filter((r, i) => !freeRects.some((o, j) => i !== j && isContained(r, o))); }
 
+function mergeAdjacentFreeRects(rects, kerf) {
+  let r = [...rects], changed = true;
+  while (changed) {
+    changed = false;
+    outer: for (let i = 0; i < r.length; i++) {
+      for (let j = i + 1; j < r.length; j++) {
+        const a = r[i], b = r[j];
+        if (a.x === b.x && a.width === b.width && Math.abs(a.y + a.height - b.y) <= kerf) { r.splice(j, 1); r[i] = { x: a.x, y: Math.min(a.y, b.y), width: a.width, height: a.height + b.height + kerf }; changed = true; break outer; }
+        if (a.y === b.y && a.height === b.height && Math.abs(a.x + a.width - b.x) <= kerf) { r.splice(j, 1); r[i] = { x: Math.min(a.x, b.x), y: a.y, width: a.width + b.width + kerf, height: a.height }; changed = true; break outer; }
+      }
+    }
+  }
+  return r;
+}
+
 function splitFreeRect(sheet, rectIndex, placed, kerf) {
   const rect = sheet.freeRects[rectIndex], rw = rect.width - placed.width - kerf, rh = rect.height - placed.height - kerf;
   const next = sheet.freeRects.filter((_, i) => i !== rectIndex);
@@ -29,7 +44,7 @@ function splitFreeRect(sheet, rectIndex, placed, kerf) {
     if (rh > kerf) next.push({ x: rect.x, y: rect.y + placed.height + kerf, width: placed.width, height: rh }); }
   else { if (rw > kerf) next.push({ x: rect.x + placed.width + kerf, y: rect.y, width: rw, height: placed.height });
     if (rh > kerf) next.push({ x: rect.x, y: rect.y + placed.height + kerf, width: rect.width, height: rh }); }
-  sheet.freeRects = pruneFreeRects(next.filter(c => c.width > kerf && c.height > kerf));
+  sheet.freeRects = mergeAdjacentFreeRects(pruneFreeRects(next.filter(c => c.width > kerf && c.height > kerf)), kerf);
 }
 
 export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5, allowGlobalRotation = false }) {
