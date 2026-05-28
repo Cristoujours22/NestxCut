@@ -190,8 +190,9 @@ export function calcularAlma(hoja, config, selectedItem) {
   const altoCavidadMm = Math.max(0, hoja.altoMm - (anchoHorizontal * 2));
   const anchoCavidadMm = Math.max(0, hoja.anchoMm - (anchoVertical * 2));
 
-  const tipo = selectedItem?.tipo || config?.composition?.tipoAlmaDefault || 'honeycomb';
-  const esMadera = tipo === 'alma' || tipo === 'madera';
+  const tipoFromItem = (selectedItem?.nombre || selectedItem?.tipo || '').toLowerCase();
+  const esHoneycomb = tipoFromItem.includes('honeycomb') || tipoFromItem.includes('panal') || tipoFromItem.includes('abeja');
+  const esMadera = !esHoneycomb && (tipoFromItem.includes('alma') || tipoFromItem.includes('madera') || selectedItem?.item_type === 'tablero');
   const anchoTiraMm = esMadera ? (toNumber(selectedItem?.ancho_mm) || toNumber(selectedItem?.ancho) || 70) : anchoCavidadMm;
 
   const cantidad = esMadera
@@ -199,9 +200,9 @@ export function calcularAlma(hoja, config, selectedItem) {
     : 1;
 
   return {
-    id: `alma_${tipo}`,
+    id: esMadera ? 'alma_madera' : 'alma_honeycomb',
     detalle: esMadera ? `Alma madera (${cantidad} tiras)` : 'Alma honeycomb',
-    tipo,
+    tipo: esMadera ? 'madera' : 'honeycomb',
     cantidad,
     altoMm: altoCavidadMm,
     anchoMm: esMadera ? anchoTiraMm : anchoCavidadMm,
