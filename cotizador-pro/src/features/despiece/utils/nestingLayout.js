@@ -1,82 +1,77 @@
-function toNumber(value) { const p = Number(value); return Number.isFinite(p) ? p : 0; }
-function normalizePiece(row, index, allowGlobalRotation = false) {
-  const w = toNumber(row?.largo), h = toNumber(row?.ancho), q = Math.max(0, toNumber(row?.cantidad ?? row?.cant));
-  return { id: row?.id || `piece_${index}`, label: row?.detalle?.trim() || `Pieza ${index + 1}`, width: w, height: h, quantity: q, canRotate: allowGlobalRotation || String(row?.rotar || '').trim() === '1' };
-}
-function createSheet(index, boardWidth, boardHeight) { return { index, pieces: [], freeRects: [{ x: 0, y: 0, width: boardWidth, height: boardHeight }] }; }
-function canFit(rect, w, h) { return w <= rect.width && h <= rect.height; }
-function scoreFit(rect, w, h) { return { waste: (rect.width * rect.height) - (w * h), shortSide: Math.min(rect.width - w, rect.height - h), longSide: Math.max(rect.width - w, rect.height - h) }; }
+import { packGuillotine, packMaxRects } from './nesting/nestingAlgorithms';
 
-function pickBestFreeRect(freeRects, piece) {
-  let best = null;
-  freeRects.forEach((rect, ri) => {
-    const opts = [{ rotated: false, width: piece.width, height: piece.height }, ...(piece.canRotate ? [{ rotated: true, width: piece.height, height: piece.width }] : [])];
-    opts.forEach(o => { if (!canFit(rect, o.width, o.height)) return; const f = scoreFit(rect, o.width, o.height);
-      if (!best || f.waste < best.fit.waste || (f.waste === best.fit.waste && f.shortSide < best.fit.shortSide) || (f.waste === best.fit.waste && f.shortSide === best.fit.shortSide && f.longSide < best.fit.longSide)) best = { rect, rectIndex: ri, option: o, fit: f }; });
-  });
-  return best;
+function toNumber(value) {
+  const p = Number(value);
+  return Number.isFinite(p) ? p : 0;
 }
 
-function isContained(a, b) { return a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height; }
-function pruneFreeRects(freeRects) { return freeRects.filter((r, i) => !freeRects.some((o, j) => i !== j && isContained(r, o))); }
+export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5, margin = 0, allowGlobalRotation = false, algorithm = 'guillotine' }) {
+  console.log(`=== NESTING ENGINE: ${algorithm.toUpperCase()} ===`);
 
-function mergeAdjacentFreeRects(rects, kerf) {
-  let r = [...rects], changed = true;
-  while (changed) {
-    changed = false;
-    outer: for (let i = 0; i < r.length; i++) {
-      for (let j = i + 1; j < r.length; j++) {
-        const a = r[i], b = r[j];
-        if (a.x === b.x && a.width === b.width && Math.abs(a.y + a.height - b.y) <= kerf) { r.splice(j, 1); r[i] = { x: a.x, y: Math.min(a.y, b.y), width: a.width, height: a.height + b.height + kerf }; changed = true; break outer; }
-        if (a.y === b.y && a.height === b.height && Math.abs(a.x + a.width - b.x) <= kerf) { r.splice(j, 1); r[i] = { x: Math.min(a.x, b.x), y: a.y, width: a.width + b.width + kerf, height: a.height }; changed = true; break outer; }
+  const parts = [];
+  const unplaced = [];
+
+  rows.forEach((row, index) => {
+    const w = toNumber(row?.largo);
+    const h = toNumber(row?.ancho);
+    const q = Math.max(0, toNumber(row?.cantidad ?? row?.cant));
+
+    let canRotate = false;
+    if (allowGlobalRotation) {
+      canRotate = true;
+    } else {
+      canRotate = String(row?.rotar || '').trim() === '1';
+    }
+
+    if (w > 0 && h > 0 && q > 0) {
+      const part = {
+        id: row?.id || `piece_${index}`,
+        ref: row?.detalle?.trim() || `Pieza ${index + 1}`,
+        width: w,
+        height: h,
+        qty: q,
+        canRotate: canRotate
+      };
+      
+      const fitsNormal = (part.width <= boardWidth && part.height <= boardHeight);
+      const fitsRotated = part.canRotate && (part.height <= boardWidth && part.width <= boardHeight);
+      
+      if (fitsNormal || fitsRotated) {
+        parts.push(part);
+      } else {
+        for(let i=0; i < q; i++) {
+          unplaced.push({...part, instanceId: `${part.id}_${i}`});
+        }
       }
     }
+  });
+
+  if (!boardWidth || !boardHeight || parts.length === 0) return { sheets: [], unplaced };
+
+  const options = {
+    marginTop: margin, 
+    marginRight: margin, 
+    kerf: kerf,
+    allowRotation: true
+  };
+
+  let sheets = [];
+  if (algorithm === 'maxrects') {
+    sheets = packMaxRects(parts, boardWidth, boardHeight, options);
+  } else {
+    sheets = packGuillotine(parts, boardWidth, boardHeight, options);
   }
-  return r;
+  
+  sheets = sheets.map(sheet => ({
+    ...sheet,
+    index: sheet.id,
+    pieces: sheet.pieces.map((p, idx) => ({
+      ...p,
+      label: p.ref,
+      instanceId: `${p.ref}_${idx}_${sheet.id}`
+    }))
+  }));
+
+  return { sheets, unplaced };
 }
 
-function splitFreeRect(sheet, rectIndex, placed, kerf) {
-  const rect = sheet.freeRects[rectIndex], rw = rect.width - placed.width - kerf, rh = rect.height - placed.height - kerf;
-  const next = sheet.freeRects.filter((_, i) => i !== rectIndex);
-  if (rw <= kerf && rh <= kerf) { sheet.freeRects = next; return; }
-  const aA = Math.max(rw * rect.height, placed.width * rh), aB = Math.max(rw * placed.height, rect.width * rh);
-  if (aA >= aB) { if (rw > kerf) next.push({ x: rect.x + placed.width + kerf, y: rect.y, width: rw, height: rect.height });
-    if (rh > kerf) next.push({ x: rect.x, y: rect.y + placed.height + kerf, width: placed.width, height: rh }); }
-  else { if (rw > kerf) next.push({ x: rect.x + placed.width + kerf, y: rect.y, width: rw, height: placed.height });
-    if (rh > kerf) next.push({ x: rect.x, y: rect.y + placed.height + kerf, width: rect.width, height: rh }); }
-  sheet.freeRects = mergeAdjacentFreeRects(pruneFreeRects(next.filter(c => c.width > kerf && c.height > kerf)), kerf);
-}
-
-export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5, allowGlobalRotation = false }) {
-  const pieces = rows.map((r, i) => ({ piece: normalizePiece(r, i, allowGlobalRotation), originalRowIndex: i }))
-    .filter(({ piece }) => piece.width > 0 && piece.height > 0 && piece.quantity > 0)
-    .flatMap(({ piece, originalRowIndex: ori }) => Array.from({ length: piece.quantity }, (_, idx) => ({ ...piece, instanceId: `${piece.id}_${idx}`, originalRowIndex: ori })));
-  if (!boardWidth || !boardHeight || pieces.length === 0) return { sheets: [], unplaced: pieces };
-
-  const strategies = [
-    (a, b) => { if (b.width !== a.width) return b.width - a.width; if (a.height !== b.height) return a.height - b.height; return (b.width*b.height)-(a.width*a.height); },
-    (a, b) => { if (b.width !== a.width) return b.width - a.width; if (b.height !== a.height) return b.height - a.height; return (b.width*b.height)-(a.width*a.height); },
-    (a, b) => { const mA = Math.max(a.width, a.height), mB = Math.max(b.width, b.height); if (mB !== mA) return mB - mA; return (b.width*b.height)-(a.width*a.height); },
-    (a, b) => (b.width*b.height) - (a.width*a.height),
-  ];
-
-  function pack(sorted) {
-    const sheets = [], unplaced = [];
-    sorted.forEach(p => { let ok = false;
-      for (const s of sheets) { const b = pickBestFreeRect(s.freeRects, p); if (!b) continue; s.pieces.push({ ...p, rotated: b.option.rotated, x: b.rect.x, y: b.rect.y, width: b.option.width, height: b.option.height }); splitFreeRect(s, b.rectIndex, { width: b.option.width, height: b.option.height }, kerf); ok = true; break; }
-      if (!ok) { const ns = createSheet(sheets.length + 1, boardWidth, boardHeight); const b = pickBestFreeRect(ns.freeRects, p); if (!b) { unplaced.push(p); return; } ns.pieces.push({ ...p, rotated: b.option.rotated, x: b.rect.x, y: b.rect.y, width: b.option.width, height: b.option.height }); splitFreeRect(ns, b.rectIndex, { width: b.option.width, height: b.option.height }, kerf); sheets.push(ns); } });
-    return { sheets: sheets.filter(s => s.pieces.length > 0), unplaced };
-  }
-
-  let best = null;
-  for (const sf of strategies) { const r = pack([...pieces].sort(sf)); if (!best || r.unplaced.length < best.unplaced.length || (r.unplaced.length === best.unplaced.length && r.sheets.length < best.sheets.length)) best = r; }
-
-  if (best.unplaced.length > 0) {
-    const rem = [];
-    for (const p of best.unplaced) { let ok = false; for (const s of best.sheets) { const c = pickBestFreeRect(s.freeRects, p); if (c) { s.pieces.push({ ...p, rotated: c.option.rotated, x: c.rect.x, y: c.rect.y, width: c.option.width, height: c.option.height }); splitFreeRect(s, c.rectIndex, { width: c.option.width, height: c.option.height }, kerf); ok = true; break; } } if (!ok) rem.push(p); }
-    best.unplaced = rem;
-  }
-  if (best.unplaced.length > 0) { for (const sf of strategies) { const r = pack([...best.unplaced, ...pieces.filter(p => !best.unplaced.some(u => u.instanceId === p.instanceId))].sort(sf)); if (r.unplaced.length < best.unplaced.length) best = r; } }
-
-  return best;
-}

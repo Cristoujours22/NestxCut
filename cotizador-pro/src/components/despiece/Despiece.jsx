@@ -5,7 +5,7 @@ import DespieceCantosPanel from './DespieceCantosPanel';
 import { DespieceStatsBar } from './DespieceSummaryPanel';
 import { calculateEstimatedSheets, calculateCommercialPacking } from '../../features/despiece/utils/nestingEstimate';
 import { buildNestingPreview } from '../../features/despiece/utils/nestingLayout';
-import DespieceNestingModal from './DespieceNestingModal';
+import NestingDashboard from './nesting/NestingDashboard';
 
 const API = window.electronAPI;
 
@@ -194,29 +194,16 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
 
   return (
     <div className="space-y-3">
-       <DespieceNestingModal
-        isOpen={showNestingModal}
-        onClose={() => setShowNestingModal(false)}
-        boardName={activeMaterial?.nombre || ''}
-        boardDimensions={boardDimensions}
-        boardWidth={Number(activeMaterial?.largo_mm || 0)}
-        boardHeight={Number(activeMaterial?.ancho_mm || 0)}
-        estimatedSheets={laminaCount}
-        pieceCount={piezaCount}
-        estimate={nestingEstimate}
-        preview={nestingPreview}
-        commercialPacking={commercialPacking}
-        rows={activeDespiece?.filas || []}
-        cantos={activeDespiece?.cantos || []}
-        projectName={projectName}
-        clientName={clientName}
-        onRowsChange={(updater) => {
-          const nextRows = typeof updater === 'function' ? updater(activeDespiece.filas || []) : updater;
-          patchActiveDespiece({ filas: nextRows });
-        }}
-      />
-
-
+        {showNestingModal && activeMaterial && activeDespiece && (
+          <NestingDashboard
+            onClose={() => setShowNestingModal(false)}
+            despieceData={{ filas: activeDespiece.filas || [] }}
+            boardDimensions={{
+              width: Number(activeMaterial?.largo_mm || 0),
+              height: Number(activeMaterial?.ancho_mm || 0)
+            }}
+          />
+        )}
 
         <DespieceCantosPanel
           cantos={activeDespiece.cantos || []}
