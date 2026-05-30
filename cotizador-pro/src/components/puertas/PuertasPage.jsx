@@ -5,7 +5,7 @@ import { createPuertaConfig, createPuertaDraft } from '../../features/puertas/ut
 import { calcularPuerta } from '../../features/puertas/utils/puertasCalculations';
 import { buildFondosNestingPreview, buildPuertasNestingSummary } from '../../features/puertas/utils/puertasNestingAdapter';
 import { filterHerrajesForPuertas } from '../../features/inventory/utils/inventoryStock';
-import DespieceNestingModal from '../despiece/DespieceNestingModal';
+import NestingDashboard from '../despiece/nesting/NestingDashboard';
 import PuertasMaterialDropdown from './PuertasMaterialDropdown';
 import PuertasMultiSelectDropdown from './PuertasMultiSelectDropdown';
 
@@ -2057,24 +2057,16 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
           </section>
         )}
 
-        {selectedMaterial && nestingData ? (
-          <DespieceNestingModal
-            isOpen={showNestingModal}
+        {showNestingModal && selectedMaterial && nestingData && (
+          <NestingDashboard
             onClose={() => setShowNestingModal(false)}
-            boardName={selectedMaterial?.nombre || 'Tablero seleccionado'}
-            boardDimensions={`${selectedMaterial?.largo_mm || 0} × ${selectedMaterial?.ancho_mm || 0} mm`}
-            boardWidth={Number(selectedMaterial?.largo_mm || 0)}
-            boardHeight={Number(selectedMaterial?.ancho_mm || 0)}
-            estimatedSheets={nestingData.fondos?.estimate?.estimatedSheets || 0}
-            pieceCount={nestingData.fondos?.rows?.reduce((total, row) => total + Number(row.cantidad || row.cant || 0), 0) || 0}
-            estimate={nestingData.fondos?.estimate}
-            preview={nestingData.fondos?.preview}
-            rows={nestingData.fondos?.rows || []}
-            cantos={[]}
-            projectName={draft.nombre || 'Puerta'}
-            clientName={draft.material.color || ''}
+            despieceData={{ filas: nestingData.fondos?.rows || [] }}
+            boardDimensions={{
+              width: Number(selectedMaterial?.largo_mm || 0),
+              height: Number(selectedMaterial?.ancho_mm || 0)
+            }}
           />
-        ) : null}
+        )}
       </div>
     </div>
   );
