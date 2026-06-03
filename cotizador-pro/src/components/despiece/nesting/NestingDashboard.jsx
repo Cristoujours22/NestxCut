@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, Play, Layout, Grid, Maximize } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import NestingSidebar from './NestingSidebar';
@@ -17,7 +17,8 @@ export default function NestingDashboard({
     kerf: 5,
     refiladoX: 20,
     refiladoY: 20,
-    allowGlobalRotation: false
+    allowGlobalRotation: false,
+    algorithm: 'guillotine'
   });
 
   const [optimizedSheets, setOptimizedSheets] = useState([]);
@@ -32,9 +33,12 @@ export default function NestingDashboard({
            Array.isArray(despieceData) ? despieceData : [];
   }, [despieceData]);
 
+  const runTimerRef = useRef(null);
+
   const handleRun = () => {
+    if (runTimerRef.current) clearTimeout(runTimerRef.current);
     setIsRunning(true);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       try {
         const result = buildNestingPreview({
           rows,
@@ -43,7 +47,8 @@ export default function NestingDashboard({
           kerf: config.kerf,
           refiladoX: config.refiladoX,
           refiladoY: config.refiladoY,
-          allowGlobalRotation: config.allowGlobalRotation
+          allowGlobalRotation: config.allowGlobalRotation,
+          algorithm: config.algorithm || 'guillotine'
         });
         setOptimizedSheets(result.sheets || []);
         setUnplacedParts(result.unplaced || []);
@@ -51,9 +56,15 @@ export default function NestingDashboard({
         console.error("Optimizer error:", err);
       } finally {
         setIsRunning(false);
+        runTimerRef.current = null;
       }
     }, 100);
+    runTimerRef.current = timer;
   };
+
+  useEffect(() => {
+    return () => { if (runTimerRef.current) clearTimeout(runTimerRef.current); };
+  }, []);
 
   useEffect(() => {
     if (rows.length > 0) {
@@ -152,6 +163,24 @@ export default function NestingDashboard({
         <div className="flex-1 overflow-y-auto p-2 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-[#0B1121] to-[#0B1121]">
           <div className="w-full max-w-full px-2 mx-auto space-y-4 pb-10">
             
+            {/* CONFIG SUMMARY BAR */}
+            <div className="flex items-center gap-3 text-[11px] bg-slate-800/40 border border-slate-700/50 rounded-lg px-4 py-2 mb-2">
+              <span className="font-bold text-slate-400 uppercase tracking-widest">Config</span>
+              <span className="text-slate-400">Lámina:</span>
+              <span className="text-white font-mono font-bold">{config.boardWidth} × {config.boardHeight} mm</span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-400">Kerf:</span>
+              <span className="text-white font-mono font-bold">{config.kerf} mm</span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-400">Refilado:</span>
+              <span className="text-white font-mono font-bold">{config.refiladoX}/{config.refiladoY} mm</span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-400">Rotación:</span>
+              <span className={config.allowGlobalRotation ? 'text-amber-400 font-bold' : 'text-slate-500'}>
+                {config.allowGlobalRotation ? 'Sí' : 'No'}
+              </span>
+            </div>
+
             {/* ERROR ALERTS */}
             {unplacedParts.length > 0 && (
               <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-4 flex flex-col gap-2">
@@ -172,6 +201,25 @@ export default function NestingDashboard({
               </div>
             )}
 
+            {/* STATUS LEGEND */}
+            <div className="flex items-center gap-4 px-2 text-[11px] text-slate-500 mb-1">
+              <span className="font-bold text-slate-400 uppercase tracking-widest">Leyenda</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-[#00e0fe40] border border-[#00e0fe80]" />
+                <span>Pieza colocada</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-[#6ee7b70d] border border-dashed border-[#6ee7b74d]" />
+                <span>Espacio libre (no usado)</span>
+              </span>
+              {unplacedParts.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm bg-rose-500/20 border border-rose-500/40" />
+                  <span>Pieza sin colocar</span>
+                </span>
+              )}
+            </div>
+
             {/* PREVIEW SVG CANVAS */}
             <div className={viewMode === 'grid' ? "grid grid-cols-1 2xl:grid-cols-2 gap-4" : "flex flex-col gap-6"}>
               {optimizedSheets.map((sheet, index) => (
@@ -180,13 +228,34 @@ export default function NestingDashboard({
                   sheet={sheet}
                   boardWidth={config.boardWidth}
                   boardHeight={config.boardHeight}
+                  refiladoX={config.refiladoX}
+                  refiladoY={config.refiladoY}
                   compact={viewMode === 'grid'}
                 />
               ))}
             </div>
 
-            {/* EMPTY STATE */}
-            {!isRunning && optimizedSheets.length === 0 && (
+            {/* NOTHING FIT STATE — rows exist but zero fitted sheets */}
+            {!isRunning && optimizedSheets.length === 0 && rows.length > 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+                <div className="text-amber-400/60 mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <p className="text-lg text-amber-300/80 font-bold">No se encontró solución de acomodo</p>
+                <p className="text-sm mt-2 opacity-60">Las piezas exceden el espacio disponible o no se pudieron acomodar en la lámina.</p>
+                {unplacedParts.length > 0 && (
+                  <p className="text-xs mt-3 text-amber-500/70 bg-amber-500/10 px-3 py-2 rounded border border-amber-500/30">
+                    {unplacedParts.length} pieza{unplacedParts.length !== 1 ? 's' : ''} no posicionada{unplacedParts.length !== 1 ? 's' : ''}.
+                    Revisá las dimensiones o habilitá la rotación.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* TRUE EMPTY STATE — no rows at all */}
+            {!isRunning && optimizedSheets.length === 0 && rows.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-slate-500">
                 <Layout size={64} className="mb-4 opacity-20" />
                 <p className="text-lg">No hay datos de despiece para optimizar.</p>
