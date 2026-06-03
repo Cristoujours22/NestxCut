@@ -11,7 +11,9 @@
     "build": "vite build && electron-builder",
     "dev:electron": "wait-on tcp:5174 && electron .",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -35,9 +37,11 @@
     "concurrently": "^8.2.2",
     "electron": "^28.3.3",
     "electron-builder": "^24.9.1",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.4",
     "vite": "^6.3.3",
+    "vitest": "^4.1.8",
     "wait-on": "^7.2.0"
   },
   "build": {

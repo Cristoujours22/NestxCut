@@ -1,11 +1,11 @@
-import { packGuillotine, packMaxRects } from './nesting/nestingAlgorithms';
+import { packGuillotine, packMaxRects, packHybrid } from './nesting/nestingAlgorithms';
 
 function toNumber(value) {
   const p = Number(value);
   return Number.isFinite(p) ? p : 0;
 }
 
-export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5, margin = 0, allowGlobalRotation = false, algorithm = 'guillotine' }) {
+export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0, kerf = 5, refiladoX = 0, refiladoY = 0, allowGlobalRotation = false, algorithm = 'guillotine' }) {
   console.log(`=== NESTING ENGINE: ${algorithm.toUpperCase()} ===`);
 
   const parts = [];
@@ -46,20 +46,26 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
     }
   });
 
-  if (!boardWidth || !boardHeight || parts.length === 0) return { sheets: [], unplaced };
+  // Compute usable area after refilado trim deductions
+  const usableWidth = Math.max(0, boardWidth - refiladoX);
+  const usableHeight = Math.max(0, boardHeight - refiladoY);
+
+  if (!usableWidth || !usableHeight || parts.length === 0) return { sheets: [], unplaced };
 
   const options = {
-    marginTop: margin, 
-    marginRight: margin, 
+    marginTop: 0,
+    marginRight: 0,
     kerf: kerf,
     allowRotation: true
   };
 
   let sheets = [];
   if (algorithm === 'maxrects') {
-    sheets = packMaxRects(parts, boardWidth, boardHeight, options);
+    sheets = packMaxRects(parts, usableWidth, usableHeight, options);
+  } else if (algorithm === 'hybrid') {
+    sheets = packHybrid(parts, usableWidth, usableHeight, options);
   } else {
-    sheets = packGuillotine(parts, boardWidth, boardHeight, options);
+    sheets = packGuillotine(parts, usableWidth, usableHeight, options);
   }
   
   sheets = sheets.map(sheet => ({
