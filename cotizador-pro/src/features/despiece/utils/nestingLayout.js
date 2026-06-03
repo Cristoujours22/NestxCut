@@ -68,13 +68,14 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
     sheets = packGuillotine(parts, usableWidth, usableHeight, options);
   }
   
-  sheets = sheets.map(sheet => ({
+  sheets = sheets.map((sheet, sIdx) => ({
     ...sheet,
     index: sheet.id,
-    pieces: sheet.pieces.map((p, idx) => ({
+    pieces: sheet.pieces.map((p, pIdx) => ({
       ...p,
       label: p.ref,
-      instanceId: `${p.ref}_${idx}_${sheet.id}`
+      // Stable per-instance identity for hover/highlight in preview
+      instanceId: `${sheet.id}_${pIdx}_${p.ref}_${sIdx}`
     }))
   }));
 
