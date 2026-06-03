@@ -15,7 +15,8 @@ export default function NestingDashboard({
     boardWidth: boardDimensions?.width || 2440,
     boardHeight: boardDimensions?.height || 2150,
     kerf: 5,
-    margin: 20,
+    refiladoX: 20,
+    refiladoY: 20,
     allowGlobalRotation: false
   });
 
@@ -40,7 +41,8 @@ export default function NestingDashboard({
           boardWidth: config.boardWidth,
           boardHeight: config.boardHeight,
           kerf: config.kerf,
-          margin: config.margin,
+          refiladoX: config.refiladoX,
+          refiladoY: config.refiladoY,
           allowGlobalRotation: config.allowGlobalRotation
         });
         setOptimizedSheets(result.sheets || []);
@@ -100,10 +102,12 @@ export default function NestingDashboard({
             </div>
           )}
 
-          <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-md border border-slate-700/50">
-            <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Algoritmo</span>
-            <span className="text-sm text-amber-400 font-bold">Guillotina</span>
-          </div>
+<div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-md border border-slate-700/50">
+              <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Algoritmo</span>
+              <span className="text-sm text-amber-400 font-bold">
+                {config.algorithm === 'hybrid' ? 'Híbrido' : config.algorithm === 'maxrects' ? 'MaxRects' : 'Guillotina'}
+              </span>
+            </div>
           <button
             onClick={handleRun}
             disabled={isRunning || rows.length === 0}

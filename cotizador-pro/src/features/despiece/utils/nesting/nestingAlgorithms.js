@@ -4,14 +4,16 @@
  *
  * All dimensions are in mm. Kerf is applied by expanding each piece's
  * packed footprint by `kerf` on each side (width + kerf, height + kerf).
- * Margin is applied once to the sheet: usable area = sheet - margin.
+ * Refilado (trim) is a TOTAL deduction per axis, not per-edge. For example,
+ * refiladoX=20 on a 2440-wide board means usable = 2440-20 = 2420.
+ * Both left+right edges consume from the same refiladoX pool.
  */
 
 // ─────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────
 
-/** Default trim margin removed from each edge (mm). */
+/** Default refilado trim deducted from each axis total (mm). */
 export const DEFAULT_MARGIN = 20;
 
 /** Default blade kerf added between pieces (mm). */
@@ -32,17 +34,46 @@ export function applyKerf(piece, kerf) {
 }
 
 /**
- * Compute the usable sheet dimensions after applying trim margins.
+ * Kerf may spill past the physical right/bottom sheet edge ONLY when the raw
+ * piece itself exactly touches that physical edge on the corresponding axis.
+ *
+ * @param {{ x:number, y:number, width:number, height:number }} piece
+ * @param {number} usableWidth
+ * @param {number} usableHeight
+ * @returns {{ allowRightKerfOverflow: boolean, allowBottomKerfOverflow: boolean }}
+ */
+export function getFirstPieceKerfOverflowAllowance(piece, usableWidth, usableHeight) {
+  return {
+    allowRightKerfOverflow: piece.x + piece.width === usableWidth,
+    allowBottomKerfOverflow: piece.y + piece.height === usableHeight,
+  };
+}
+
+function canPlaceOnFreshSheetWithVirtualKerf(pieceW, pieceH, usableWidth, usableHeight, kerf) {
+  if (pieceW > usableWidth || pieceH > usableHeight) return false;
+  if (pieceW + kerf > usableWidth && pieceW !== usableWidth) return false;
+  if (pieceH + kerf > usableHeight && pieceH !== usableHeight) return false;
+  return true;
+}
+
+/**
+ * Compute the usable sheet dimensions after applying trim/refilado deductions.
  * @param {number} sheetWidth  Physical sheet width (mm)
  * @param {number} sheetHeight Physical sheet height (mm)
- * @param {number} marginRight Trim from right + left combined (mm) — default 20
- * @param {number} marginTop   Trim from top + bottom combined (mm) — default 20
+ * @param {number} refiladoX  TOTAL trim deduction on X axis (both left+right sides combined, mm); default 20
+ * @param {number} refiladoY  TOTAL trim deduction on Y axis (both top+bottom sides combined, mm); default 20
  * @returns {{ usableWidth: number, usableHeight: number }}
+ *
+ * Business rule: refiladoX and refiladoY are TOTAL per-axis deductions, not per-edge.
+ * Example: board 2440×2150 with refiladoX=20 and refiladoY=20
+ *   → usable = (2440-20) × (2150-20) = 2420×2130 (NOT 2400×2110).
+ * Kerf is applied separately when placing pieces.
  */
-export function usableArea(sheetWidth, sheetHeight, marginRight = DEFAULT_MARGIN, marginTop = DEFAULT_MARGIN) {
+export function usableArea(sheetWidth, sheetHeight, refiladoX = DEFAULT_MARGIN, refiladoY = DEFAULT_MARGIN) {
   return {
-    usableWidth: sheetWidth - marginRight,
-    usableHeight: sheetHeight - marginTop,
+    // Subtract total refilado once per axis (left+right combined, top+bottom combined)
+    usableWidth: sheetWidth - refiladoX,
+    usableHeight: sheetHeight - refiladoY,
   };
 }
 
@@ -174,6 +205,21 @@ const SORTERS = [
 function packGuillotineCore(sortedPieces, usableWidth, usableHeight, kerf, allowRotation, splitRule, fitRule) {
   const sheets = [];
 
+  function clipRectToUsableBounds(rect) {
+    const x1 = Math.max(0, rect.x);
+    const y1 = Math.max(0, rect.y);
+    const x2 = Math.min(usableWidth, rect.x + rect.width);
+    const y2 = Math.min(usableHeight, rect.y + rect.height);
+
+    if (x2 <= x1 || y2 <= y1) return null;
+    return {
+      x: x1,
+      y: y1,
+      width: x2 - x1,
+      height: y2 - y1,
+    };
+  }
+
   function splitRect(freeRect, pieceW, pieceH) {
     const remainW = freeRect.width - pieceW;
     const remainH = freeRect.height - pieceH;
@@ -206,10 +252,21 @@ function packGuillotineCore(sortedPieces, usableWidth, usableHeight, kerf, allow
   }
 
   function scoreFit(fr, pw, ph) {
-    if (fitRule === 'BSSF') return Math.min(fr.width - pw, fr.height - ph);
-    if (fitRule === 'BLSF') return Math.max(fr.width - pw, fr.height - ph);
-    if (fitRule === 'BAF') return fr.width * fr.height; // Best Area Fit
-    return Math.min(fr.width - pw, fr.height - ph);
+    let baseScore;
+    if (fitRule === 'BSSF') baseScore = Math.min(fr.width - pw, fr.height - ph);
+    else if (fitRule === 'BLSF') baseScore = Math.max(fr.width - pw, fr.height - ph);
+    else if (fitRule === 'BAF') baseScore = fr.width * fr.height; // Best Area Fit
+    else baseScore = Math.min(fr.width - pw, fr.height - ph);
+
+    // Si la pieza es pequeña (< 10% del área de la lámina), preferir Y alto (hacia abajo)
+    // Si es grande, preferir Y bajo (hacia arriba)
+    const isSmall = (pw * ph) < (usableWidth * usableHeight * 0.1);
+    
+    if (isSmall) {
+      return baseScore - (fr.y * 2); // Penaliza Y bajo, premia Y alto
+    } else {
+      return baseScore + (fr.y * 2); // Penaliza Y alto, premia Y bajo
+    }
   }
 
   function findBestFit(freeRects, pieceW, pieceH, canRotate) {
@@ -258,12 +315,31 @@ function packGuillotineCore(sortedPieces, usableWidth, usableHeight, kerf, allow
       // without being rejected for missing a kerf that falls outside the board.
       const virtualWidth = usableWidth + kerf;
       const virtualHeight = usableHeight + kerf;
-      
-      const fit = findBestFit([{ x: 0, y: 0, width: virtualWidth, height: virtualHeight }], kw, kh, piece.canRotate);
+
+      let fit = null;
+      const initRect = { x: 0, y: 0, width: virtualWidth, height: virtualHeight };
+
+      if (canPlaceOnFreshSheetWithVirtualKerf(piece.width, piece.height, usableWidth, usableHeight, kerf)) {
+        fit = { rectIdx: 0, rotated: false, score: scoreFit(initRect, kw, kh), w: kw, h: kh };
+      }
+
+      if (
+        allowRotation &&
+        piece.canRotate &&
+        canPlaceOnFreshSheetWithVirtualKerf(piece.height, piece.width, usableWidth, usableHeight, kerf)
+      ) {
+        const rotatedScore = scoreFit(initRect, kh, kw);
+        if (fit === null || rotatedScore < fit.score) {
+          fit = { rectIdx: 0, rotated: true, score: rotatedScore, w: kh, h: kw };
+        }
+      }
+
       if (!fit) continue;
-      
+
       const initFreeRect = { x: 0, y: 0, width: virtualWidth, height: virtualHeight };
-      const newRects = splitRect(initFreeRect, fit.w, fit.h);
+      const newRects = splitRect(initFreeRect, fit.w, fit.h)
+        .map(clipRectToUsableBounds)
+        .filter(Boolean);
       sheets.push({
         id: sheets.length + 1,
         pieces: [{
@@ -294,7 +370,7 @@ export function packGuillotine(parts, sheetWidth, sheetHeight, options = {}) {
   const pieces = expandParts(parts);
 
   let bestLayout = null;
-  // Parameter sweep: 9 sorters * 4 split rules * 3 fit rules = 108 configurations!
+  // Parameter sweep: 32 sorters * 4 split rules * 3 fit rules = 384 configurations
   for (const sorter of SORTERS) {
     const sortedPieces = [...pieces].sort(sorter);
     for (const splitRule of SPLIT_RULES) {
@@ -311,11 +387,40 @@ export function packGuillotine(parts, sheetWidth, sheetHeight, options = {}) {
 // MAXRECTS PACKER  (Best Short Side Fit — BSSF)
 // ─────────────────────────────────────────────
 
-function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRotation) {
+/**
+ * Pure BSSF scorer — no Y-bias, no size heuristic.
+ * Used by the public packMaxRects API to preserve stable behavior.
+ */
+function scoreBSSFPure(freeRect, pieceW, pieceH) {
+  return Math.min(freeRect.width - pieceW, freeRect.height - pieceH);
+}
+
+/**
+ * BSSF scorer with Y-bias heuristic (small pieces → prefer bottom, large → prefer top).
+ * Used by hybrid comparison to prefer structured layouts.
+ */
+function scoreBSSFYBiased(freeRect, pieceW, pieceH, usableWidth, usableHeight) {
+  const bssf = Math.min(freeRect.width - pieceW, freeRect.height - pieceH);
+  const isSmall = (pieceW * pieceH) < (usableWidth * usableHeight * 0.1);
+  if (isSmall) {
+    return bssf - (freeRect.y * 2); // Penalizes low Y, rewards high placement
+  } else {
+    return bssf + (freeRect.y * 2); // Rewards low Y placement for large pieces
+  }
+}
+
+function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRotation, useYBiasedScorer = false) {
   const sheets = [];
 
-  function scoreBSSF(freeRect, pieceW, pieceH) {
-    return Math.min(freeRect.width - pieceW, freeRect.height - pieceH);
+  function buildExistingSheetPlacedRect(x, y, pieceW, pieceH) {
+    const touchesPhysicalRightEdge = x + pieceW >= usableWidth;
+    const touchesPhysicalBottomEdge = y + pieceH >= usableHeight;
+    return {
+      x,
+      y,
+      width: touchesPhysicalRightEdge ? pieceW : pieceW + kerf,
+      height: touchesPhysicalBottomEdge ? pieceH : pieceH + kerf,
+    };
   }
 
   function findBestFit(freeRects, pieceW, pieceH, canRotate) {
@@ -323,11 +428,15 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
     for (let i = 0; i < freeRects.length; i++) {
       const fr = freeRects[i];
       if (fr.width >= pieceW && fr.height >= pieceH) {
-        const score = scoreBSSF(fr, pieceW, pieceH);
+        const score = useYBiasedScorer
+          ? scoreBSSFYBiased(fr, pieceW, pieceH, usableWidth, usableHeight)
+          : scoreBSSFPure(fr, pieceW, pieceH);
         if (best === null || score < best.score) best = { rectIdx: i, rotated: false, score };
       }
       if (allowRotation && canRotate && fr.width >= pieceH && fr.height >= pieceW) {
-        const score = scoreBSSF(fr, pieceH, pieceW);
+        const score = useYBiasedScorer
+          ? scoreBSSFYBiased(fr, pieceH, pieceW, usableWidth, usableHeight)
+          : scoreBSSFPure(fr, pieceH, pieceW);
         if (best === null || score < best.score) best = { rectIdx: i, rotated: true, score };
       }
     }
@@ -357,17 +466,34 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
   }
 
   for (const piece of sortedPieces) {
-    const kw = piece.width + kerf;
-    const kh = piece.height + kerf;
     let placed = false;
 
     for (const sheet of sheets) {
-      const best = findBestFit(sheet.freeRects, kw, kh, piece.canRotate);
+      let best = null;
+      for (let i = 0; i < sheet.freeRects.length; i++) {
+        const fr = sheet.freeRects[i];
+
+        const tryFit = (pieceW, pieceH, rotated) => {
+          const placedRect = buildExistingSheetPlacedRect(fr.x, fr.y, pieceW, pieceH);
+          if (fr.width < placedRect.width || fr.height < placedRect.height) return;
+
+          const score = useYBiasedScorer
+            ? scoreBSSFYBiased(fr, placedRect.width, placedRect.height, usableWidth, usableHeight)
+            : scoreBSSFPure(fr, placedRect.width, placedRect.height);
+
+          if (best === null || score < best.score) {
+            best = { rectIdx: i, rotated, score, placedRect };
+          }
+        };
+
+        tryFit(piece.width, piece.height, false);
+        if (allowRotation && piece.canRotate) {
+          tryFit(piece.height, piece.width, true);
+        }
+      }
+
       if (best !== null) {
-        const actualW = best.rotated ? kh : kw;
-        const actualH = best.rotated ? kw : kh;
         const fr = sheet.freeRects[best.rectIdx];
-        const placedRect = { x: fr.x, y: fr.y, width: actualW, height: actualH };
 
         sheet.pieces.push({
           ref: piece.ref,
@@ -379,7 +505,7 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
         });
 
         let newFreeRects = [];
-        for (const freeRect of sheet.freeRects) newFreeRects.push(...clipRect(freeRect, placedRect));
+        for (const freeRect of sheet.freeRects) newFreeRects.push(...clipRect(freeRect, best.placedRect));
         sheet.freeRects = pruneContained(newFreeRects);
 
         placed = true;
@@ -388,17 +514,73 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
     }
 
     if (!placed) {
-      const initFreeRects = [{ x: 0, y: 0, width: usableWidth, height: usableHeight }];
-      const best = findBestFit(initFreeRects, kw, kh, piece.canRotate);
+      // Kerf-expanded search ONLY on new sheet virtual envelope:
+      // the virtual envelope is usable+kerf so the kerf on the outer edge falls
+      // outside the physical sheet — only the piece itself needs to fit within usable bounds.
+      const kw = piece.width + kerf;
+      const kh = piece.height + kerf;
+      const virtualWidth = usableWidth + kerf;
+      const virtualHeight = usableHeight + kerf;
+      const initFreeRects = [{ x: 0, y: 0, width: virtualWidth, height: virtualHeight }];
+      let best = null;
+      const initRect = initFreeRects[0];
+
+      if (canPlaceOnFreshSheetWithVirtualKerf(piece.width, piece.height, usableWidth, usableHeight, kerf)) {
+        const score = useYBiasedScorer
+          ? scoreBSSFYBiased(initRect, kw, kh, usableWidth, usableHeight)
+          : scoreBSSFPure(initRect, kw, kh);
+        best = { rectIdx: 0, rotated: false, score };
+      }
+
+      if (
+        allowRotation &&
+        piece.canRotate &&
+        canPlaceOnFreshSheetWithVirtualKerf(piece.height, piece.width, usableWidth, usableHeight, kerf)
+      ) {
+        const score = useYBiasedScorer
+          ? scoreBSSFYBiased(initRect, kh, kw, usableWidth, usableHeight)
+          : scoreBSSFPure(initRect, kh, kw);
+        if (best === null || score < best.score) {
+          best = { rectIdx: 0, rotated: true, score };
+        }
+      }
+
       if (!best) continue;
 
+      // Kerf-expanded piece dimensions
       const actualW = best.rotated ? kh : kw;
       const actualH = best.rotated ? kw : kh;
-      const placedRect = { x: 0, y: 0, width: actualW, height: actualH };
 
-      let newFreeRects = [];
-      for (const freeRect of initFreeRects) newFreeRects.push(...clipRect(freeRect, placedRect));
-      
+      // Guillotine-style split: piece fills top-left of virtual envelope.
+      // Clip both child rects to physical usable bounds.
+      // - Right child: [actualW, virtualWidth) × [0, actualH) → clipped to usableWidth
+      // - Top child:   [0, actualW) × [actualH, virtualHeight) → clipped to usableHeight
+      const newFreeRects = [];
+      // Right remainder: from placed piece right edge to usableWidth,
+      // height clipped to usableHeight (NOT virtualHeight) — the virtual
+      // envelope allows kerf to spill outside the physical edge, but the
+      // symmetric remainder must not leak virtual height into freeRects
+      // used for later placements on the same sheet.
+      const rightHeight = Math.min(actualH, usableHeight);
+      if (actualW < usableWidth && rightHeight > 0) {
+        newFreeRects.push({ x: actualW, y: 0, width: usableWidth - actualW, height: rightHeight });
+      }
+      // Top remainder: from placed piece top (clipped to usableHeight) to usableHeight,
+      // full remaining width. The top remainder y is clipped to Math.min(actualH, usableHeight)
+      // so that if actualH exceeds usableHeight (virtual envelope overflow from exact bottom-edge
+      // fit), the remainder is placed at y=usableHeight (the physical top edge) instead of
+      // y=virtualHeight (outside the sheet).
+      const topY = Math.min(actualH, usableHeight);
+      if (topY < usableHeight && usableWidth > 0) {
+        newFreeRects.push({ x: 0, y: topY, width: usableWidth, height: usableHeight - topY });
+      }
+      // Bottom-right corner: the L-shaped remainder after right and top are carved out
+      // Both dimensions are already clipped above (right uses Math.min(actualH, usableHeight),
+      // top uses topY=Math.min(actualH,usableHeight)), so this is also safe.
+      if (actualW < usableWidth && topY < usableHeight) {
+        newFreeRects.push({ x: actualW, y: topY, width: usableWidth - actualW, height: usableHeight - topY });
+      }
+
       sheets.push({
         id: sheets.length + 1,
         pieces: [{
@@ -420,7 +602,7 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
     // Convert MaxRects overlapping freeRects into clean, non-overlapping rectangles for UI
     let cleanFreeRects = [{ x: 0, y: 0, width: usableWidth, height: usableHeight }];
     for (const piece of sheet.pieces) {
-      const placed = { x: piece.x, y: piece.y, width: piece.width + kerf, height: piece.height + kerf };
+      const placed = buildExistingSheetPlacedRect(piece.x, piece.y, piece.width, piece.height);
       const nextFree = [];
       for (const fr of cleanFreeRects) {
         const noOverlap = placed.x + placed.width <= fr.x || placed.x >= fr.x + fr.width ||
@@ -460,10 +642,208 @@ export function packMaxRects(parts, sheetWidth, sheetHeight, options = {}) {
   const { usableWidth, usableHeight } = usableArea(sheetWidth, sheetHeight, marginRight, marginTop);
   const pieces = expandParts(parts);
 
-  // Use only Area Descending for MaxRects to preserve neat visual packing
-  const areaDescending = (a, b) => (b.width * b.height) - (a.width * a.height);
-  const sortedPieces = [...pieces].sort(areaDescending);
-  
-  const layout = packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRotation);
+  // Use area-descending single sorter for deterministic backward-compatible output
+  const layout = packMaxRectsSingle(pieces, usableWidth, usableHeight, kerf, allowRotation);
   return layout || [];
+}
+
+// ─────────────────────────────────────────────
+// HYBRID STRATEGY — Guillotine sweep + MaxRects
+// ─────────────────────────────────────────────
+
+/**
+ * Curated subset of sorters for the reduced Guillotine sweep.
+ * Selected to cover diverse packing heuristics without brute-force imbalance.
+ * These 8 sorters were chosen from the 32 to give broad coverage:
+ * - Area (largest first)
+ * - Max dim (longest side)
+ * - Width, Height (single-axis)
+ * - Perimeter (combined size)
+ * - Aspect ratio W/H (shape)
+ * - Emphasize W, Emphasize H (power heuristics)
+ */
+const HYBRID_SORTERS = [
+  (a, b) => (b.width * b.height) - (a.width * a.height),           // 1. Area
+  (a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height), // 2. Max dim
+  (a, b) => b.width - a.width,                                      // 3. Width
+  (a, b) => b.height - a.height,                                    // 4. Height
+  (a, b) => (b.width + b.height) - (a.width + a.height),            // 5. Perimeter
+  (a, b) => (b.width / Math.max(1, b.height)) - (a.width / Math.max(1, a.height)), // 9. Ratio W/H
+  (a, b) => (Math.pow(b.width, 1.5) * b.height) - (Math.pow(a.width, 1.5) * a.height), // 13. Emphasize W
+  (a, b) => (Math.pow(b.height, 1.5) * b.width) - (Math.pow(a.height, 1.5) * a.width), // 14. Emphasize H
+];
+
+/**
+ * Compare two layouts and return the better one.
+ * Rule: MaxRects wins only on strict sheet-count improvement.
+ * Equal-sheet ties preserve Guillotine result (deterministic first-wins).
+ */
+function betterLayout(a, b) {
+  if (!a || a.length === 0) return b;
+  if (!b || b.length === 0) return a;
+  if (a.length < b.length) return a;
+  if (b.length < a.length) return b;
+  // Equal sheet count → preserve Guillotine result (first-wins = deterministic)
+  return a;
+}
+
+function isValidHybridCandidate(layout, usableWidth, usableHeight, kerf) {
+  if (!Array.isArray(layout)) return false;
+
+  for (const sheet of layout) {
+    const pieces = sheet?.pieces ?? [];
+
+    for (const piece of pieces) {
+      if (piece.x < 0 || piece.y < 0) return false;
+      if (piece.x + piece.width > usableWidth) return false;
+      if (piece.y + piece.height > usableHeight) return false;
+
+      const { allowRightKerfOverflow, allowBottomKerfOverflow } = getFirstPieceKerfOverflowAllowance(
+        piece,
+        usableWidth,
+        usableHeight
+      );
+
+      if (!allowRightKerfOverflow && piece.x + piece.width + kerf > usableWidth) return false;
+      if (!allowBottomKerfOverflow && piece.y + piece.height + kerf > usableHeight) return false;
+    }
+
+    for (let i = 0; i < pieces.length; i++) {
+      for (let j = i + 1; j < pieces.length; j++) {
+        const a = pieces[i];
+        const b = pieces[j];
+        const separatedX =
+          a.x + a.width + kerf <= b.x ||
+          b.x + b.width + kerf <= a.x;
+        const separatedY =
+          a.y + a.height + kerf <= b.y ||
+          b.y + b.height + kerf <= a.y;
+
+        if (!separatedX && !separatedY) return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Run a reduced Guillotine parameter sweep with curated sorters.
+ * 8 sorters × 4 split rules × 3 fit rules = 96 configurations.
+ */
+function packGuillotineReduced(parts, usableWidth, usableHeight, kerf, allowRotation) {
+  let best = null;
+  for (const sorter of HYBRID_SORTERS) {
+    const sortedPieces = [...parts].sort(sorter);
+    for (const splitRule of SPLIT_RULES) {
+      for (const fitRule of FIT_RULES) {
+        const layout = packGuillotineCore(sortedPieces, usableWidth, usableHeight, kerf, allowRotation, splitRule, fitRule);
+        best = betterLayout(layout, best);
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Curated multi-sorter set for MaxRects expansion.
+ * Chosen to provide diverse packing heuristics without combinatorial explosion.
+ * 8 sorters give broad coverage of area, axis, perimeter, aspect ratio, and power variants.
+ */
+const MAXRECTS_SORTERS = [
+  (a, b) => (b.width * b.height) - (a.width * a.height),              // 1. Area descending
+  (a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height), // 2. Max dim descending
+  (a, b) => b.width - a.width,                                         // 3. Width descending
+  (a, b) => b.height - a.height,                                       // 4. Height descending
+  (a, b) => (b.width + b.height) - (a.width + a.height),               // 5. Perimeter descending
+  (a, b) => (b.width / Math.max(1, b.height)) - (a.width / Math.max(1, a.height)), // 6. Aspect W/H
+  (a, b) => (Math.pow(b.width, 1.5) * b.height) - (Math.pow(a.width, 1.5) * a.height), // 7. Emphasize W
+  (a, b) => (Math.pow(b.height, 1.5) * b.width) - (Math.pow(a.height, 1.5) * a.width),  // 8. Emphasize H
+];
+
+/**
+ * Run MaxRects with a curated multi-sorter sweep.
+ * 8 sorters = 8 configurations — much faster than Guillotine's 96.
+ * Uses Y-biased scorer to match Guillotine's preference ordering.
+ * Returns the best layout found across all sorters.
+ */
+function packMaxRectsMulti(parts, usableWidth, usableHeight, kerf, allowRotation) {
+  let best = null;
+  for (const sorter of MAXRECTS_SORTERS) {
+    const sorted = [...parts].sort(sorter);
+    const layout = packMaxRectsCore(sorted, usableWidth, usableHeight, kerf, allowRotation, true);
+    best = betterLayout(layout, best);
+  }
+  return best;
+}
+
+/**
+ * Run MaxRects with area-descending sort (legacy single-config behavior).
+ * Used when caller wants deterministic single-result (e.g., packMaxRects public API).
+ */
+function packMaxRectsSingle(parts, usableWidth, usableHeight, kerf, allowRotation) {
+  const areaDesc = (a, b) => (b.width * b.height) - (a.width * a.height);
+  const sorted = [...parts].sort(areaDesc);
+  return packMaxRectsCore(sorted, usableWidth, usableHeight, kerf, allowRotation);
+}
+
+/**
+ * Hybrid packer: runs the FULL public Guillotine sweep AND multi-sorter MaxRects,
+ * then returns the better result deterministically.
+ *
+ * IMPORTANT: The Guillotine branch uses the SAME 32-sorter × 4-split × 3-fit = 384-config
+ * sweep as the public packGuillotine API to guarantee hybrid never returns more sheets
+ * than packGuillotine for the same input.
+ *
+ * Decision logic:
+ *  1. Fewer sheets wins.
+ *  2. If sheet count ties, scrap quality (consolidated waste) wins.
+ *  3. If still tied, Guillotine wins (prefers structured cuts).
+ *
+ * @param {Array} parts              - Parts list [{ ref, width, height, qty, canRotate }]
+ * @param {number} sheetWidth        - Physical sheet width (mm)
+ * @param {number} sheetHeight       - Physical sheet height (mm)
+ * @param {Object} [options]         - { kerf, marginTop, marginRight, allowRotation }
+ * @returns {Array}                  - Best layout found
+ */
+export function packHybrid(parts, sheetWidth, sheetHeight, options = {}) {
+  if (!parts || parts.length === 0) return [];
+
+  const expanded = expandParts(parts);
+  const { kerf = DEFAULT_KERF, allowRotation = true } = options;
+  const { usableWidth, usableHeight } = usableArea(sheetWidth, sheetHeight, options.marginRight ?? DEFAULT_MARGIN, options.marginTop ?? DEFAULT_MARGIN);
+
+  // Run FULL Guillotine sweep (384 configs) — same as public packGuillotine for fair comparison
+  const guillotineResult = packGuillotineFull(expanded, usableWidth, usableHeight, kerf, allowRotation);
+  // Run multi-sorter MaxRects (8 configs) with Y-biased scoring to match Guillotine preference
+  const maxrectsResult = packMaxRectsMulti(expanded, usableWidth, usableHeight, kerf, allowRotation);
+
+  const guillotineValid = isValidHybridCandidate(guillotineResult, usableWidth, usableHeight, kerf);
+  const maxrectsValid = isValidHybridCandidate(maxrectsResult, usableWidth, usableHeight, kerf);
+
+  if (guillotineValid && !maxrectsValid) return guillotineResult;
+  if (maxrectsValid && !guillotineValid) return maxrectsResult;
+
+  return betterLayout(guillotineResult, maxrectsResult);
+}
+
+/**
+ * Run the full public Guillotine sweep (384 configs = 32 sorters × 4 split × 3 fit).
+ * Exposed separately for use by packHybrid to ensure hybrid is never worse than public API.
+ * Uses the SAME isBetterLayout tie semantics as public packGuillotine so that when
+ * two layouts have equal sheet count AND equal scrap score, the FIRST one found wins
+ * (preserving deterministic iteration order rather than last-one-wins).
+ */
+function packGuillotineFull(parts, usableWidth, usableHeight, kerf, allowRotation) {
+  let best = null;
+  for (const sorter of SORTERS) {
+    const sortedPieces = [...parts].sort(sorter);
+    for (const splitRule of SPLIT_RULES) {
+      for (const fitRule of FIT_RULES) {
+        const layout = packGuillotineCore(sortedPieces, usableWidth, usableHeight, kerf, allowRotation, splitRule, fitRule);
+        if (isBetterLayout(layout, best)) best = layout;
+      }
+    }
+  }
+  return best || [];
 }

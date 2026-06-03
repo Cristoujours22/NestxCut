@@ -3,7 +3,12 @@
  * Layout Validation — Overlap & Boundary Checks + plan_posiciones.json Parser
  */
 
-import { usableArea, DEFAULT_MARGIN, DEFAULT_KERF } from './nesting.js';
+import {
+  usableArea,
+  DEFAULT_MARGIN,
+  DEFAULT_KERF,
+  getFirstPieceKerfOverflowAllowance,
+} from './nestingAlgorithms.js';
 
 // ─────────────────────────────────────────────
 // LAYOUT VALIDATOR
@@ -41,6 +46,7 @@ export function validateLayout(sheets, sheetWidth, sheetHeight, options = {}) {
 
     // Boundary check
     for (const piece of pieces) {
+      // Boundary check — raw piece must be in-bounds
       if (piece.x < 0) {
         errors.push(`Sheet ${sheet.id}: piece ref=${piece.ref} has x=${piece.x} (< 0).`);
       }
@@ -57,6 +63,26 @@ export function validateLayout(sheets, sheetWidth, sheetHeight, options = {}) {
         errors.push(
           `Sheet ${sheet.id}: piece ref=${piece.ref} exceeds usable height ` +
           `(y=${piece.y}, height=${piece.height}, limit=${usableHeight}).`
+        );
+      }
+      // Kerf-expanded boundary check: kerf may spill outside the physical sheet only
+      // when the piece itself already touches that physical edge. This matches the
+      // virtual-envelope semantics used by the packers for exact edge fits.
+      const { allowRightKerfOverflow, allowBottomKerfOverflow } = getFirstPieceKerfOverflowAllowance(
+        piece,
+        usableWidth,
+        usableHeight
+      );
+      if (!allowRightKerfOverflow && piece.x + piece.width + kerf > usableWidth) {
+        errors.push(
+          `Sheet ${sheet.id}: piece ref=${piece.ref} exceeds usable width with kerf ` +
+          `(x=${piece.x}, width=${piece.width}, kerf=${kerf}, effective_right=${piece.x + piece.width + kerf}, limit=${usableWidth}).`
+        );
+      }
+      if (!allowBottomKerfOverflow && piece.y + piece.height + kerf > usableHeight) {
+        errors.push(
+          `Sheet ${sheet.id}: piece ref=${piece.ref} exceeds usable height with kerf ` +
+          `(y=${piece.y}, height=${piece.height}, kerf=${kerf}, effective_bottom=${piece.y + piece.height + kerf}, limit=${usableHeight}).`
         );
       }
     }
