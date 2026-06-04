@@ -1,12 +1,15 @@
 /**
- * src/engine/nesting.js
  * 2D Bin-Packing Engine — Multi-Heuristic Guillotine Split & MaxRects (BSSF)
  *
  * All dimensions are in mm. Kerf is applied by expanding each piece's
  * packed footprint by `kerf` on each side (width + kerf, height + kerf).
- * Refilado (trim) is a TOTAL deduction per axis, not per-edge. For example,
- * refiladoX=20 on a 2440-wide board means usable = 2440-20 = 2420.
- * Both left+right edges consume from the same refiladoX pool.
+ *
+ * Refilado (trim) is a one-sided deduction per axis:
+ *   - refiladoX: deducted from the RIGHT side only  (usableWidth = boardWidth - refiladoX)
+ *   - refiladoY: deducted from the TOP side only    (usableHeight = boardHeight - refiladoY)
+ *
+ * Refilado value already includes the edge kerf effect — kerf is NOT added
+ * again to the border trim; kerf is used only for piece-to-piece spacing.
  */
 
 // ─────────────────────────────────────────────
@@ -57,21 +60,23 @@ function canPlaceOnFreshSheetWithVirtualKerf(pieceW, pieceH, usableWidth, usable
 }
 
 /**
- * Compute the usable sheet dimensions after applying trim/refilado deductions.
+ * Compute the usable sheet dimensions after applying one-sided refilado deductions.
  * @param {number} sheetWidth  Physical sheet width (mm)
  * @param {number} sheetHeight Physical sheet height (mm)
- * @param {number} refiladoX  TOTAL trim deduction on X axis (both left+right sides combined, mm); default 20
- * @param {number} refiladoY  TOTAL trim deduction on Y axis (both top+bottom sides combined, mm); default 20
+ * @param {number} refiladoX  Refilado deducted from RIGHT side only (mm)
+ * @param {number} refiladoY  Refilado deducted from TOP side only (mm)
  * @returns {{ usableWidth: number, usableHeight: number }}
  *
- * Business rule: refiladoX and refiladoY are TOTAL per-axis deductions, not per-edge.
- * Example: board 2440×2150 with refiladoX=20 and refiladoY=20
- *   → usable = (2440-20) × (2150-20) = 2420×2130 (NOT 2400×2110).
- * Kerf is applied separately when placing pieces.
+ * Business rule: one-sided refilado — refiladoX shifts the right edge inward,
+ * refiladoY shifts the top edge downward. No kerf is added here; kerf is
+ * applied separately for piece-to-piece spacing only.
+ *
+ * Example: board 2440×2150 with refiladoX=20, refiladoY=20
+ *   → usable = (2440-20) × (2150-20) = 2420×2130
  */
 export function usableArea(sheetWidth, sheetHeight, refiladoX = DEFAULT_MARGIN, refiladoY = DEFAULT_MARGIN) {
   return {
-    // Subtract total refilado once per axis (left+right combined, top+bottom combined)
+    // One-sided refilado: usable area is reduced from right (X) and top (Y)
     usableWidth: sheetWidth - refiladoX,
     usableHeight: sheetHeight - refiladoY,
   };
@@ -88,6 +93,8 @@ function expandParts(parts) {
   for (const part of parts) {
     for (let i = 0; i < (part.qty ?? 1); i++) {
       expanded.push({
+        id: part.id,
+        instanceId: `${part.id}_${i}`,
         ref: part.ref,
         width: part.width,
         height: part.height,
@@ -295,6 +302,8 @@ function packGuillotineCore(sortedPieces, usableWidth, usableHeight, kerf, allow
       if (fit) {
         const fr = sheet.freeRects[fit.rectIdx];
         sheet.pieces.push({
+          id: piece.id,
+          instanceId: piece.instanceId,
           ref: piece.ref,
           x: fr.x,
           y: fr.y,
@@ -343,6 +352,8 @@ function packGuillotineCore(sortedPieces, usableWidth, usableHeight, kerf, allow
       sheets.push({
         id: sheets.length + 1,
         pieces: [{
+          id: piece.id,
+          instanceId: piece.instanceId,
           ref: piece.ref,
           x: 0,
           y: 0,
@@ -496,6 +507,8 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
         const fr = sheet.freeRects[best.rectIdx];
 
         sheet.pieces.push({
+          id: piece.id,
+          instanceId: piece.instanceId,
           ref: piece.ref,
           x: fr.x,
           y: fr.y,
@@ -584,6 +597,8 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
       sheets.push({
         id: sheets.length + 1,
         pieces: [{
+          id: piece.id,
+          instanceId: piece.instanceId,
           ref: piece.ref,
           x: 0,
           y: 0,
@@ -639,6 +654,7 @@ function packMaxRectsCore(sortedPieces, usableWidth, usableHeight, kerf, allowRo
 
 export function packMaxRects(parts, sheetWidth, sheetHeight, options = {}) {
   const { marginTop = DEFAULT_MARGIN, marginRight = DEFAULT_MARGIN, kerf = DEFAULT_KERF, allowRotation = true } = options;
+  // marginRight → refiladoX (right-side trim), marginTop → refiladoY (top-side trim)
   const { usableWidth, usableHeight } = usableArea(sheetWidth, sheetHeight, marginRight, marginTop);
   const pieces = expandParts(parts);
 

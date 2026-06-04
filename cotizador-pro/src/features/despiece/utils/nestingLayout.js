@@ -11,6 +11,11 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
   const parts = [];
   const unplaced = [];
 
+// One-sided refilado: refiladoX deducts from RIGHT, refiladoY deducts from TOP
+  // Refilado already includes edge kerf; kerf (piece spacing) is applied separately
+  const usableWidth = Math.max(0, boardWidth - refiladoX);
+  const usableHeight = Math.max(0, boardHeight - refiladoY);
+
   rows.forEach((row, index) => {
     const w = toNumber(row?.largo);
     const h = toNumber(row?.ancho);
@@ -24,17 +29,19 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
     }
 
     if (w > 0 && h > 0 && q > 0) {
+      const label = row?.detalle?.trim() || `Pieza ${index + 1}`;
       const part = {
         id: row?.id || `piece_${index}`,
-        ref: row?.detalle?.trim() || `Pieza ${index + 1}`,
+        ref: label,
+        label,
         width: w,
         height: h,
         qty: q,
         canRotate: canRotate
       };
       
-      const fitsNormal = (part.width <= boardWidth && part.height <= boardHeight);
-      const fitsRotated = part.canRotate && (part.height <= boardWidth && part.width <= boardHeight);
+      const fitsNormal = (part.width <= usableWidth && part.height <= usableHeight);
+      const fitsRotated = part.canRotate && (part.height <= usableWidth && part.width <= usableHeight);
       
       if (fitsNormal || fitsRotated) {
         parts.push(part);
@@ -46,11 +53,17 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
     }
   });
 
-  // Compute usable area after refilado trim deductions
-  const usableWidth = Math.max(0, boardWidth - refiladoX);
-  const usableHeight = Math.max(0, boardHeight - refiladoY);
+  if (!usableWidth || !usableHeight) {
+    return {
+      sheets: [],
+      unplaced: [
+        ...unplaced.map((part) => ({ ...part, label: part.label || part.ref })),
+        ...parts.flatMap((part) => Array.from({ length: part.qty }, (_, i) => ({ ...part, label: part.ref, instanceId: `${part.id}_${i}` })))
+      ]
+    };
+  }
 
-  if (!usableWidth || !usableHeight || parts.length === 0) return { sheets: [], unplaced };
+  if (parts.length === 0) return { sheets: [], unplaced };
 
   const options = {
     marginTop: 0,
@@ -75,10 +88,19 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
       ...p,
       label: p.ref,
       // Stable per-instance identity for hover/highlight in preview
-      instanceId: `${sheet.id}_${pIdx}_${p.ref}_${sIdx}`
+      instanceId: p.instanceId || `${sheet.id}_${pIdx}_${p.ref}_${sIdx}`
     }))
   }));
 
-  return { sheets, unplaced };
+  const placedInstanceIds = new Set(
+    sheets.flatMap((sheet) => sheet.pieces.map((piece) => piece.instanceId).filter(Boolean))
+  );
+
+  const placementFailures = parts.flatMap((part) =>
+    Array.from({ length: part.qty }, (_, i) => ({ ...part, instanceId: `${part.id}_${i}` }))
+      .filter((piece) => !placedInstanceIds.has(piece.instanceId))
+  );
+
+  return { sheets, unplaced: [...unplaced, ...placementFailures] };
 }
 

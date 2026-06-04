@@ -210,36 +210,23 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
               }}
           >
             {/* Trim/Refilado overlay — non-usable boundary bands */}
+            {/* Trim/Refilado overlay — one-sided: X from right edge, Y from top edge */}
             {safeRefiladoX > 0 && (
-              <>
-                {/* Left trim band */}
-                <div className="absolute top-0 bottom-0 bg-[#f43f5e15] border-r border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
-                  style={{ left: 0, width: safeRefiladoX }}
-                />
-                {/* Right trim band */}
-                <div className="absolute top-0 bottom-0 bg-[#f43f5e15] border-l border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
-                  style={{ right: 0, width: safeRefiladoX }}
-                />
-              </>
+              <div className="absolute top-0 bottom-0 bg-[#f43f5e15] border-l border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
+                style={{ right: 0, width: safeRefiladoX }}
+              />
             )}
             {safeRefiladoY > 0 && (
-              <>
-                {/* Top trim band */}
-                <div className="absolute left-0 right-0 bg-[#f43f5e15] border-b border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
-                  style={{ top: 0, height: safeRefiladoY }}
-                />
-                {/* Bottom trim band */}
-                <div className="absolute left-0 right-0 bg-[#f43f5e15] border-t border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
-                  style={{ bottom: 0, height: safeRefiladoY }}
-                />
-              </>
+              <div className="absolute left-0 right-0 bg-[#f43f5e15] border-b border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
+                style={{ top: 0, height: safeRefiladoY }}
+              />
             )}
-            {/* Usable boundary indicator (dashed inner rectangle) */}
+            {/* Usable boundary indicator (dashed inner rectangle) — one-sided trim: usable starts below top trim */}
             {safeRefiladoX > 0 || safeRefiladoY > 0 ? (
               <div
                 className="absolute pointer-events-none z-[4]"
                 style={{
-                  left: safeRefiladoX,
+                  left: 0,
                   top: safeRefiladoY,
                   width: Math.max(0, usableWidth),
                   height: Math.max(0, usableHeight),
@@ -254,9 +241,10 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                 const rawRectX = sanitizeCoord(rect?.x);
                 const rawRectY = sanitizeCoord(rect?.y);
                 const rectX = clampCoord(rawRectX, safeBoardWidth);
-                const rectY = clampCoord(rawRectY, safeBoardHeight);
+                const rectYWithTrim = rawRectY + safeRefiladoY;
+                const rectY = clampCoord(rectYWithTrim, safeBoardHeight);
                 const clippedRectLeft = Math.max(0, rectX - rawRectX);
-                const clippedRectTop = Math.max(0, rectY - rawRectY);
+                const clippedRectTop = Math.max(0, rectY - rectYWithTrim);
                 const rectWidth = Math.min(Math.max(0, sanitizeSize(rect?.width) - clippedRectLeft), Math.max(0, safeBoardWidth - rectX));
                 const rectHeight = Math.min(Math.max(0, sanitizeSize(rect?.height) - clippedRectTop), Math.max(0, safeBoardHeight - rectY));
 
@@ -324,82 +312,79 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                 const rawPieceX = sanitizeCoord(piece?.x);
                 const rawPieceY = sanitizeCoord(piece?.y);
                 const pLeft = clampCoord(rawPieceX, safeBoardWidth);
-                const pTop = clampCoord(rawPieceY, safeBoardHeight);
+                const pTopWithTrim = rawPieceY + safeRefiladoY;
+                const pTop = clampCoord(pTopWithTrim, safeBoardHeight);
                 const pieceWidth = sanitizeSize(piece?.width);
                 const pieceHeight = sanitizeSize(piece?.height);
                 const clippedPieceLeft = Math.max(0, pLeft - rawPieceX);
-                const clippedPieceTop = Math.max(0, pTop - rawPieceY);
+                const clippedPieceTop = Math.max(0, pTop - pTopWithTrim);
                 const pWidth = Math.min(Math.max(0, pieceWidth - clippedPieceLeft), Math.max(0, safeBoardWidth - pLeft));
                 const pHeight = Math.min(Math.max(0, pieceHeight - clippedPieceTop), Math.max(0, safeBoardHeight - pTop));
 
                 if (pWidth <= 0 || pHeight <= 0) return null;
-                
 
                 const isVertical = pHeight > pWidth;
-
-                const safeInternalMargin = Math.min(8, Math.max(4, pWidth * 0.08));
-                const anchoredLabelWidth = Math.max(0, (pWidth / 2) - safeInternalMargin);
 
                 // Minimum rendered sizes (in screen px) for label tiers
                 const screenW = pWidth * currentScale;
                 const screenH = pHeight * currentScale;
-                const anchoredScreenW = anchoredLabelWidth * currentScale;
-                const MIN_FULL_LABEL_W = 52;
-                const MIN_FULL_LABEL_H = 28;
+                const MIN_FULL_LABEL_W = 62;
+                const MIN_FULL_LABEL_H = 34;
                 const MIN_SHORT_LABEL_W = 28;
-                const MIN_SHORT_LABEL_H = 18;
-                const MIN_DIM_W = 44;
-                const MIN_DIM_H = 44;
+                const MIN_SHORT_LABEL_H = 16;
+                const MIN_DIM_W = 52;
+                const MIN_DIM_H = 40;
+                const MIN_VERTICAL_LABEL_W = 18;
+                const MIN_VERTICAL_LABEL_H = 52;
 
                 // Determine label tier based on rendered size
                 const canShowFullLabel = screenW >= MIN_FULL_LABEL_W && screenH >= MIN_FULL_LABEL_H;
-                const shortLabelScreenW = isVertical ? screenW : anchoredScreenW;
-                const canShowShortLabel = shortLabelScreenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H;
+                const canShowShortLabel = screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H;
 
-                // Compute short label: first meaningful chunk of ref
-                const shortRef = (() => {
-                  if (!piece.ref) return '';
-                  const trimmedRef = piece.ref.trim();
-                  const parts = trimmedRef.split(/[\s-]+/).filter(Boolean);
-                  return parts.length > 1 ? parts[0] : trimmedRef.slice(0, 3);
-                })();
-
-                const pieceLabel = canShowFullLabel
-                  ? piece.ref
-                  : canShowShortLabel
-                    ? shortRef
-                    : '';
-                const useStartAnchoredShortLabel = !isVertical && !canShowFullLabel && canShowShortLabel;
-
-                const showHeightDim = canShowSecondaryLabel({
-                  primaryPx: screenH,
-                  crossPx: screenW,
-                  minPrimaryPx: MIN_DIM_H + 12,
-                  minCrossPx: 22,
-                  minZoom: 0.95,
-                });
-                const showWidthDim = canShowSecondaryLabel({
-                  primaryPx: screenW,
-                  crossPx: screenH,
-                  minPrimaryPx: MIN_DIM_W + 12,
-                  minCrossPx: 22,
+                const showDimLabel = canShowSecondaryLabel({
+                  primaryPx: Math.min(screenW, screenH),
+                  crossPx: Math.max(screenW, screenH),
+                  minPrimaryPx: MIN_DIM_W,
+                  minCrossPx: 20,
                   minZoom: 0.95,
                 });
 
-                // Dynamic font sizes to prevent overflow on narrow pieces when zoomed out
-                // We want 14px on screen for labels, 11px for dimensions
-                const maxLabelSize = (isVertical ? pWidth : pHeight) * 0.6;
+                // Dynamic font sizes
+                const maxLabelSize = Math.min(pWidth, pHeight) * 0.55;
                 const targetLabelSize = 14 / currentScale;
                 const labelFontSize = Math.max(4 / currentScale, Math.min(maxLabelSize, targetLabelSize));
 
-                const maxDimSize = Math.min(pWidth, pHeight) * 0.45;
+                const maxDimSize = Math.min(pWidth, pHeight) * 0.4;
                 const targetDimSize = 11 / currentScale;
                 const dimFontSize = Math.max(3 / currentScale, Math.min(maxDimSize, targetDimSize));
-                
+
+                // Label derivation
+                const fullLabelSource = (piece.label || piece.ref || '').trim();
+                const shortAlias = (() => {
+                  if (!fullLabelSource) return '';
+                  const codeMatch = fullLabelSource.match(/^[A-Za-z]{1,4}\d{1,4}[A-Za-z0-9-]*/)?.[0];
+                  if (codeMatch) return codeMatch.toUpperCase();
+                  const prefix = fullLabelSource.split(/[\s,;:.()[\]{}]+/).filter(Boolean)[0] || '';
+                  return prefix.slice(0, 8).toUpperCase();
+                })();
+
+                const canShowVerticalLabel = isVertical
+                  && screenW >= MIN_VERTICAL_LABEL_W
+                  && screenH >= MIN_VERTICAL_LABEL_H;
+
+                const pieceLabel = isVertical
+                  ? (canShowVerticalLabel ? shortAlias : '')
+                  : canShowFullLabel
+                    ? fullLabelSource
+                    : canShowShortLabel
+                      ? shortAlias
+                      : '';
+                const isShortLabel = Boolean(pieceLabel) && pieceLabel !== fullLabelSource;
+                const showDimValue = showDimLabel && (canShowFullLabel || (canShowShortLabel && !isShortLabel));
                 const hoverKey = piece.instanceId != null ? `instance:${piece.instanceId}` : `fallback:${i}`;
 
                 return (
-                  <div 
+                  <div
                     key={`piece_${piece.instanceId || i}`}
                     className={`absolute border border-[#00e0fe80] flex items-center justify-center
                       ${hoveredPiece?.hoverKey === hoverKey ? 'bg-[#00e0fe40] z-30 shadow-[0_0_15px_rgba(0,224,254,0.5)]' : 'bg-[#060e20] z-10'}
@@ -421,54 +406,30 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                     }}
                     onMouseLeave={() => setHoveredPiece(null)}
                   >
-                    {/* Center Label (Reference) — adaptive by piece size */}
+                    {/* Clean centered label — no badge, no border, no background */}
                     {pieceLabel && (
-                      <div className="absolute inset-0 flex items-center justify-center p-1 overflow-hidden pointer-events-none">
-                        <span 
-                          className={`font-bold truncate px-1 flex items-center ${useStartAnchoredShortLabel ? 'text-left justify-start' : 'text-center justify-center'}`}
-                          style={{ 
-                            fontSize: `${labelFontSize}px`,
-                            width: isVertical
-                              ? `${pHeight * 0.85}px`
-                              : useStartAnchoredShortLabel
-                                ? `${anchoredLabelWidth}px`
-                                : '90%',
-                            left: useStartAnchoredShortLabel ? `${pWidth / 2}px` : undefined,
-                            position: useStartAnchoredShortLabel ? 'absolute' : undefined,
-                            transform: isVertical ? 'rotate(-90deg)' : 'none',
-                            whiteSpace: 'nowrap',
-                            color: hoveredPiece?.hoverKey === hoverKey ? '#ffffff' : '#e2e8f0'
-                          }}
-                        >
-                          {pieceLabel}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Height Label (Left edge) */}
-                    {showHeightDim && (
-                      <div 
-                        className="absolute left-0 top-1/2 -translate-y-1/2 bg-[#08111fcc] py-[1px] px-[2px] rounded-r z-20 flex items-center justify-center border-y border-r border-[#00e0fe2e]"
-                      >
-                        <span className="font-medium text-[#99f7ffcc] leading-none" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: `${dimFontSize}px` }}>
-                          {Math.round(pieceHeight)}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Width Label (Bottom edge) */}
-                    {showWidthDim && (
-                      <div 
-                        className="absolute text-[#99f7ffcc] bg-[#08111fcc] rounded-t-sm border-x border-t border-[#00e0fe2e] pointer-events-none z-10 flex items-center justify-center"
-                        style={{ 
-                          left: '50%', bottom: '0', transform: 'translateX(-50%)',
-                          padding: '0.05em 0.25em'
+                      <span
+                        className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 overflow-hidden"
+                        style={{
+                          fontSize: `${labelFontSize}px`,
+                          color: hoveredPiece?.hoverKey === hoverKey ? '#ffffff' : '#cbd5e1',
+                          whiteSpace: 'nowrap',
+                          textAlign: 'center',
+                          transform: isVertical ? 'rotate(-90deg)' : 'none',
                         }}
                       >
-                        <span className="font-medium leading-none" style={{ fontSize: `${dimFontSize}px` }}>
-                          {Math.round(pieceWidth)}
-                        </span>
-                      </div>
+                        {pieceLabel}
+                      </span>
+                    )}
+
+                    {/* Minimal dimension label at bottom — only for large pieces */}
+                    {showDimValue && (
+                      <span
+                        className="absolute bottom-0 left-0 right-0 flex items-center justify-center pointer-events-none text-[#67e8f9] opacity-70"
+                        style={{ fontSize: `${dimFontSize}px`, padding: '0 0.2em 2px' }}
+                      >
+                        {Math.round(pieceWidth)}×{Math.round(pieceHeight)}
+                      </span>
                     )}
                   </div>
                 );
@@ -488,11 +449,11 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
             {hoveredPiece.label || hoveredPiece.ref}
           </div>
           <div className="flex justify-between text-xs text-slate-300">
-            <span>Ancho:</span>
+            <span>Largo:</span>
             <span className="font-mono font-bold text-white">{hoveredPiece.width} mm</span>
           </div>
           <div className="flex justify-between text-xs text-slate-300">
-            <span>Largo:</span>
+            <span>Ancho:</span>
             <span className="font-mono font-bold text-white">{hoveredPiece.height} mm</span>
           </div>
           <div className="flex justify-between text-xs text-slate-300">
