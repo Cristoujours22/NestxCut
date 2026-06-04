@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ArrowLeft, Play, Layout, Grid, Maximize } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import NestingSidebar from './NestingSidebar';
@@ -35,7 +35,7 @@ export default function NestingDashboard({
 
   const runTimerRef = useRef(null);
 
-  const handleRun = () => {
+  const handleRun = useCallback(() => {
     if (runTimerRef.current) clearTimeout(runTimerRef.current);
     setIsRunning(true);
     const timer = setTimeout(() => {
@@ -60,7 +60,7 @@ export default function NestingDashboard({
       }
     }, 100);
     runTimerRef.current = timer;
-  };
+  }, [rows, config]);
 
   useEffect(() => {
     return () => { if (runTimerRef.current) clearTimeout(runTimerRef.current); };
@@ -70,7 +70,17 @@ export default function NestingDashboard({
     if (rows.length > 0) {
       handleRun();
     }
-  }, [rows]);
+  }, [
+    rows,
+    handleRun,
+    config.boardWidth,
+    config.boardHeight,
+    config.kerf,
+    config.refiladoX,
+    config.refiladoY,
+    config.allowGlobalRotation,
+    config.algorithm
+  ]);
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex flex-col bg-[#0B1121] text-slate-200 font-sans overflow-hidden">
@@ -133,7 +143,7 @@ export default function NestingDashboard({
             ) : (
               <Play size={16} fill="currentColor" />
             )}
-            {isRunning ? 'Optimizando...' : 'Re-calcular'}
+            {isRunning ? 'Optimizando...' : 'Recalcular'}
           </button>
         </div>
       </header>
@@ -145,7 +155,10 @@ export default function NestingDashboard({
         <div className="w-80 flex-shrink-0 bg-[#0f172a]/80 border-r border-slate-800 overflow-y-auto">
           <NestingSidebar 
             config={config} 
-            onChange={(newConfig) => setConfig({ ...config, ...newConfig })}
+            onChange={(newConfig) => setConfig((prev) => ({
+              ...prev,
+              ...(typeof newConfig === 'function' ? newConfig(prev) : newConfig || {})
+            }))}
             totalParts={rows.reduce((sum, row) => sum + Math.max(0, Number(row?.cantidad || row?.cant || 0)), 0)}
             statsComponent={optimizedSheets.length > 0 ? (
               <NestingStats 
@@ -172,7 +185,7 @@ export default function NestingDashboard({
               <span className="text-slate-400">Kerf:</span>
               <span className="text-white font-mono font-bold">{config.kerf} mm</span>
               <span className="text-slate-600">|</span>
-              <span className="text-slate-400">Refilado:</span>
+              <span className="text-slate-400">Refilado (der./sup.):</span>
               <span className="text-white font-mono font-bold">{config.refiladoX}/{config.refiladoY} mm</span>
               <span className="text-slate-600">|</span>
               <span className="text-slate-400">Rotación:</span>
@@ -186,10 +199,10 @@ export default function NestingDashboard({
               <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-4 flex flex-col gap-2">
                 <h3 className="text-rose-400 font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">warning</span>
-                  Piezas no posicionadas ({unplacedParts.length})
+                  Piezas sin ubicar ({unplacedParts.length})
                 </h3>
                 <p className="text-xs text-rose-300/80">
-                  Algunas piezas exceden el tamaño de la lámina o no lograron acomodarse. Revisa las dimensiones de las piezas listadas a continuación o cambia la rotación.
+                  Algunas piezas exceden el tamaño de la lámina o no lograron acomodarse. Revisá las dimensiones de las piezas listadas a continuación o cambiá la rotación.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {unplacedParts.map((p, i) => (
@@ -215,7 +228,7 @@ export default function NestingDashboard({
               {unplacedParts.length > 0 && (
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-sm bg-rose-500/20 border border-rose-500/40" />
-                  <span>Pieza sin colocar</span>
+                  <span>Pieza sin ubicar</span>
                 </span>
               )}
             </div>
@@ -247,7 +260,7 @@ export default function NestingDashboard({
                 <p className="text-sm mt-2 opacity-60">Las piezas exceden el espacio disponible o no se pudieron acomodar en la lámina.</p>
                 {unplacedParts.length > 0 && (
                   <p className="text-xs mt-3 text-amber-500/70 bg-amber-500/10 px-3 py-2 rounded border border-amber-500/30">
-                    {unplacedParts.length} pieza{unplacedParts.length !== 1 ? 's' : ''} no posicionada{unplacedParts.length !== 1 ? 's' : ''}.
+                    {unplacedParts.length} pieza{unplacedParts.length !== 1 ? 's' : ''} sin ubicar.
                     Revisá las dimensiones o habilitá la rotación.
                   </p>
                 )}

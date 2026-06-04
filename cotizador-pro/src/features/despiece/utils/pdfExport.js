@@ -298,10 +298,11 @@ function addSectionTitle(doc, title, yPosition) {
 }
 
 // Helper function to check if a label would collide with other pieces
-function checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, labelX, labelY, labelWidth, allPieces, scale, startX, startY, isVertical = false) {
+function checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, labelX, labelY, labelWidth, allPieces, scale, startX, startY, trimOffsetY = 0, isVertical = false) {
   // Convert label position to board coordinates for collision detection
   const boardLabelX = (labelX - startX) / scale;
   const boardLabelY = (labelY - startY) / scale;
+  const trimmedPieceY = (pieceY - startY) / scale;
   
   // Define collision buffer area around the label
   const collisionBuffer = 3; // mm buffer
@@ -309,13 +310,13 @@ function checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, labelX, la
   // Check if label would overlap with any other piece
   for (const otherPiece of allPieces) {
     // Skip self
-    if (otherPiece.x === (pieceX - startX) / scale && otherPiece.y === (pieceY - startY) / scale) {
+    if (otherPiece.x === (pieceX - startX) / scale && (otherPiece.y + trimOffsetY) === trimmedPieceY) {
       continue;
     }
     
     // Check if label area overlaps with other piece
     const otherPieceX = otherPiece.x;
-    const otherPieceY = otherPiece.y;
+    const otherPieceY = otherPiece.y + trimOffsetY;
     const otherPieceWidth = otherPiece.width;
     const otherPieceHeight = otherPiece.height;
     
@@ -349,7 +350,7 @@ function checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, labelX, la
 }
 
 // Helper function to render leftover/free areas (sobrante)
-function addFreeAreas(doc, sheet, startX, startY, scale, boardWidth, boardHeight, variant = 'default') {
+function addFreeAreas(doc, sheet, startX, startY, scale, boardWidth, boardHeight, trimOffsetY = 0, variant = 'default') {
   if (!sheet.freeRects || sheet.freeRects.length === 0) return;
   
   // V8: Even more subtle leftover areas
@@ -363,7 +364,7 @@ function addFreeAreas(doc, sheet, startX, startY, scale, boardWidth, boardHeight
       if (rect.width < 5 || rect.height < 5) return;
           
       const rectX = startX + rect.x * scale;
-      const rectY = startY + rect.y * scale;
+      const rectY = startY + (rect.y + trimOffsetY) * scale;
       const rectWidth = rect.width * scale;
       const rectHeight = rect.height * scale;
           
@@ -408,9 +409,10 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
   doc.setLineWidth(0.3);
   doc.rect(startX, startY, scaledWidth, scaledHeight, 'S');
   
-  // Draw usable area - very subtle dashed line
-  const usableStartX = startX + ((boardWidth - usableWidth) / 2) * scale;
-  const usableStartY = startY + ((boardHeight - usableHeight) / 2) * scale;
+  // Draw usable area - one-sided trim: usable starts below the top trim band
+  const trimOffsetY = Math.max(0, boardHeight - usableHeight);
+  const usableStartX = startX; // no left offset — refiladoX deducts from right side only
+  const usableStartY = startY + trimOffsetY * scale; // top offset — refiladoY deducts from top only
   const usableScaledWidth = usableWidth * scale;
   const usableScaledHeight = usableHeight * scale;
   
@@ -423,7 +425,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
   // Draw pieces - simple black borders only
   sheet.pieces.forEach(piece => {
     const pieceX = startX + piece.x * scale;
-    const pieceY = startY + piece.y * scale;
+    const pieceY = startY + (piece.y + trimOffsetY) * scale;
     const pieceWidth = piece.width * scale;
     const pieceHeight = piece.height * scale;
     
@@ -458,7 +460,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
               const widthTextY = pieceY + pieceHeight + 1;
               
               // Check for collisions with other pieces
-              const canShowWidth = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, widthTextX, widthTextY, widthTextWidth, sheet.pieces, scale, startX, startY);
+              const canShowWidth = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, widthTextX, widthTextY, widthTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY);
               if (canShowWidth) {
                 doc.text(widthText, widthTextX, widthTextY);
               }
@@ -472,7 +474,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
               const heightTextY = pieceY + (pieceHeight / 2) + (heightTextWidth / 2);
               
               // Check for collisions
-              const canShowHeight = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, heightTextX, heightTextY, heightTextWidth, sheet.pieces, scale, startX, startY, true);
+              const canShowHeight = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, heightTextX, heightTextY, heightTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY, true);
               if (canShowHeight) {
                 doc.text(heightText, heightTextX, heightTextY, { angle: -90 });
               }
@@ -497,7 +499,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
                 const cantoTextY = pieceY + pieceHeight + 6;
                 
                 // Check collision for canto label
-                const canShowCanto = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY);
+                const canShowCanto = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY);
                 if (canShowCanto) {
                   doc.text(cantoText, cantoTextX, cantoTextY);
                 }
@@ -517,7 +519,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
                 const cantoTextY = pieceY + 5;
                 
                 // Check collision for left canto label
-                const canShowCanto = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, true);
+                const canShowCanto = !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY, true);
                 if (canShowCanto) {
                   doc.text(cantoText, cantoTextX, cantoTextY, { angle: -90 });
                 }
@@ -685,7 +687,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
                   // Check if there's enough room for canto label (minimum 15mm width for the piece)
                   // and check for collisions
                   const hasRoomForCanto = pieceWidth >= 15;
-                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY);
+                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY);
                   
                   if (canShowCanto) {
                     doc.text(cantoText, cantoTextX, cantoTextY);
@@ -724,7 +726,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
                   // Check if there's enough room for canto label (minimum 15mm height for the piece)
                   // and check for collisions
                   const hasRoomForCanto = pieceHeight >= 15;
-                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, true);
+                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY, true);
                   
                   if (canShowCanto) {
                     doc.text(cantoText, cantoTextX, cantoTextY, { angle: -90 });
@@ -770,7 +772,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
                   // Check if there's enough room for canto label (minimum 15mm width for the piece)
                   // and check for collisions
                   const hasRoomForCanto = pieceWidth >= 15;
-                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY);
+                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY);
                   
                   if (canShowCanto) {
                     doc.text(cantoText, cantoTextX, cantoTextY);
@@ -808,7 +810,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
                   // Check if there's enough room for canto label (minimum 15mm height for the piece)
                   // and check for collisions
                   const hasRoomForCanto = pieceHeight >= 15;
-                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, true);
+                  const canShowCanto = hasRoomForCanto && !checkLabelCollision(pieceX, pieceY, pieceWidth, pieceHeight, cantoTextX, cantoTextY, cantoTextWidth, sheet.pieces, scale, startX, startY, trimOffsetY, true);
                   
                   if (canShowCanto) {
                     doc.text(cantoText, cantoTextX, cantoTextY, { angle: -90 });
@@ -868,7 +870,7 @@ function addBoxedSheetVisualization(doc, sheet, boardWidth, boardHeight, usableW
   });
   
   // Render leftover/free areas (sobrante) - very subtle
-  addFreeAreas(doc, sheet, startX, startY, scale, boardWidth, boardHeight, variant);
+  addFreeAreas(doc, sheet, startX, startY, scale, boardWidth, boardHeight, trimOffsetY, variant);
 }
 
 

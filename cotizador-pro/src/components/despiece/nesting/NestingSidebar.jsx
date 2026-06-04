@@ -96,7 +96,7 @@ export default function NestingSidebar({ config, onChange, totalParts, statsComp
               />
             </div>
           </div>
-          <p className="text-[10px] text-slate-600 leading-tight">Deducción TOTAL por eje (ambos lados combinados).</p>
+          <p className="text-[10px] text-slate-600 leading-tight">Refilado X descuenta desde la derecha; Refilado Y descuenta desde arriba.</p>
         </div>
 
         <div className="h-px bg-slate-800/50 w-full" />
