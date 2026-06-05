@@ -44,7 +44,7 @@ function evaluatePackingScenario({ rows, material, settings, scenario, fullLargo
 
   if (scenario === 'all-full') {
     const { usableLargo, usableAncho } = buildForBoard('full', fullLargo, fullAncho);
-    const result = buildNestingPreview({ rows, boardWidth: usableLargo, boardHeight: usableAncho, kerf: sawKerf });
+    const result = buildNestingPreview({ rows, boardWidth: fullLargo, boardHeight: fullAncho, kerf: sawKerf, refiladoX, refiladoY });
     const fullCount = result.sheets.length;
     const wasteArea = result.sheets.reduce((acc, sheet) => {
       const used = sheet.pieces.reduce((s, p) => s + p.width * p.height, 0);
@@ -65,7 +65,7 @@ function evaluatePackingScenario({ rows, material, settings, scenario, fullLargo
     const halfLargo = fullLargo;
     const halfAncho = fullAncho / 2;
     const { usableLargo, usableAncho } = buildForBoard('half', halfLargo, halfAncho);
-    const result = buildNestingPreview({ rows, boardWidth: usableLargo, boardHeight: usableAncho, kerf: sawKerf });
+    const result = buildNestingPreview({ rows, boardWidth: halfLargo, boardHeight: halfAncho, kerf: sawKerf, refiladoX, refiladoY });
     const halfCount = result.sheets.length;
     const wasteArea = result.sheets.reduce((acc, sheet) => {
       const used = sheet.pieces.reduce((s, p) => s + p.width * p.height, 0);
@@ -88,7 +88,7 @@ function evaluatePackingScenario({ rows, material, settings, scenario, fullLargo
   const halfAncho = fullAncho / 2;
   const halfBoard = buildForBoard('half', halfLargo, halfAncho);
 
-  const allFullResult = buildNestingPreview({ rows, boardWidth: fullBoard.usableLargo, boardHeight: fullBoard.usableAncho, kerf: sawKerf });
+  const allFullResult = buildNestingPreview({ rows, boardWidth: fullLargo, boardHeight: fullAncho, kerf: sawKerf, refiladoX, refiladoY });
 
   let bestMixed = {
     scenario: 'all-full',
@@ -125,7 +125,7 @@ function evaluatePackingScenario({ rows, material, settings, scenario, fullLargo
     const impossibleRows = remainingRowsSource.filter((row) => !rowFitsInBoard(row, halfBoard.usableLargo, halfBoard.usableAncho, edgeAllowance));
 
     const halfResult = remainingRows.length
-      ? buildNestingPreview({ rows: remainingRows, boardWidth: halfBoard.usableLargo, boardHeight: halfBoard.usableAncho, kerf: sawKerf })
+      ? buildNestingPreview({ rows: remainingRows, boardWidth: halfLargo, boardHeight: halfAncho, kerf: sawKerf, refiladoX, refiladoY })
       : { sheets: [], unplaced: [] };
 
     const fullCount = keptFullSheets.length;

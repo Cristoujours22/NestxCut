@@ -32,6 +32,7 @@ const createDespiece = () => ({
 function normalizeDespieces(initialData) {
   if (!Array.isArray(initialData) || initialData.length === 0) return [createDespiece()];
   return initialData.map((despiece, index) => ({
+    ...despiece,
     id: despiece.id || `desp_${index}`,
     material_id: despiece.material_id || null,
     cantos: Array.isArray(despiece.cantos) ? despiece.cantos : [],
@@ -80,7 +81,10 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
   const emitChange = useCallback((next) => {
     const nextWithCounts = next.map((despiece) => {
       const material = materialOptions.find((item) => item.id === despiece.material_id) || null;
-      if (!material) return despiece;
+      if (!material) {
+        const { laminaCount, commercialCount, liveOptimizedLaminaCount, ...despieceWithoutCounts } = despiece;
+        return despieceWithoutCounts;
+      }
 
       const commercialPackingForDespiece = calculateCommercialPacking({
         rows: despiece.filas || [],
@@ -91,11 +95,12 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
       const laminaCountValue = commercialPackingForDespiece?.commercialCount != null
         ? commercialPackingForDespiece.commercialCount
         : 0;
+      const resolvedLaminaCount = despiece.liveOptimizedLaminaCount ?? laminaCountValue;
 
       return {
         ...despiece,
-        laminaCount: laminaCountValue,
-        commercialCount: laminaCountValue,
+        laminaCount: resolvedLaminaCount,
+        commercialCount: resolvedLaminaCount,
       };
     });
 
@@ -141,19 +146,22 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
   const nestingPreview = useMemo(
     () => buildNestingPreview({
       rows: activeDespiece?.filas || [],
-      boardWidth: nestingEstimate.usableLargo || Number(activeMaterial?.largo_mm || 0),
-      boardHeight: nestingEstimate.usableAncho || Number(activeMaterial?.ancho_mm || 0),
+      boardWidth: Number(activeMaterial?.largo_mm || 0),
+      boardHeight: Number(activeMaterial?.ancho_mm || 0),
       kerf: nestingEstimate.settings?.sawKerf ?? 5,
+      refiladoX: nestingEstimate.settings?.refiladoX ?? 20,
+      refiladoY: nestingEstimate.settings?.refiladoY ?? 20,
     }),
     [activeDespiece, nestingEstimate, activeMaterial]
   );
 
   const laminaCount = useMemo(() => {
     if (!activeMaterial) return nestingEstimate.estimatedSheets;
+    if (activeDespiece?.liveOptimizedLaminaCount != null) return activeDespiece.liveOptimizedLaminaCount;
     // Use commercial count (fractional) from commercial packing for UI display
     if (commercialPacking?.commercialCount != null) return commercialPacking.commercialCount;
     return nestingPreview?.sheets?.length ?? nestingEstimate.estimatedSheets;
-  }, [activeMaterial, nestingEstimate.estimatedSheets, nestingPreview, commercialPacking]);
+  }, [activeDespiece?.liveOptimizedLaminaCount, activeMaterial, nestingEstimate.estimatedSheets, nestingPreview, commercialPacking]);
 
   // Pass stats to parent component
   useEffect(() => {
@@ -174,7 +182,26 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
     : '';
 
   const patchActiveDespiece = useCallback((patch) => {
-    emitChange(despieces.map((item) => item.id === activeDespieceId ? { ...item, ...patch } : item));
+    const shouldResetLiveOptimization = Object.prototype.hasOwnProperty.call(patch, 'filas') || Object.prototype.hasOwnProperty.call(patch, 'material_id');
+    emitChange(despieces.map((item) => item.id === activeDespieceId
+      ? {
+          ...item,
+          ...patch,
+          ...(shouldResetLiveOptimization ? { liveOptimizedLaminaCount: null } : {}),
+        }
+      : item));
+  }, [despieces, activeDespieceId, emitChange]);
+
+  const handleLiveOptimizationChange = useCallback((result) => {
+    const liveOptimizedLaminaCount = result?.sheetCount;
+    if (liveOptimizedLaminaCount == null) return;
+
+    emitChange(despieces.map((item) => item.id === activeDespieceId
+      ? {
+          ...item,
+          liveOptimizedLaminaCount,
+        }
+      : item));
   }, [despieces, activeDespieceId, emitChange]);
 
   const handleAdd = useCallback(() => {
@@ -197,11 +224,15 @@ export default function Despiece({ initialData = [], onChange, projectName = 'Pr
         {showNestingModal && activeMaterial && activeDespiece && (
           <NestingDashboard
             onClose={() => setShowNestingModal(false)}
-            despieceData={{ filas: activeDespiece.filas || [] }}
+            despieceData={{ filas: activeDespiece.filas || [], cantos: activeDespiece.cantos || [] }}
             boardDimensions={{
               width: Number(activeMaterial?.largo_mm || 0),
               height: Number(activeMaterial?.ancho_mm || 0)
             }}
+            onOptimizationChange={handleLiveOptimizationChange}
+            projectName={projectName}
+            clientName={clientName}
+            materialName={activeMaterial?.nombre || ''}
           />
         )}
 
