@@ -265,6 +265,20 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
     boardMode,
   }), [rows, boardWidth, boardHeight, settings, boardMode]);
 
+  const fallbackPacking = useMemo(() => {
+    if (commercialPacking?.sheets?.length) return null;
+
+    return buildNestingPreview({
+      rows,
+      boardWidth: modalEstimate.boardLargo || boardWidth || 0,
+      boardHeight: modalEstimate.boardAncho || boardHeight || 0,
+      kerf: settings.sawKerf ?? 5,
+      refiladoX: settings.refiladoX ?? 20,
+      refiladoY: settings.refiladoY ?? 20,
+      allowGlobalRotation: ignoreBeta,
+    });
+  }, [commercialPacking, rows, modalEstimate, boardWidth, boardHeight, settings, ignoreBeta]);
+
 // When commercial packing is available, use it for sheet display (it has boardMode per sheet)
   // Otherwise fall back to the manual board mode preview
   const effectiveSheets = useMemo(() => {
@@ -315,14 +329,13 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
           })),
         ];
 
-        const fullUsableW = Math.max(0, boardWidth - refX);
-        const fullUsableH = Math.max(0, boardHeight - refY);
-
         const repacked = buildNestingPreview({
           rows: combinedRows,
-          boardWidth: fullUsableW,
-          boardHeight: fullUsableH,
+          boardWidth: boardWidth,
+          boardHeight: boardHeight,
           kerf: settings.sawKerf ?? 5,
+          refiladoX: refX,
+          refiladoY: refY,
           allowGlobalRotation: ignoreBeta,
         });
 
@@ -348,17 +361,10 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
 
       return groupedSheets.map((sheet, index) => ({ ...sheet, index: index + 1 }));
     }
-    const result = buildNestingPreview({
-      rows,
-      boardWidth: modalEstimate.usableLargo || boardWidth || 0,
-      boardHeight: modalEstimate.usableAncho || boardHeight || 0,
-      kerf: settings.sawKerf ?? 5,
-      allowGlobalRotation: ignoreBeta,
-    });
-    return result.sheets.map(s => ({ ...s, sheetUsableWidth: modalEstimate.usableLargo || 0, sheetUsableHeight: modalEstimate.usableAncho || 0 }));
-  }, [ignoreBeta, rows, settings, boardWidth, boardHeight, modalEstimate, commercialPacking]);
+    return (fallbackPacking?.sheets || []).map(s => ({ ...s, sheetUsableWidth: modalEstimate.usableLargo || 0, sheetUsableHeight: modalEstimate.usableAncho || 0 }));
+  }, [rows, settings, boardWidth, boardHeight, modalEstimate, commercialPacking, fallbackPacking]);
 
-  const effectiveUnplaced = commercialPacking?.unplaced ?? [];
+  const effectiveUnplaced = commercialPacking?.unplaced ?? fallbackPacking?.unplaced ?? [];
 
   // Whether commercial packing overrides the manual board mode selector
   const usingCommercialPacking = commercialPacking?.sheets?.length > 0;
@@ -373,7 +379,7 @@ export default function DespieceNestingModal({ isOpen, onClose, boardName, board
   const previewGridStyle = {
     gridTemplateColumns: `repeat(${previewColumns}, minmax(320px, max-content))`,
   };
-  const displaySheetCount = formatSheetCount(commercialPacking?.commercialCount ?? modalEstimate?.estimatedSheets ?? estimatedSheets ?? 0);
+  const displaySheetCount = formatSheetCount(usingCommercialPacking ? (commercialPacking?.commercialCount ?? 0) : (effectiveSheets?.length ?? 0));
   const physicalSheetSummary = formatPhysicalSheetSummary(effectiveSheets || []);
 
   const handleExportPDF = async () => {

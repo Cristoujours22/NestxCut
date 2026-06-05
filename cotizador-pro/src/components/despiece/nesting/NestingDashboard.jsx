@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ArrowLeft, Play, Layout, Grid, Maximize } from 'lucide-react';
+import { ArrowLeft, Play, Layout, Grid, Maximize, FileDown } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { toJpeg } from 'html-to-image';
 import NestingSidebar from './NestingSidebar';
 import NestingStats from './NestingStats';
 import NestingSheetPreview from './NestingSheetPreview';
 import { buildNestingPreview } from '../../../features/despiece/utils/nestingLayout';
+import { generateNestingPDF } from '../../../features/despiece/utils/pdfExport';
 
 export default function NestingDashboard({
   onClose,
   despieceData,
-  boardDimensions
+  boardDimensions,
+  onOptimizationChange,
+  projectName = 'Proyecto sin título',
+  clientName = 'Cliente sin nombre',
+  materialName = '',
 }) {
   const [config, setConfig] = useState({
     boardWidth: boardDimensions?.width || 2440,
@@ -34,6 +40,28 @@ export default function NestingDashboard({
   }, [despieceData]);
 
   const runTimerRef = useRef(null);
+  const rowsRef = useRef(rows);
+  const onOptimizationChangeRef = useRef(onOptimizationChange);
+
+  const rowContentKey = useMemo(
+    () => rows.map((row) => [
+      row?.cantidad ?? row?.cant ?? '',
+      row?.largo ?? '',
+      row?.ancho ?? '',
+      row?.ref ?? '',
+      row?.detalle ?? '',
+      row?.rotar ?? '',
+    ].join('|')).join('||'),
+    [rows]
+  );
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  useEffect(() => {
+    onOptimizationChangeRef.current = onOptimizationChange;
+  }, [onOptimizationChange]);
 
   const handleRun = useCallback(() => {
     if (runTimerRef.current) clearTimeout(runTimerRef.current);
@@ -41,7 +69,7 @@ export default function NestingDashboard({
     const timer = setTimeout(() => {
       try {
         const result = buildNestingPreview({
-          rows,
+          rows: rowsRef.current,
           boardWidth: config.boardWidth,
           boardHeight: config.boardHeight,
           kerf: config.kerf,
@@ -52,6 +80,19 @@ export default function NestingDashboard({
         });
         setOptimizedSheets(result.sheets || []);
         setUnplacedParts(result.unplaced || []);
+        onOptimizationChangeRef.current?.({
+          sheetCount: result.sheets?.length ?? 0,
+          unplacedCount: result.unplaced?.length ?? 0,
+          config: {
+            boardWidth: config.boardWidth,
+            boardHeight: config.boardHeight,
+            kerf: config.kerf,
+            refiladoX: config.refiladoX,
+            refiladoY: config.refiladoY,
+            allowGlobalRotation: config.allowGlobalRotation,
+            algorithm: config.algorithm,
+          },
+        });
       } catch (err) {
         console.error("Optimizer error:", err);
       } finally {
@@ -60,26 +101,88 @@ export default function NestingDashboard({
       }
     }, 100);
     runTimerRef.current = timer;
-  }, [rows, config]);
-
-  useEffect(() => {
-    return () => { if (runTimerRef.current) clearTimeout(runTimerRef.current); };
-  }, []);
-
-  useEffect(() => {
-    if (rows.length > 0) {
-      handleRun();
-    }
   }, [
-    rows,
-    handleRun,
     config.boardWidth,
     config.boardHeight,
     config.kerf,
     config.refiladoX,
     config.refiladoY,
     config.allowGlobalRotation,
-    config.algorithm
+    config.algorithm,
+  ]);
+
+  useEffect(() => {
+    return () => { if (runTimerRef.current) clearTimeout(runTimerRef.current); };
+  }, []);
+
+  const handleExportPDF = useCallback(async () => {
+    if (!optimizedSheets.length) return;
+    try {
+      // Capture each live sheet preview as an image before PDF generation
+      const sheetImages = {};
+      for (const sheet of optimizedSheets) {
+        const elementId = sheet.id || `sheet-preview-${sheet.index}`;
+        const wrapper = document.getElementById(elementId);
+        const element = wrapper?.querySelector('[data-export-board]') || wrapper;
+        if (element) {
+          const originalStyle = element.style.cssText;
+          element.style.maxHeight = 'none';
+          element.style.maxWidth = 'none';
+          element.style.filter = 'grayscale(1) contrast(2.4) brightness(1.15)';
+          try {
+            const rect = element.getBoundingClientRect();
+            const dataUrl = await toJpeg(element, {
+              quality: 0.92,
+              backgroundColor: '#ffffff',
+              pixelRatio: 2,
+              skipFonts: true,
+              style: {
+                transform: 'scale(1)',
+                transformOrigin: 'top left'
+              }
+            });
+            sheetImages[sheet.index] = {
+              data: dataUrl,
+              width: rect.width,
+              height: rect.height
+            };
+          } catch (err) {
+            console.error(`Error capturing sheet preview ${sheet.index}:`, err);
+          } finally {
+            element.style.cssText = originalStyle;
+          }
+        }
+      }
+
+      const doc = await generateNestingPDF({
+        sheets: optimizedSheets,
+        sheetImages,
+        unplacedPieces: unplacedParts,
+        projectName,
+        clientName,
+        materialName,
+        paperSize: 'Carta',
+        boardWidth: config.boardWidth,
+        boardHeight: config.boardHeight,
+        usableWidth: config.boardWidth - config.refiladoX,
+        usableHeight: config.boardHeight - config.refiladoY,
+        cantos: despieceData?.cantos || [],
+        rows,
+      });
+      doc.save(`PlanoCorte_${projectName.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+    } catch (err) {
+      console.error('Error exporting PDF:', err);
+      alert('Error al exportar PDF: ' + err.message);
+    }
+  }, [optimizedSheets, unplacedParts, projectName, clientName, materialName, config, despieceData, rows]);
+
+  useEffect(() => {
+    if (rows.length > 0) {
+      handleRun();
+    }
+  }, [
+    rowContentKey,
+    handleRun,
   ]);
 
   return createPortal(
@@ -123,7 +226,18 @@ export default function NestingDashboard({
             </div>
           )}
 
-<div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-md border border-slate-700/50">
+          {optimizedSheets.length > 0 && (
+            <button
+              onClick={handleExportPDF}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md font-bold bg-amber-500 hover:bg-amber-400 text-slate-900 transition-all shadow-[0_0_10px_rgba(245,158,11,0.25)]"
+              title="Exportar a plano de corte"
+            >
+              <FileDown size={16} />
+              Exportar a plano de corte
+            </button>
+          )}
+
+          <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-md border border-slate-700/50">
               <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Algoritmo</span>
               <span className="text-sm text-amber-400 font-bold">
                 {config.algorithm === 'hybrid' ? 'Híbrido' : config.algorithm === 'maxrects' ? 'MaxRects' : 'Guillotina'}
@@ -238,12 +352,15 @@ export default function NestingDashboard({
               {optimizedSheets.map((sheet, index) => (
                 <NestingSheetPreview
                   key={sheet.id || index}
+                  id={sheet.id || `sheet-preview-${sheet.index}`}
                   sheet={sheet}
                   boardWidth={config.boardWidth}
                   boardHeight={config.boardHeight}
                   refiladoX={config.refiladoX}
                   refiladoY={config.refiladoY}
                   compact={viewMode === 'grid'}
+                  rows={rows}
+                  cantos={despieceData?.cantos || []}
                 />
               ))}
             </div>

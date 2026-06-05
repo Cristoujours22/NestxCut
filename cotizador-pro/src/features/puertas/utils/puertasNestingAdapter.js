@@ -31,9 +31,11 @@ export function buildFondosNestingPreview({ hoja, config, cantidad = 1, material
 
   const preview = buildNestingPreview({
     rows,
-    boardWidth: estimate.usableLargo || toNumber(material?.largo_mm),
-    boardHeight: estimate.usableAncho || toNumber(material?.ancho_mm),
+    boardWidth: toNumber(material?.largo_mm),
+    boardHeight: toNumber(material?.ancho_mm),
     kerf: settings.sawKerf ?? estimate.settings?.sawKerf ?? 5,
+    refiladoX: settings.refiladoX ?? 20,
+    refiladoY: settings.refiladoY ?? 20,
     allowGlobalRotation: false,
   });
 
@@ -85,9 +87,11 @@ export function buildBastidoresNestingPreview({ hoja, config, cantidad = 1, bast
 
   const preview = buildNestingPreview({
     rows,
-    boardWidth: estimate.usableLargo || boardWidth,
-    boardHeight: estimate.usableAncho || boardHeight,
+    boardWidth,
+    boardHeight,
     kerf: settings.sawKerf ?? estimate.settings?.sawKerf ?? 5,
+    refiladoX: settings.refiladoX ?? 20,
+    refiladoY: settings.refiladoY ?? 20,
     allowGlobalRotation: false,
   });
 

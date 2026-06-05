@@ -1,7 +1,88 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { getPieceCantoInfo } from '../../../features/despiece/utils/pdfExport';
 
-export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, refiladoX = 20, refiladoY = 20, compact = false }) {
+const CANTO_EDGE_COLOR = '#fde047';
+
+function getCantoTypeRef(canto) {
+  const typeRef = Number(canto?.tipo ?? canto?.ref);
+  return Number.isFinite(typeRef) ? typeRef : 0;
+}
+
+function getCantoEdgePattern(typeRef, orientation, thickness) {
+  const isHorizontal = orientation === 'horizontal';
+  const axis = isHorizontal ? '90deg' : '180deg';
+  const dotSpan = Math.max(3, thickness * 1.3);
+
+  switch (typeRef) {
+    case 1:
+      return {
+        backgroundColor: CANTO_EDGE_COLOR,
+      };
+    case 2:
+      return {
+        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(2, thickness)}px, transparent ${Math.max(2, thickness)}px ${Math.max(4, thickness * 2)}px)`,
+      };
+    case 3:
+      return {
+        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(4, thickness * 2)}px, transparent ${Math.max(4, thickness * 2)}px ${Math.max(7, thickness * 3.5)}px)`,
+      };
+    case 4:
+      return {
+        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(7, thickness * 3)}px, transparent ${Math.max(7, thickness * 3)}px ${Math.max(10, thickness * 4.5)}px)`,
+      };
+    case 5:
+      return {
+        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(8, thickness * 3.5)}px, transparent ${Math.max(8, thickness * 3.5)}px ${Math.max(10, thickness * 4.4)}px, ${CANTO_EDGE_COLOR} ${Math.max(10, thickness * 4.4)}px ${Math.max(12, thickness * 5.2)}px, transparent ${Math.max(12, thickness * 5.2)}px ${Math.max(16, thickness * 6.5)}px)`,
+      };
+    case 6:
+      return {
+        backgroundImage: `radial-gradient(circle, ${CANTO_EDGE_COLOR} 60%, transparent 65%)`,
+        backgroundSize: isHorizontal ? `${dotSpan}px ${thickness}px` : `${thickness}px ${dotSpan}px`,
+        backgroundRepeat: 'repeat',
+        backgroundPosition: 'center',
+      };
+    case 7:
+      return {
+        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(3, thickness)}px, transparent ${Math.max(3, thickness)}px ${Math.max(5, thickness * 2)}px, ${CANTO_EDGE_COLOR} ${Math.max(5, thickness * 2)}px ${Math.max(11, thickness * 4.2)}px, transparent ${Math.max(11, thickness * 4.2)}px ${Math.max(14, thickness * 5.4)}px)`,
+      };
+    case 8:
+      return {
+        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(10, thickness * 4)}px, transparent ${Math.max(10, thickness * 4)}px ${Math.max(14, thickness * 5.8)}px)`,
+      };
+    default:
+      return {
+        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(5, thickness * 2.5)}px, transparent ${Math.max(5, thickness * 2.5)}px ${Math.max(8, thickness * 4)}px)`,
+      };
+  }
+}
+
+function getCantoEdgeStyle(canto, orientation, currentScale) {
+  const typeRef = getCantoTypeRef(canto);
+  const baseThickness = Math.max(1.2, 1.75 / currentScale);
+  const thicknessByType = {
+    1: 1.35,
+    2: 1,
+    3: 1,
+    4: 1.15,
+    5: 1,
+    6: 1.1,
+    7: 1.2,
+    8: 1.35,
+  };
+  const thickness = baseThickness * (thicknessByType[typeRef] || 1);
+
+  return {
+    ...(orientation === 'horizontal'
+      ? { height: `${thickness}px` }
+      : { width: `${thickness}px` }),
+    ...getCantoEdgePattern(typeRef, orientation, thickness),
+    boxShadow: '0 0 0 0.5px rgba(250, 204, 21, 0.35)',
+    opacity: 0.95,
+  };
+}
+
+export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, refiladoX = 20, refiladoY = 20, compact = false, rows = [], cantos = [], id }) {
   const containerRef = useRef(null);
   const coerceNumber = (value) => Number(value);
   const sanitizeCoord = (value) => (Number.isFinite(value) ? value : 0);
@@ -15,6 +96,10 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
   const safeBoardHeight = Number.isFinite(boardHeight) && boardHeight > 0 ? boardHeight : 1;
   const safeRefiladoX = sanitizeTrim(refiladoX);
   const safeRefiladoY = sanitizeTrim(refiladoY);
+  const getRowDimension = (row, key, fallback) => {
+    const value = Number(row?.[key]);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  };
   
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -112,7 +197,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
   const yieldBg = yieldNum >= 70 ? 'bg-emerald-500/20 border-emerald-500/40' : yieldNum >= 40 ? 'bg-amber-500/20 border-amber-500/40' : 'bg-rose-500/20 border-rose-500/40';
   
   return (
-    <div className="bg-[#0f172a] border border-slate-800 rounded-xl overflow-hidden shadow-2xl relative flex flex-col">
+    <div id={id} className="bg-[#0f172a] border border-slate-800 rounded-xl overflow-hidden shadow-2xl relative flex flex-col">
       
       {/* Improved Header — board dims + sheet context + stats */}
       <div className={`flex items-start justify-between gap-4 px-3 pt-3 pb-2 shrink-0 ${compact ? '' : 'pointer-events-none'}`}>
@@ -202,6 +287,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
           }}
         >
           <div 
+            data-export-board
             className="relative box-content bg-[#09132b] shadow-[0_0_30px_rgba(0,224,254,0.15)]" 
               style={{ 
                 width: safeBoardWidth, 
@@ -256,16 +342,16 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                 const showRectWidthLabel = canShowSecondaryLabel({
                   primaryPx: rectScreenW,
                   crossPx: rectScreenH,
-                  minPrimaryPx: 84,
-                  minCrossPx: 24,
-                  minZoom: 1.05,
+                  minPrimaryPx: 64,
+                  minCrossPx: 18,
+                  minZoom: 0.9,
                 });
                 const showRectHeightLabel = canShowSecondaryLabel({
                   primaryPx: rectScreenH,
                   crossPx: rectScreenW,
-                  minPrimaryPx: 84,
-                  minCrossPx: 24,
-                  minZoom: 1.05,
+                  minPrimaryPx: 64,
+                  minCrossPx: 18,
+                  minZoom: 0.9,
                 });
                 
                 return (
@@ -341,11 +427,18 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                 const canShowFullLabel = screenW >= MIN_FULL_LABEL_W && screenH >= MIN_FULL_LABEL_H;
                 const canShowShortLabel = screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H;
 
-                const showDimLabel = canShowSecondaryLabel({
-                  primaryPx: Math.min(screenW, screenH),
-                  crossPx: Math.max(screenW, screenH),
+                const showHorizontalDim = canShowSecondaryLabel({
+                  primaryPx: screenW,
+                  crossPx: screenH,
                   minPrimaryPx: MIN_DIM_W,
-                  minCrossPx: 20,
+                  minCrossPx: 18,
+                  minZoom: 0.95,
+                });
+                const showVerticalDim = canShowSecondaryLabel({
+                  primaryPx: screenH,
+                  crossPx: screenW,
+                  minPrimaryPx: MIN_DIM_H,
+                  minCrossPx: 18,
                   minZoom: 0.95,
                 });
 
@@ -357,6 +450,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                 const maxDimSize = Math.min(pWidth, pHeight) * 0.4;
                 const targetDimSize = 11 / currentScale;
                 const dimFontSize = Math.max(3 / currentScale, Math.min(maxDimSize, targetDimSize));
+                const dimEdgeInset = Math.max(2 / currentScale, dimFontSize + (2 / currentScale));
 
                 // Label derivation
                 const fullLabelSource = (piece.label || piece.ref || '').trim();
@@ -380,8 +474,18 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                       ? shortAlias
                       : '';
                 const isShortLabel = Boolean(pieceLabel) && pieceLabel !== fullLabelSource;
-                const showDimValue = showDimLabel && (canShowFullLabel || (canShowShortLabel && !isShortLabel));
+                const showDimValue = canShowFullLabel || (canShowShortLabel && !isShortLabel);
                 const hoverKey = piece.instanceId != null ? `instance:${piece.instanceId}` : `fallback:${i}`;
+
+                // Get canto info per side
+                const cantoInfo = getPieceCantoInfo(piece, rows, cantos);
+                const bottomCanto = piece.rotated ? cantoInfo?.a1 : cantoInfo?.l1;
+                const topCanto = piece.rotated ? cantoInfo?.a2 : cantoInfo?.l2;
+                const leftCanto = piece.rotated ? cantoInfo?.l1 : cantoInfo?.a1;
+                const rightCanto = piece.rotated ? cantoInfo?.l2 : cantoInfo?.a2;
+
+                // Canto markers only on sides where canto applies
+                const hasAnyCanto = bottomCanto || topCanto || leftCanto || rightCanto;
 
                 return (
                   <div
@@ -396,7 +500,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                       height: pHeight,
                     }}
                     onMouseEnter={(e) => {
-                      setHoveredPiece({ ...piece, hoverKey });
+                      setHoveredPiece({ ...piece, hoverKey, cantoInfo });
                       const rect = containerRef.current.getBoundingClientRect();
                       setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
                     }}
@@ -406,7 +510,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                     }}
                     onMouseLeave={() => setHoveredPiece(null)}
                   >
-                    {/* Clean centered label — no badge, no border, no background */}
+                    {/* 1. Piece code/name centered inside */}
                     {pieceLabel && (
                       <span
                         className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 overflow-hidden"
@@ -422,14 +526,91 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                       </span>
                     )}
 
-                    {/* Minimal dimension label at bottom — only for large pieces */}
-                    {showDimValue && (
+                    {/* 4. Small piece index in corner when cantos shown */}
+                    {hasAnyCanto && (screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H) && (
                       <span
-                        className="absolute bottom-0 left-0 right-0 flex items-center justify-center pointer-events-none text-[#67e8f9] opacity-70"
-                        style={{ fontSize: `${dimFontSize}px`, padding: '0 0.2em 2px' }}
+                        className="absolute top-0 left-0 pointer-events-none text-[#94a3b8] opacity-60"
+                        style={{ fontSize: `${Math.max(3 / currentScale, dimFontSize * 0.75)}px`, padding: '1px 2px' }}
                       >
-                        {Math.round(pieceWidth)}×{Math.round(pieceHeight)}
+                        {i + 1}
                       </span>
+                    )}
+
+                    {/* 2. Horizontal dimension near bottom edge, reading left→right */}
+                    {showDimValue && showHorizontalDim && (
+                      <span
+                        className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-[#67e8f9] opacity-70 whitespace-nowrap"
+                        style={{ bottom: `${2 / currentScale}px`, fontSize: `${dimFontSize}px`, padding: '0 0.3em 2px' }}
+                      >
+                        {Math.round(pieceWidth)}
+                      </span>
+                    )}
+
+                    {/* 3. Vertical dimension near left edge, reading vertically */}
+                    {showDimValue && showVerticalDim && (
+                      <span
+                        className="absolute left-0 top-1/2 pointer-events-none text-[#67e8f9] opacity-70 whitespace-nowrap"
+                        style={{
+                          top: '50%',
+                          left: `${2 / currentScale}px`,
+                          fontSize: `${dimFontSize}px`,
+                          padding: '2px 0 0 2px',
+                          transform: 'translateY(-50%) rotate(-90deg)',
+                          transformOrigin: 'center center',
+                        }}
+                      >
+                        {Math.round(pieceHeight)}
+                      </span>
+                    )}
+
+                    {/* Canto border treatment — full treated edge on applicable sides */}
+                    {hasAnyCanto && (screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H) && (
+                      <>
+                        {bottomCanto && (
+                          <div
+                            className="absolute pointer-events-none z-20"
+                            style={{
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              ...getCantoEdgeStyle(bottomCanto, 'horizontal', currentScale),
+                            }}
+                          />
+                        )}
+                        {topCanto && (
+                          <div
+                            className="absolute pointer-events-none z-20"
+                            style={{
+                              left: 0,
+                              right: 0,
+                              top: 0,
+                              ...getCantoEdgeStyle(topCanto, 'horizontal', currentScale),
+                            }}
+                          />
+                        )}
+                        {leftCanto && (
+                          <div
+                            className="absolute pointer-events-none z-20"
+                            style={{
+                              top: 0,
+                              bottom: 0,
+                              left: 0,
+                              ...getCantoEdgeStyle(leftCanto, 'vertical', currentScale),
+                            }}
+                          />
+                        )}
+                        {rightCanto && (
+                          <div
+                            className="absolute pointer-events-none z-20"
+                            style={{
+                              top: 0,
+                              bottom: 0,
+                              right: 0,
+                              ...getCantoEdgeStyle(rightCanto, 'vertical', currentScale),
+                            }}
+                          />
+                        )}
+                      </>
                     )}
                   </div>
                 );
@@ -441,6 +622,12 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
 
       {/* Tooltip */}
       {hoveredPiece && (
+        (() => {
+          const hoveredRow = hoveredPiece.originalRowIndex != null ? rows?.[hoveredPiece.originalRowIndex] : null;
+          const tooltipLargo = getRowDimension(hoveredRow, 'largo', hoveredPiece.rotated ? hoveredPiece.height : hoveredPiece.width);
+          const tooltipAncho = getRowDimension(hoveredRow, 'ancho', hoveredPiece.rotated ? hoveredPiece.width : hoveredPiece.height);
+
+          return (
         <div 
           className="absolute z-50 pointer-events-none bg-slate-900/95 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-2xl flex flex-col gap-1 min-w-[150px] transform -translate-x-1/2 -translate-y-[120%]"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
@@ -450,17 +637,48 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
           </div>
           <div className="flex justify-between text-xs text-slate-300">
             <span>Largo:</span>
-            <span className="font-mono font-bold text-white">{hoveredPiece.width} mm</span>
+            <span className="font-mono font-bold text-white">{tooltipLargo} mm</span>
           </div>
           <div className="flex justify-between text-xs text-slate-300">
             <span>Ancho:</span>
-            <span className="font-mono font-bold text-white">{hoveredPiece.height} mm</span>
+            <span className="font-mono font-bold text-white">{tooltipAncho} mm</span>
           </div>
           <div className="flex justify-between text-xs text-slate-300">
             <span>Rotada:</span>
             <span className="font-mono font-bold text-white">{hoveredPiece.rotated ? 'Sí' : 'No'}</span>
           </div>
+          {hoveredPiece.cantoInfo && (
+            <div className="mt-1 pt-1 border-t border-slate-700">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Cantos</div>
+              {hoveredPiece.cantoInfo.l1 && (
+                <div className="flex justify-between text-xs text-slate-300">
+                  <span>L1:</span>
+                  <span className="font-mono text-[#facc15]">{hoveredPiece.cantoInfo.l1.codigo} {hoveredPiece.cantoInfo.l1.calibre}</span>
+                </div>
+              )}
+              {hoveredPiece.cantoInfo.l2 && (
+                <div className="flex justify-between text-xs text-slate-300">
+                  <span>L2:</span>
+                  <span className="font-mono text-[#facc15]">{hoveredPiece.cantoInfo.l2.codigo} {hoveredPiece.cantoInfo.l2.calibre}</span>
+                </div>
+              )}
+              {hoveredPiece.cantoInfo.a1 && (
+                <div className="flex justify-between text-xs text-slate-300">
+                  <span>A1:</span>
+                  <span className="font-mono text-[#facc15]">{hoveredPiece.cantoInfo.a1.codigo} {hoveredPiece.cantoInfo.a1.calibre}</span>
+                </div>
+              )}
+              {hoveredPiece.cantoInfo.a2 && (
+                <div className="flex justify-between text-xs text-slate-300">
+                  <span>A2:</span>
+                  <span className="font-mono text-[#facc15]">{hoveredPiece.cantoInfo.a2.codigo} {hoveredPiece.cantoInfo.a2.calibre}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
+          );
+        })()
       )}
 
     </div>

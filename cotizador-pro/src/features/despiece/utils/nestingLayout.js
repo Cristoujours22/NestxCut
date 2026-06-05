@@ -34,6 +34,7 @@ export function buildNestingPreview({ rows = [], boardWidth = 0, boardHeight = 0
         id: row?.id || `piece_${index}`,
         ref: label,
         label,
+        originalRowIndex: index,
         width: w,
         height: h,
         qty: q,

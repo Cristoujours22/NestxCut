@@ -884,6 +884,8 @@ export function resolveCantoInfo(ref, cantos) {
   
   // Return compact format: codigo · calibre
   return {
+    ref: Number(canto.ref ?? ref),
+    tipo: Number(canto.ref ?? ref),
     codigo: canto.codigo || canto.nombre || `Canto ${ref}`,
     calibre: canto.calibre || ''
   };
