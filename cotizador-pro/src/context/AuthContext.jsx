@@ -270,12 +270,11 @@ export const AuthProvider = ({ children }) => {
                             log('[AuthContext] Acceso permitido:', accessDecision.reason);
                             setUser(freshUser);
                         } else {
-                            log('[AuthContext] Acceso denegado:', accessDecision.reason);
-                            // Si no tiene acceso, cerrar sesión para que vaya al login
-                            await signOut(auth);
-                            setUser(null);
-                            setUserData(null);
-                            setLicenseData(null);
+                            log('[AuthContext] Acceso denegado en auth listener:', accessDecision.reason);
+                            // Mantener sesión para que ProtectedRoute muestre SubscriptionExpired
+                            setUser(freshUser);
+                            setUserData(data);
+                            setLicenseData(license);
                         }
                     } catch (err) {
                         console.error('[AuthContext] Error resolving access:', err);
@@ -320,8 +319,12 @@ export const AuthProvider = ({ children }) => {
 
             if (!accessDecision.hasAccess) {
                 log('[AuthContext] Acceso denegado en login:', accessDecision.reason);
-                await signOut(auth);
-                throw new Error(accessDecision.reason === 'device-license-missing' ? 'DEVICE_ACCESS_DENIED' : 'LICENCIA_EXPIRADA');
+                // Keep user authenticated — ProtectedRoute will show SubscriptionExpired
+                setUser(freshUser);
+                setUserData(data);
+                setLicenseData(license);
+                // Return expired signal instead of signing out
+                return { success: true, expired: true, reason: accessDecision.reason };
             }
             
             log("[AuthContext] Email verificado y licencia válida, acceso concedido");

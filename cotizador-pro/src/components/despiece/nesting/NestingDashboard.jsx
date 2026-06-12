@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ArrowLeft, Play, Layout, Grid, Maximize, FileDown } from 'lucide-react';
+import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
+import { ArrowLeft, Play, Layout, Grid, Maximize, FileDown } from 'lucide-react';
 import { toJpeg } from 'html-to-image';
 import NestingSidebar from './NestingSidebar';
 import NestingStats from './NestingStats';
 import NestingSheetPreview from './NestingSheetPreview';
+import NestingExportSheet from './NestingExportSheet';
 import { buildNestingPreview } from '../../../features/despiece/utils/nestingLayout';
 import { generateNestingPDF } from '../../../features/despiece/utils/pdfExport';
 
@@ -30,6 +32,7 @@ export default function NestingDashboard({
   const [optimizedSheets, setOptimizedSheets] = useState([]);
   const [unplacedParts, setUnplacedParts] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'detail'
 
   // We extract the rows from despieceData.
@@ -40,6 +43,7 @@ export default function NestingDashboard({
   }, [despieceData]);
 
   const runTimerRef = useRef(null);
+  const exportInFlightRef = useRef(false);
   const rowsRef = useRef(rows);
   const onOptimizationChangeRef = useRef(onOptimizationChange);
 
@@ -116,42 +120,93 @@ export default function NestingDashboard({
   }, []);
 
   const handleExportPDF = useCallback(async () => {
-    if (!optimizedSheets.length) return;
+    if (!optimizedSheets.length || isExporting || exportInFlightRef.current) return;
     try {
-      // Capture each live sheet preview as an image before PDF generation
+      exportInFlightRef.current = true;
+      setIsExporting(true);
+
+      // Dedicated technical export: render offscreen, capture, dispose
+      // No live preview dependency, no clone patching, no string-replacement skin hacks
       const sheetImages = {};
-      for (const sheet of optimizedSheets) {
-        const elementId = sheet.id || `sheet-preview-${sheet.index}`;
-        const wrapper = document.getElementById(elementId);
-        const element = wrapper?.querySelector('[data-export-board]') || wrapper;
-        if (element) {
-          const originalStyle = element.style.cssText;
-          element.style.maxHeight = 'none';
-          element.style.maxWidth = 'none';
-          element.style.filter = 'grayscale(1) contrast(2.4) brightness(1.15)';
-          try {
-            const rect = element.getBoundingClientRect();
-            const dataUrl = await toJpeg(element, {
-              quality: 0.92,
-              backgroundColor: '#ffffff',
-              pixelRatio: 2,
-              skipFonts: true,
-              style: {
-                transform: 'scale(1)',
-                transformOrigin: 'top left'
-              }
-            });
-            sheetImages[sheet.index] = {
-              data: dataUrl,
+      const sheetImageCache = new Map();
+      const offscreenRoot = document.createElement('div');
+      offscreenRoot.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:800px;height:600px;overflow:hidden;';
+      document.body.appendChild(offscreenRoot);
+      const reactRoot = createRoot(offscreenRoot);
+
+      try {
+        for (const sheet of optimizedSheets) {
+          const sheetSignature = JSON.stringify({
+            boardWidth: config.boardWidth,
+            boardHeight: config.boardHeight,
+            refiladoX: config.refiladoX,
+            refiladoY: config.refiladoY,
+            pieces: (sheet.pieces || []).map((piece) => ({
+              ref: piece.ref,
+              x: piece.x,
+              y: piece.y,
+              width: piece.width,
+              height: piece.height,
+              rotated: piece.rotated,
+              originalRowIndex: piece.originalRowIndex,
+            })),
+            freeRects: (sheet.freeRects || []).map((rect) => ({
+              x: rect.x,
+              y: rect.y,
               width: rect.width,
-              height: rect.height
-            };
-          } catch (err) {
-            console.error(`Error capturing sheet preview ${sheet.index}:`, err);
-          } finally {
-            element.style.cssText = originalStyle;
+              height: rect.height,
+            })),
+          });
+
+          if (sheetImageCache.has(sheetSignature)) {
+            sheetImages[sheet.index] = sheetImageCache.get(sheetSignature);
+            continue;
           }
+
+          // Render the dedicated technical export sheet
+          await new Promise(resolve => {
+            reactRoot.render(
+              <NestingExportSheet
+                sheet={sheet}
+                boardWidth={config.boardWidth}
+                boardHeight={config.boardHeight}
+                refiladoX={config.refiladoX}
+                refiladoY={config.refiladoY}
+                rows={rows}
+                cantos={despieceData?.cantos || []}
+              />
+            );
+            // Wait for React to paint
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          });
+
+          // Capture only the rendered board node
+          const exportNode = offscreenRoot.querySelector('[data-export-canvas]');
+          if (!exportNode) {
+            throw new Error(`No se encontró el nodo de captura exportable para la lámina ${sheet.index}.`);
+          }
+          const rect = exportNode.getBoundingClientRect();
+          const dataUrl = await toJpeg(exportNode, {
+            quality: 0.92,
+            backgroundColor: '#ffffff',
+            pixelRatio: 1.5,
+            skipFonts: true,
+          });
+          if (!dataUrl) {
+            throw new Error(`No se pudo capturar la lámina ${sheet.index}.`);
+          }
+
+          const capturedSheet = {
+            data: dataUrl,
+            width: rect.width,
+            height: rect.height,
+          };
+          sheetImages[sheet.index] = capturedSheet;
+          sheetImageCache.set(sheetSignature, capturedSheet);
         }
+      } finally {
+        reactRoot.unmount();
+        document.body.removeChild(offscreenRoot);
       }
 
       const doc = await generateNestingPDF({
@@ -173,8 +228,11 @@ export default function NestingDashboard({
     } catch (err) {
       console.error('Error exporting PDF:', err);
       alert('Error al exportar PDF: ' + err.message);
+    } finally {
+      exportInFlightRef.current = false;
+      setIsExporting(false);
     }
-  }, [optimizedSheets, unplacedParts, projectName, clientName, materialName, config, despieceData, rows]);
+  }, [optimizedSheets, unplacedParts, projectName, clientName, materialName, config, despieceData, rows, isExporting]);
 
   useEffect(() => {
     if (rows.length > 0) {
@@ -229,11 +287,12 @@ export default function NestingDashboard({
           {optimizedSheets.length > 0 && (
             <button
               onClick={handleExportPDF}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md font-bold bg-amber-500 hover:bg-amber-400 text-slate-900 transition-all shadow-[0_0_10px_rgba(245,158,11,0.25)]"
+              disabled={isExporting}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md font-bold bg-amber-500 hover:bg-amber-400 disabled:opacity-60 disabled:cursor-not-allowed text-slate-900 transition-all shadow-[0_0_10px_rgba(245,158,11,0.25)]"
               title="Exportar a plano de corte"
             >
               <FileDown size={16} />
-              Exportar a plano de corte
+              {isExporting ? 'Exportando…' : 'Exportar a plano de corte'}
             </button>
           )}
 
