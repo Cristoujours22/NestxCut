@@ -3,13 +3,25 @@ import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { getPieceCantoInfo } from '../../../features/despiece/utils/pdfExport';
 
 const CANTO_EDGE_COLOR = '#fde047';
+// Live preview skin colors
+const LIVE_SKIN = {
+  boardBg: '#09132b',
+  pieceBg: '#76e3e8',
+  pieceBorder: '#0f172a',
+  freeRectBg: '#dff8fa66',
+  freeRectBorder: '#0f172acc',
+  cantoColor: '#fde047',
+  textColor: '#0f172a',
+  refiladoBg: '#f43f5e15',
+  usableBorder: 'rgba(110,231,183,0.35)',
+};
 
 function getCantoTypeRef(canto) {
   const typeRef = Number(canto?.tipo ?? canto?.ref);
   return Number.isFinite(typeRef) ? typeRef : 0;
 }
 
-function getCantoEdgePattern(typeRef, orientation, thickness) {
+function getCantoEdgePattern(typeRef, orientation, thickness, cantoColor = CANTO_EDGE_COLOR) {
   const isHorizontal = orientation === 'horizontal';
   const axis = isHorizontal ? '90deg' : '180deg';
   const dotSpan = Math.max(3, thickness * 1.3);
@@ -17,47 +29,47 @@ function getCantoEdgePattern(typeRef, orientation, thickness) {
   switch (typeRef) {
     case 1:
       return {
-        backgroundColor: CANTO_EDGE_COLOR,
+        backgroundColor: cantoColor,
       };
     case 2:
       return {
-        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(2, thickness)}px, transparent ${Math.max(2, thickness)}px ${Math.max(4, thickness * 2)}px)`,
+        backgroundImage: `repeating-linear-gradient(${axis}, ${cantoColor} 0 ${Math.max(2, thickness)}px, transparent ${Math.max(2, thickness)}px ${Math.max(4, thickness * 2)}px)`,
       };
     case 3:
       return {
-        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(4, thickness * 2)}px, transparent ${Math.max(4, thickness * 2)}px ${Math.max(7, thickness * 3.5)}px)`,
+        backgroundImage: `repeating-linear-gradient(${axis}, ${cantoColor} 0 ${Math.max(4, thickness * 2)}px, transparent ${Math.max(4, thickness * 2)}px ${Math.max(7, thickness * 3.5)}px)`,
       };
     case 4:
       return {
-        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(7, thickness * 3)}px, transparent ${Math.max(7, thickness * 3)}px ${Math.max(10, thickness * 4.5)}px)`,
+        backgroundImage: `repeating-linear-gradient(${axis}, ${cantoColor} 0 ${Math.max(7, thickness * 3)}px, transparent ${Math.max(7, thickness * 3)}px ${Math.max(10, thickness * 4.5)}px)`,
       };
     case 5:
       return {
-        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(8, thickness * 3.5)}px, transparent ${Math.max(8, thickness * 3.5)}px ${Math.max(10, thickness * 4.4)}px, ${CANTO_EDGE_COLOR} ${Math.max(10, thickness * 4.4)}px ${Math.max(12, thickness * 5.2)}px, transparent ${Math.max(12, thickness * 5.2)}px ${Math.max(16, thickness * 6.5)}px)`,
+        backgroundImage: `repeating-linear-gradient(${axis}, ${cantoColor} 0 ${Math.max(8, thickness * 3.5)}px, transparent ${Math.max(8, thickness * 3.5)}px ${Math.max(10, thickness * 4.4)}px, ${cantoColor} ${Math.max(10, thickness * 4.4)}px ${Math.max(12, thickness * 5.2)}px, transparent ${Math.max(12, thickness * 5.2)}px ${Math.max(16, thickness * 6.5)}px)`,
       };
     case 6:
       return {
-        backgroundImage: `radial-gradient(circle, ${CANTO_EDGE_COLOR} 60%, transparent 65%)`,
+        backgroundImage: `radial-gradient(circle, ${cantoColor} 60%, transparent 65%)`,
         backgroundSize: isHorizontal ? `${dotSpan}px ${thickness}px` : `${thickness}px ${dotSpan}px`,
         backgroundRepeat: 'repeat',
         backgroundPosition: 'center',
       };
     case 7:
       return {
-        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(3, thickness)}px, transparent ${Math.max(3, thickness)}px ${Math.max(5, thickness * 2)}px, ${CANTO_EDGE_COLOR} ${Math.max(5, thickness * 2)}px ${Math.max(11, thickness * 4.2)}px, transparent ${Math.max(11, thickness * 4.2)}px ${Math.max(14, thickness * 5.4)}px)`,
+        backgroundImage: `repeating-linear-gradient(${axis}, ${cantoColor} 0 ${Math.max(3, thickness)}px, transparent ${Math.max(3, thickness)}px ${Math.max(5, thickness * 2)}px, ${cantoColor} ${Math.max(5, thickness * 2)}px ${Math.max(11, thickness * 4.2)}px, transparent ${Math.max(11, thickness * 4.2)}px ${Math.max(14, thickness * 5.4)}px)`,
       };
     case 8:
       return {
-        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(10, thickness * 4)}px, transparent ${Math.max(10, thickness * 4)}px ${Math.max(14, thickness * 5.8)}px)`,
+        backgroundImage: `repeating-linear-gradient(${axis}, ${cantoColor} 0 ${Math.max(10, thickness * 4)}px, transparent ${Math.max(10, thickness * 4)}px ${Math.max(14, thickness * 5.8)}px)`,
       };
     default:
       return {
-        backgroundImage: `repeating-linear-gradient(${axis}, ${CANTO_EDGE_COLOR} 0 ${Math.max(5, thickness * 2.5)}px, transparent ${Math.max(5, thickness * 2.5)}px ${Math.max(8, thickness * 4)}px)`,
+        backgroundImage: `repeating-linear-gradient(${axis}, ${cantoColor} 0 ${Math.max(5, thickness * 2.5)}px, transparent ${Math.max(5, thickness * 2.5)}px ${Math.max(8, thickness * 4)}px)`,
       };
   }
 }
 
-function getCantoEdgeStyle(canto, orientation, currentScale) {
+function getCantoEdgeStyle(canto, orientation, currentScale, cantoColor = CANTO_EDGE_COLOR) {
   const typeRef = getCantoTypeRef(canto);
   const baseThickness = Math.max(1.2, 1.75 / currentScale);
   const thicknessByType = {
@@ -76,13 +88,13 @@ function getCantoEdgeStyle(canto, orientation, currentScale) {
     ...(orientation === 'horizontal'
       ? { height: `${thickness}px` }
       : { width: `${thickness}px` }),
-    ...getCantoEdgePattern(typeRef, orientation, thickness),
+    ...getCantoEdgePattern(typeRef, orientation, thickness, cantoColor),
     boxShadow: '0 0 0 0.5px rgba(250, 204, 21, 0.35)',
     opacity: 0.95,
   };
 }
 
-export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, refiladoX = 20, refiladoY = 20, compact = false, rows = [], cantos = [], id }) {
+export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, refiladoX = 20, refiladoY = 20, compact = false, rows = [], cantos = [], id, exportSkin = false }) {
   const containerRef = useRef(null);
   const coerceNumber = (value) => Number(value);
   const sanitizeCoord = (value) => (Number.isFinite(value) ? value : 0);
@@ -109,6 +121,9 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
   const [hoveredPiece, setHoveredPiece] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [containerSize, setContainerSize] = useState({ w: 800, h: 500 });
+
+  // Get active skin based on mode
+  const skin = LIVE_SKIN;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -288,41 +303,55 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
         >
           <div 
             data-export-board
-            className="relative box-content bg-[#09132b] shadow-[0_0_30px_rgba(0,224,254,0.15)]" 
+            className="relative box-content shadow-[0_0_30px_rgba(0,224,254,0.15)]"
               style={{ 
                 width: safeBoardWidth, 
                 height: safeBoardHeight,
+                backgroundColor: skin.boardBg,
                 border: `${Math.max(1, 2 / currentScale)}px solid rgba(0, 224, 254, 0.5)`
               }}
           >
             {/* Trim/Refilado overlay — non-usable boundary bands */}
             {/* Trim/Refilado overlay — one-sided: X from right edge, Y from top edge */}
             {safeRefiladoX > 0 && (
-              <div className="absolute top-0 bottom-0 bg-[#f43f5e15] border-l border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
-                style={{ right: 0, width: safeRefiladoX }}
+              <div data-refilado className="absolute top-0 bottom-0 pointer-events-none z-[3]"
+                style={{ 
+                  right: 0, 
+                  width: safeRefiladoX,
+                  backgroundColor: '#f43f5e15',
+                  borderLeft: '1px dashed #f43f5e55'
+                }}
               />
             )}
             {safeRefiladoY > 0 && (
-              <div className="absolute left-0 right-0 bg-[#f43f5e15] border-b border-dashed border-[#f43f5e55] pointer-events-none z-[3]"
-                style={{ top: 0, height: safeRefiladoY }}
+              <div data-refilado className="absolute left-0 right-0 pointer-events-none z-[3]"
+                style={{ 
+                  top: 0, 
+                  height: safeRefiladoY,
+                  backgroundColor: '#f43f5e15',
+                  borderBottom: '1px dashed #f43f5e55'
+                }}
               />
             )}
-            {/* Usable boundary indicator (dashed inner rectangle) — one-sided trim: usable starts below top trim */}
+{/* Usable boundary indicator (dashed inner rectangle) — one-sided trim: usable starts below top trim */}
             {safeRefiladoX > 0 || safeRefiladoY > 0 ? (
               <div
+                data-refilado
                 className="absolute pointer-events-none z-[4]"
                 style={{
                   left: 0,
                   top: safeRefiladoY,
                   width: Math.max(0, usableWidth),
                   height: Math.max(0, usableHeight),
-                  border: `${Math.max(1, 1.5 / currentScale)}px solid rgba(110, 231, 183, 0.35)`,
+                  border: `${Math.max(1, 1.5 / currentScale)}px solid rgba(110,231,183,0.35)`,
                   boxShadow: 'inset 0 0 0 1px rgba(110,231,183,0.08)'
                 }}
               />
             ) : null}
             <div className="absolute inset-0 overflow-visible">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#f43f5e1a] to-[#f59e0b1a] pointer-events-none" />
+              {!exportSkin && (
+                <div className="absolute inset-0 bg-gradient-to-br from-[#f43f5e1a] to-[#f59e0b1a] pointer-events-none" />
+              )}
               {(sheet.freeRects || []).map((rect, index) => {
                 const rawRectX = sanitizeCoord(rect?.x);
                 const rawRectY = sanitizeCoord(rect?.y);
@@ -338,7 +367,9 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
 
                 const rectScreenW = rectWidth * currentScale;
                 const rectScreenH = rectHeight * currentScale;
-                const rectDimFontSize = Math.max(8, Math.min(11, Math.min(rectScreenW, rectScreenH) * 0.18));
+                const rectDimFontPx = Math.max(10, Math.min(14, Math.min(rectScreenW, rectScreenH) * 0.22));
+                const rectDimFontSize = rectDimFontPx / currentScale;
+                const rectBorderWidth = 1.8 / currentScale;
                 const showRectWidthLabel = canShowSecondaryLabel({
                   primaryPx: rectScreenW,
                   crossPx: rectScreenH,
@@ -354,24 +385,32 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                   minZoom: 0.9,
                 });
                 
-                return (
+return (
                   <div
                     key={`free_${sheet.id || sheet.index}_${index}`}
-                    className="absolute pointer-events-none z-[5] rounded-sm border border-dashed border-[#6ee7b74d] bg-[#6ee7b70d]"
+                    data-free-rect
+                    className="absolute pointer-events-none z-[5] rounded-sm border-dashed"
                     style={{
                       left: rectX,
                       top: rectY,
                       width: rectWidth,
                       height: rectHeight,
+                      borderWidth: `${rectBorderWidth}px`,
+                      borderColor: skin.freeRectBorder,
+                      backgroundColor: skin.freeRectBg,
+                      boxShadow: exportSkin ? 'none' : `inset 0 0 0 ${0.9 / currentScale}px rgba(255,255,255,0.2)`,
                     }}
                   >
                       {showRectHeightLabel && (
                         <div
-                          className="absolute text-[#d1fae5cc] bg-[#08111f99] rounded-sm border border-[#6ee7b726] whitespace-nowrap pointer-events-none"
+                          className="absolute rounded-sm whitespace-nowrap pointer-events-none font-semibold"
                           style={{ 
                             left: '16px', top: '50%', transform: 'translate(-50%, -50%) rotate(-90deg)',
                             fontSize: `${rectDimFontSize}px`,
-                            padding: '0.1em 0.3em'
+                            padding: '0.12em 0.35em',
+                            color: skin.textColor,
+                            backgroundColor: '#ffffff',
+                            border: `0.5px solid ${skin.textColor}33`
                           }}
                         >
                           {Math.round(sanitizeSize(rect?.height))}
@@ -379,17 +418,20 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                      )}
                         {showRectWidthLabel && (
                          <div
-                          className="absolute text-[#d1fae5cc] bg-[#08111f99] rounded-sm border border-[#6ee7b726] pointer-events-none"
-                          style={{ 
-                            left: '50%', bottom: '4px', transform: 'translateX(-50%)',
-                            fontSize: `${rectDimFontSize}px`,
-                            padding: '0.1em 0.3em'
-                          }}
-                        >
-                          {Math.round(sanitizeSize(rect?.width))}
+                          className="absolute rounded-sm pointer-events-none font-semibold"
+                           style={{ 
+                             left: '50%', bottom: '4px', transform: 'translateX(-50%)',
+                             fontSize: `${rectDimFontSize}px`,
+                             padding: '0.12em 0.35em',
+                             color: skin.textColor,
+                             backgroundColor: '#ffffff',
+                             border: `0.5px solid ${skin.textColor}33`
+                           }}
+                         >
+                           {Math.round(sanitizeSize(rect?.width))}
                        </div>
                      )}
-                   </div>
+                    </div>
                 );
               })}
 
@@ -490,14 +532,19 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                 return (
                   <div
                     key={`piece_${piece.instanceId || i}`}
-                    className={`absolute border border-[#00e0fe80] flex items-center justify-center
-                      ${hoveredPiece?.hoverKey === hoverKey ? 'bg-[#00e0fe40] z-30 shadow-[0_0_15px_rgba(0,224,254,0.5)]' : 'bg-[#060e20] z-10'}
-                      transition-colors duration-150 ease-in-out cursor-pointer hover:bg-[#00e0fe30]`}
+                    data-piece
+                    className={`absolute border-2 flex items-center justify-center transition-colors duration-150 ease-in-out cursor-pointer
+                      ${hoveredPiece?.hoverKey === hoverKey ? 'z-30 shadow-[0_0_15px_rgba(0,188,212,0.35)]' : 'z-10'}`}
                     style={{
                       left: pLeft,
                       top: pTop,
                       width: pWidth,
                       height: pHeight,
+                      backgroundColor: hoveredPiece?.hoverKey === hoverKey ? '#55dfe7' : '#76e3e8',
+                      borderColor: skin.pieceBorder,
+                      boxShadow: hoveredPiece?.hoverKey === hoverKey
+                        ? '0 0 0 1px rgba(255,255,255,0.45), 0 0 15px rgba(0,188,212,0.35)'
+                        : 'inset 0 0 0 1px rgba(255,255,255,0.12)',
                     }}
                     onMouseEnter={(e) => {
                       setHoveredPiece({ ...piece, hoverKey, cantoInfo });
@@ -516,7 +563,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                         className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 overflow-hidden"
                         style={{
                           fontSize: `${labelFontSize}px`,
-                          color: hoveredPiece?.hoverKey === hoverKey ? '#ffffff' : '#cbd5e1',
+                          color: exportSkin ? skin.textColor : (hoveredPiece?.hoverKey === hoverKey ? '#ffffff' : '#0f172a'),
                           whiteSpace: 'nowrap',
                           textAlign: 'center',
                           transform: isVertical ? 'rotate(-90deg)' : 'none',
@@ -529,8 +576,8 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                     {/* 4. Small piece index in corner when cantos shown */}
                     {hasAnyCanto && (screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H) && (
                       <span
-                        className="absolute top-0 left-0 pointer-events-none text-[#94a3b8] opacity-60"
-                        style={{ fontSize: `${Math.max(3 / currentScale, dimFontSize * 0.75)}px`, padding: '1px 2px' }}
+                        className="absolute top-0 left-0 pointer-events-none"
+                        style={{ fontSize: `${Math.max(3 / currentScale, dimFontSize * 0.75)}px`, padding: '1px 2px', color: exportSkin ? '#000' : '#0f172a' }}
                       >
                         {i + 1}
                       </span>
@@ -539,8 +586,14 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                     {/* 2. Horizontal dimension near bottom edge, reading left→right */}
                     {showDimValue && showHorizontalDim && (
                       <span
-                        className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-[#67e8f9] opacity-70 whitespace-nowrap"
-                        style={{ bottom: `${2 / currentScale}px`, fontSize: `${dimFontSize}px`, padding: '0 0.3em 2px' }}
+                        className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap"
+                        style={{ 
+                          bottom: `${2 / currentScale}px`, 
+                          fontSize: `${dimFontSize}px`, 
+                          padding: '0 0.3em 2px',
+                          color: skin.textColor,
+                          opacity: 0.8
+                        }}
                       >
                         {Math.round(pieceWidth)}
                       </span>
@@ -549,7 +602,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                     {/* 3. Vertical dimension near left edge, reading vertically */}
                     {showDimValue && showVerticalDim && (
                       <span
-                        className="absolute left-0 top-1/2 pointer-events-none text-[#67e8f9] opacity-70 whitespace-nowrap"
+                        className="absolute pointer-events-none whitespace-nowrap"
                         style={{
                           top: '50%',
                           left: `${2 / currentScale}px`,
@@ -557,6 +610,8 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                           padding: '2px 0 0 2px',
                           transform: 'translateY(-50%) rotate(-90deg)',
                           transformOrigin: 'center center',
+                          color: skin.textColor,
+                          opacity: 0.8
                         }}
                       >
                         {Math.round(pieceHeight)}
@@ -573,7 +628,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                               left: 0,
                               right: 0,
                               bottom: 0,
-                              ...getCantoEdgeStyle(bottomCanto, 'horizontal', currentScale),
+                              ...getCantoEdgeStyle(bottomCanto, 'horizontal', currentScale, skin.cantoColor),
                             }}
                           />
                         )}
@@ -584,7 +639,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                               left: 0,
                               right: 0,
                               top: 0,
-                              ...getCantoEdgeStyle(topCanto, 'horizontal', currentScale),
+                              ...getCantoEdgeStyle(topCanto, 'horizontal', currentScale, skin.cantoColor),
                             }}
                           />
                         )}
@@ -595,7 +650,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                               top: 0,
                               bottom: 0,
                               left: 0,
-                              ...getCantoEdgeStyle(leftCanto, 'vertical', currentScale),
+                              ...getCantoEdgeStyle(leftCanto, 'vertical', currentScale, skin.cantoColor),
                             }}
                           />
                         )}
@@ -606,7 +661,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                               top: 0,
                               bottom: 0,
                               right: 0,
-                              ...getCantoEdgeStyle(rightCanto, 'vertical', currentScale),
+                              ...getCantoEdgeStyle(rightCanto, 'vertical', currentScale, skin.cantoColor),
                             }}
                           />
                         )}

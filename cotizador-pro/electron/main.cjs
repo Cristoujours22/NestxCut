@@ -204,6 +204,28 @@ function createWindow() {
 
   console.log('[main] isDev:', isDev, 'startUrl:', startUrl);
 
+  // Intercept target="_blank" / external navigations → open in system browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Allow local app URLs (dev server or bundled file) to open inside Electron
+    if (
+      url.startsWith('file://') ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(url)
+    ) {
+      return { action: 'allow' };
+    }
+    // True external URLs and mailto:/tel: → system browser
+    if (
+      url.startsWith('http://') ||
+      url.startsWith('https://') ||
+      url.startsWith('mailto:') ||
+      url.startsWith('tel:')
+    ) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
   mainWindow.loadURL(startUrl);
   mainWindow.setTitle(`NESTXCUT v${app.getVersion()}`);
   if (isDev) mainWindow.webContents.openDevTools();

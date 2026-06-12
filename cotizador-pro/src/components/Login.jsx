@@ -17,6 +17,12 @@ export default function Login() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = React.useCallback((type, message, duration = 4000) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), duration);
+  }, []);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -111,10 +117,12 @@ export default function Login() {
       return;
     }
 
-    try {
+try {
       // Firebase Auth login
-      await auth.login(email, password);
+      const result = await auth.login(email, password);
       clearTimeout(timeoutId);
+
+      // License expired — ProtectedRoute will surface SubscriptionExpired with the reason
       
       // Verificar si el email fue verificado (el contexto ya lo hace, pero por seguridad)
       if (auth.user && !auth.user.emailVerified) {
@@ -260,6 +268,16 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white ${
+          toast.type === 'warning' ? 'bg-amber-600' : toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          <span className="material-icons text-sm">{toast.type === 'success' ? 'check_circle' : toast.type === 'warning' ? 'warning' : 'error'}</span>
+          <span className="font-medium">{toast.message}</span>
+        </div>
+      )}
 
       <footer className="footer mt-8 text-center text-gray-500 text-sm">
         <p>Todos los derechos reservados &copy; {new Date().getFullYear()} | Diseñado por Cristian</p>
