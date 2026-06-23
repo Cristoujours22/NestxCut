@@ -512,13 +512,20 @@ return (
                   && screenW >= 26
                   && screenH >= 96;
 
+                const estimateTextWidth = (text, fontPx) => text.length * fontPx * 0.58;
+                const projectedRightDimWidth = showHorizontalDim ? Math.max(18, dimFontSize * currentScale * 3.2) : 0;
+                const projectedLeftDimWidth = showVerticalDim ? Math.max(14, dimFontSize * currentScale * 1.8) : 0;
+                const centerAvailablePx = Math.max(0, screenW - projectedLeftDimWidth - projectedRightDimWidth - 10);
+                const fullLabelFitsCenter = estimateTextWidth(fullLabelSource, labelFontSize * currentScale) <= centerAvailablePx;
+                const shortLabelFitsCenter = estimateTextWidth(shortAlias, labelFontSize * currentScale) <= centerAvailablePx;
+
                 const pieceLabel = isMiniPiece
                   ? (canShowShortLabel ? shortAlias : '')
                   : isVertical
                   ? (canShowVerticalFullLabel ? fullLabelSource : (canShowVerticalLabel ? shortAlias : ''))
-                  : canShowFullLabel
+                  : canShowFullLabel && fullLabelFitsCenter
                     ? fullLabelSource
-                    : canShowShortLabel
+                    : (canShowShortLabel && shortLabelFitsCenter)
                       ? shortAlias
                       : '';
                 const isShortLabel = Boolean(pieceLabel) && pieceLabel !== fullLabelSource;
@@ -528,7 +535,10 @@ return (
                 const useHorizontalThreeZoneLayout = !isVertical && showHorizontalDim;
                 const reserveBottomBand = showDimValue && showHorizontalDim && !useHorizontalThreeZoneLayout;
                 const labelTop = (!isVertical && reserveBottomBand) ? '42%' : '50%';
-                const placeHorizontalDimAtRight = !isVertical && showHorizontalDim;
+                const placeHorizontalDimAtRight = showHorizontalDim && isVertical;
+                const verticalDimInset = isVertical
+                  ? `${Math.max(12, dimFontSize * 1.6)}px`
+                  : `${isMiniPiece ? 1 : 2 / currentScale}px`;
                 const hoverKey = piece.instanceId != null ? `instance:${piece.instanceId}` : `fallback:${i}`;
 
                 // Get canto info per side
@@ -576,7 +586,7 @@ return (
                         style={{
                           top: labelTop,
                           fontSize: `${labelFontSize}px`,
-                          color: exportSkin ? skin.textColor : (hoveredPiece?.hoverKey === hoverKey ? '#ffffff' : '#0f172a'),
+                          color: skin.textColor,
                           whiteSpace: 'nowrap',
                           textAlign: 'center',
                           transform: isVertical ? 'translateY(-50%) rotate(-90deg)' : 'translateY(-50%)',
@@ -620,12 +630,12 @@ return (
                         className="absolute pointer-events-none whitespace-nowrap"
                         style={{
                           top: '50%',
-                           left: `${isMiniPiece ? 1 : 2 / currentScale}px`,
-                           fontSize: `${dimFontSize}px`,
-                           padding: isMiniPiece ? '1px 0 0 1px' : '2px 0 0 2px',
-                           transform: 'translateY(-50%) rotate(-90deg)',
-                           transformOrigin: 'center center',
-                           color: skin.textColor,
+                           left: verticalDimInset,
+                            fontSize: `${dimFontSize}px`,
+                            padding: isMiniPiece ? '1px 0 0 1px' : '2px 0 0 2px',
+                            transform: 'translateY(-50%) rotate(-90deg)',
+                            transformOrigin: isVertical ? 'left center' : 'center center',
+                            color: skin.textColor,
                            opacity: isMiniPiece ? 0.95 : 0.8,
                            fontWeight: isMiniPiece ? 700 : 500,
                          }}
