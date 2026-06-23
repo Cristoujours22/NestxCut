@@ -219,16 +219,16 @@ export default function NestingExportSheet({
                     style={{
                       position: 'absolute',
                       left: '50%',
-                      bottom: '4px',
+                      bottom: '2px',
                       transform: 'translateX(-50%)',
                       fontSize: `${rectDimFontSize}px`,
                       color: skin.textColor,
-                      backgroundColor: '#ffffff',
-                      border: `${Math.max(1, 1 / currentScale)}px solid #000000`,
-                      padding: '0.14em 0.4em',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      padding: '0',
                       whiteSpace: 'nowrap',
                       pointerEvents: 'none',
-                      fontWeight: 600,
+                      fontWeight: 500,
                     }}
                   >
                     {Math.round(sanitizeSize(rect?.width))}
@@ -264,12 +264,15 @@ export default function NestingExportSheet({
             const screenH = pHeight * currentScale;
             const isVertical = pHeight > pWidth;
 
-            const showDimH = screenW >= 36 && screenH >= 14;
-            const showDimV = screenH >= 36 && screenW >= 14;
+            const isMiniDim = screenW < 52 || screenH < 22 || (isVertical && screenW < 24) || (!isVertical && screenH < 18);
+            const showDimH = screenW >= (isMiniDim ? 28 : 36) && screenH >= (isMiniDim ? 10 : 14);
+            const showDimV = screenH >= (isMiniDim ? 28 : 36) && screenW >= (isMiniDim ? 10 : 14);
 
-            const dimFontSize = Math.max(6, Math.min(11, Math.min(screenW, screenH) * 0.18)) / currentScale;
-            const dimPadding = screenW < 52 || screenH < 22 ? '0.06em 0.2em' : '0.12em 0.35em';
-            const dimBorderWidth = (screenW < 52 || screenH < 22 ? 0.8 : 1) / currentScale;
+            const dimFontSize = (isMiniDim
+              ? Math.max(5.5, Math.min(8, Math.min(screenW, screenH) * 0.16))
+              : Math.max(6, Math.min(11, Math.min(screenW, screenH) * 0.18))) / currentScale;
+            const dimPadding = isMiniDim ? '0.02em 0.12em' : '0.12em 0.35em';
+            const dimBorderWidth = (isMiniDim ? 0.6 : 0.8) / currentScale;
 
             const pieceLabel = (piece.label || piece.ref || `P${i + 1}`).trim();
             const shortLabel = pieceLabel.length > 6 ? pieceLabel.slice(0, 6) : pieceLabel;
@@ -304,7 +307,7 @@ export default function NestingExportSheet({
                 {showLabel && (
                   <span
                     style={{
-                      fontSize: `${Math.max(8, Math.min(14, Math.min(screenW, screenH) * 0.22)) / currentScale}px`,
+                      fontSize: `${Math.max(7, Math.min(12, Math.min(screenW, screenH) * 0.2)) / currentScale}px`,
                       color: skin.textColor,
                       textAlign: 'center',
                       whiteSpace: 'nowrap',
@@ -322,14 +325,14 @@ export default function NestingExportSheet({
                     style={{
                       position: 'absolute',
                       left: '50%',
-                      bottom: '1px',
+                       bottom: isMiniDim ? '0px' : '1px',
                       transform: 'translateX(-50%)',
                       fontSize: `${dimFontSize}px`,
                       color: skin.textColor,
                       backgroundColor: 'transparent',
                       border: 'none',
                        padding: dimPadding,
-                       fontWeight: 600,
+                       fontWeight: isMiniDim ? 700 : 600,
                       pointerEvents: 'none',
                       whiteSpace: 'nowrap',
                     }}
@@ -344,14 +347,14 @@ export default function NestingExportSheet({
                     style={{
                       position: 'absolute',
                       top: '50%',
-                      left: '1px',
+                       left: isMiniDim ? '0px' : '1px',
                       transform: 'translateY(-50%) rotate(-90deg)',
                       fontSize: `${dimFontSize}px`,
                       color: skin.textColor,
                       backgroundColor: 'transparent',
                       border: 'none',
                        padding: dimPadding,
-                       fontWeight: 600,
+                        fontWeight: isMiniDim ? 700 : 600,
                       pointerEvents: 'none',
                       whiteSpace: 'nowrap',
                     }}
