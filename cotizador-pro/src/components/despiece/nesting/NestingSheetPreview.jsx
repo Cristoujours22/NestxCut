@@ -532,10 +532,8 @@ return (
                 const showDimValue = isSub100Piece
                   ? true
                   : (canShowFullLabel || (canShowShortLabel && !isShortLabel) || canShowVerticalFullLabel);
-                const useHorizontalThreeZoneLayout = !isVertical && showHorizontalDim;
-                const reserveBottomBand = showDimValue && showHorizontalDim && !useHorizontalThreeZoneLayout;
-                const labelTop = (!isVertical && reserveBottomBand) ? '42%' : '50%';
-                const placeHorizontalDimAtRight = showHorizontalDim && isVertical;
+                const labelTop = '50%';
+                const placeHorizontalDimAtRight = showHorizontalDim;
                 const verticalDimInset = isVertical
                   ? `${Math.max(12, dimFontSize * 1.6)}px`
                   : `${isMiniPiece ? 1 : 2 / currentScale}px`;
