@@ -78,6 +78,7 @@ export default function PuertasPage() {
   const [servicios, setServicios] = useState([]);
   const [showNestingModal, setShowNestingModal] = useState(false);
   const [showCostBreakdown, setShowCostBreakdown] = useState(false);
+  const [showT4Modal, setShowT4Modal] = useState(false);
   const [fabricationStatus, setFabricationStatus] = useState({ type: '', message: '' });
   const [isConfirmingFabrication, setIsConfirmingFabrication] = useState(false);
   const [configStatus, setConfigStatus] = useState({ type: '', message: '' });
@@ -146,6 +147,23 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     };
     loadDrafts();
   }, [activeTab]);
+
+  // Close T4 modal when leaving the nueva tab
+  useEffect(() => {
+    if (activeTab !== 'nueva') {
+      setShowT4Modal(false);
+    }
+  }, [activeTab]);
+
+  // T4 modal Escape key listener (global — backdrop div is non-focusable)
+  useEffect(() => {
+    if (!showT4Modal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setShowT4Modal(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showT4Modal]);
 
   const tableros = useMemo(
     () => inventoryItems.filter((item) => item.item_type === 'tablero'),
@@ -236,15 +254,15 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     const checks = [
       {
         key: 'fondo6mm',
-        label: 'Fondo 6mm en Tablero/Material',
+        label: 'Fondos 6mm en Tablero/Material',
         ok: selectedIsFondo6mm,
         help: 'El tablero base seleccionado debe tener espesor 6 mm.',
       },
       {
         key: 'pino',
-        label: 'Pino / bastidor en Tablero/Material',
+        label: 'Bastidor / pino en Tablero/Material',
         ok: pinoExists,
-        help: 'Debe existir un item de pino o bastidor en Tablero/Material.',
+        help: 'Debe existir un item de bastidor o pino en Tablero/Material.',
       },
       {
         key: 'pegante',
@@ -685,7 +703,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     if (!API?.updateInventoryItem || !API?.addInventoryMovement || !API?.addInventoryItem) {
       setFabricationStatus({
         type: 'error',
-        message: 'Faltan métodos de inventario disponibles en electronAPI para confirmar fabricación.',
+        message: 'Falta la conexión con el inventario para confirmar la fabricación.',
       });
       return;
     }
@@ -853,7 +871,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             total_cost: Number(scrap.costo_unitario || 0),
             reference_type: 'door_production',
             reference_id: referenceId,
-            motivo: `Alta sobrante reutilizable ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
+            motivo: `Alta de sobrante reutilizable ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
           });
           if (scrapMovement?.id) createdMovementIds.push(scrapMovement.id);
         }
@@ -979,7 +997,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
   const saveDoorConfig = async () => {
     const API = window.electronAPI;
     if (!API?.saveDoorConfig) {
-      setConfigStatus({ type: 'error', message: 'No existe el método para guardar configuración.' });
+      setConfigStatus({ type: 'error', message: 'No se puede guardar la configuración.' });
       return;
     }
 
@@ -1042,7 +1060,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     try {
       const API = window.electronAPI;
       if (!API?.deleteDoorFabrication) {
-        setHistoryStatus({ type: 'error', message: 'No existe el método para eliminar fabricaciones.' });
+        setHistoryStatus({ type: 'error', message: 'No se puede eliminar la fabricación.' });
         return;
       }
       await API.deleteDoorFabrication(record.id);
@@ -1068,7 +1086,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
   const saveDoorDraft = async () => {
     const API = window.electronAPI;
     if (!API?.saveDoorDraft) {
-      setDraftStatus({ type: 'error', message: 'No existe el método para guardar borradores.' });
+      setDraftStatus({ type: 'error', message: 'No se pueden guardar borradores.' });
       return;
     }
     setIsSavingDraft(true);
@@ -1154,7 +1172,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             <SectionCard
               title="Nueva puerta"
               icon="add_box"
-              description="Ingresá el vano, el material y la cantidad para correr el motor geométrico base del módulo."
+              description="Ingresá el vano, el material y la cantidad para ejecutar el cálculo geométrico base del módulo."
               badge="Activo"
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1186,7 +1204,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   <PuertasMaterialDropdown
                     compact
-                    title="Bastidor / Pino"
+                    title="Bastidor / pino"
                     value={draft.insumosSeleccionados?.bastidorItemId}
                     materials={bastidorOptions}
                     onChange={(value) => updateDraft('insumosSeleccionados.bastidorItemId', value)}
@@ -1206,7 +1224,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                   />
                   <PuertasMaterialDropdown
                     compact
-                    title="Honeycomb / Alma"
+                    title="Honeycomb / alma"
                     value={draft.insumosSeleccionados?.honeycombItemId}
                     materials={honeycombOptions}
                     onChange={(value) => updateDraft('insumosSeleccionados.honeycombItemId', value)}
@@ -1240,7 +1258,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             <SectionCard
               title="Resultado geométrico"
               icon="calculate"
-              description="Salida base del motor: hoja, recibidor, marco e insumos estructurales principales."
+              description="Resultado del cálculo geométrico: hoja, recibidor, marco e insumos estructurales principales."
               badge="T4"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -1261,41 +1279,14 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                 </div>
               </div>
 
-              <div className="space-y-5 text-sm">
-                <div>
-                  <div className="text-[#99f7ff] font-bold uppercase tracking-[0.18em] text-[11px] mb-2">Recibidor y marco</div>
-                  <div className="space-y-2">
-                    {[...calculation.recibidor.piezas, ...calculation.marco.piezas].map((piece) => (
-                      <div key={piece.id} className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3 flex items-center justify-between gap-4">
-                        <div>
-                          <div className="text-white font-semibold">{piece.detalle}</div>
-                          <div className="text-[#6f7a97]">{piece.largoMm} × {piece.anchoMm} mm</div>
-                        </div>
-                        <div className="text-[#a3aac4] font-bold">x{piece.cantidad}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-[#99f7ff] font-bold uppercase tracking-[0.18em] text-[11px] mb-2">Estructura interna</div>
-                  <div className="space-y-2">
-                    {[...calculation.estructuraInterna.fondos, ...calculation.estructuraInterna.bastidores, ...(calculation.estructuraInterna.chapero ? [calculation.estructuraInterna.chapero] : [])].map((piece) => (
-                      <div key={piece.id} className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3 flex items-center justify-between gap-4">
-                        <div>
-                          <div className="text-white font-semibold">{piece.detalle}</div>
-                          <div className="text-[#6f7a97]">{piece.largoMm} × {piece.anchoMm} × {piece.espesorMm} mm</div>
-                        </div>
-                        <div className="text-[#a3aac4] font-bold">x{piece.cantidad}</div>
-                      </div>
-                    ))}
-                    <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3">
-                      <div className="text-white font-semibold">{calculation.estructuraInterna.alma.detalle}</div>
-                      <div className="text-[#6f7a97]">{calculation.estructuraInterna.alma.altoMm} × {calculation.estructuraInterna.alma.anchoMm} × {calculation.estructuraInterna.alma.espesorMm} mm</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowT4Modal(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#99f7ff]/25 bg-[#99f7ff]/10 px-5 py-3 text-sm font-bold text-[#99f7ff] transition-colors hover:bg-[#99f7ff]/15"
+              >
+                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                Ver detalle geométrico
+              </button>
             </SectionCard>
           </section>
         )}
@@ -1477,7 +1468,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                   <div className="text-lg font-extrabold text-emerald-300">{formatCurrency(costSummary.hardwareCost)}</div>
                 </div>
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Peg + canto</div>
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Pegante + canto</div>
                   <div className="text-lg font-extrabold text-amber-300">{formatCurrency(costSummary.peganteCost + costSummary.cantoCost)}</div>
                 </div>
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
@@ -1500,7 +1491,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                   Sugerencia de sobrantes
                 </h2>
                 <p className="text-[#a3aac4] text-sm leading-7 max-w-4xl">
-                  El sistema revisó el inventario de retales reutilizables. Si alguno sirve para fondos, bastidores, recibidores o marcos de esta puerta, te lo muestra para que vos decidas si querés usarlo o ignorarlo.
+                   El sistema revisó el inventario de sobrantes reutilizables. Si alguno sirve para fondos, bastidores, recibidores o marcos de esta puerta, te lo muestra para que vos decidas si querés usarlo o ignorarlo.
                 </p>
 
                 {scrapSuggestions.length === 0 ? (
@@ -1553,11 +1544,11 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#99f7ff]/15 bg-[#99f7ff]/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#99f7ff] mb-3">
                   <span className="w-2 h-2 rounded-full bg-[#00e0fe]"></span>
-                  Nesting completo
+                  Optimización de corte
                 </div>
-                <h2 className="text-white text-2xl font-bold font-['Space_Grotesk'] tracking-[-0.03em] mb-2">Aprovechamiento nesting</h2>
+                <h2 className="text-white text-2xl font-bold font-['Space_Grotesk'] tracking-[-0.03em] mb-2">Optimización de corte</h2>
                 <p className="text-[#a3aac4] text-sm leading-7 max-w-3xl">
-                  Incluye nesting de fondos 6mm y bastidores/listones con板材 real del inventario. Alma honeycomb excluded pending.
+                  Incluye distribución de cortes para fondos 6mm y bastidores / listones con tableros reales del inventario. El alma se excluye de la optimización por ahora.
                 </p>
               </div>
 
@@ -1567,7 +1558,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#99f7ff]/25 bg-[#99f7ff]/10 px-5 py-3 text-sm font-bold text-[#99f7ff] transition-colors hover:bg-[#99f7ff]/15"
               >
                 <span className="material-symbols-outlined text-[18px]">view_in_ar</span>
-                Ver nesting
+                Ver distribución de cortes
               </button>
             </div>
 
@@ -1582,7 +1573,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                 <div className="text-2xl font-extrabold text-cyan-300">{nestingData.summary.bastidoresSheetCount}</div>
               </div>
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Sin ubicar (fondos)</div>
+                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Piezas sin ubicar (fondos)</div>
                 <div className="text-2xl font-extrabold text-amber-300">{nestingData.fondos.preview?.unplaced?.length || 0}</div>
               </div>
             </div>
@@ -1590,10 +1581,10 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             {/* Bastidor nesting detail when selected */}
             {nestingData.bastidores && (
               <div className="mt-5 rounded-2xl border border-cyan-400/15 bg-[#060e20] p-4">
-                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle nesting bastidores</div>
+                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle de corte: bastidores</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <div className="text-[#6f7a97]">Board bastidor</div>
+                    <div className="text-[#6f7a97]">Tablero bastidor</div>
                     <div className="text-white font-semibold">{nestingData.bastidores.boardName}</div>
                     <div className="text-[#6f7a7a] text-xs">{nestingData.bastidores.boardDimensions}</div>
                   </div>
@@ -1616,7 +1607,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             {/* Fondo nesting detail */}
             {nestingData.fondos && (
               <div className="mt-4 rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle nesting fondos 6mm</div>
+                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle de corte: fondos 6mm</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <div className="text-[#6f7a97]">Láminas estimadas</div>
@@ -1631,7 +1622,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                     <div className="text-cyan-300 font-bold text-lg">{nestingData.fondos.estimate?.utilization?.toFixed(1) || 0}%</div>
                   </div>
                   <div>
-                    <div className="text-[#6f7a97]">Piezas enviadas</div>
+                    <div className="text-[#6f7a97]">Piezas colocadas</div>
                     <div className="text-blue-300 font-bold text-lg">{nestingData.fondos.rows?.reduce((t, r) => t + Number(r.cantidad || 0), 0) || 0}</div>
                   </div>
                 </div>
@@ -1646,7 +1637,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                     {nestingInterpretation.usableLargo} × {nestingInterpretation.usableAncho} mm
                   </div>
                   <p className="text-[#a3aac4] text-sm leading-7">
-                    Esta es el área realmente cortable después del refilado. Las piezas de puerta se acomodan dentro de este rectángulo, no del tablero bruto completo.
+                    Esta área es la superficie realmente cortable después del refilado. Las piezas de la puerta se acomodan dentro de este rectángulo, no del tablero bruto completo.
                   </p>
                 </div>
 
@@ -1664,7 +1655,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                           </div>
                           <div className="text-right">
                             <div className="text-emerald-300 font-bold">{(rect.area / 1000000).toFixed(2)} m²</div>
-                            <div className="text-[#6f7a97] text-xs">reutilizable potencial</div>
+                            <div className="text-[#6f7a97] text-xs">área reutilizable</div>
                           </div>
                         </div>
                       ))}
@@ -1737,10 +1728,10 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
               </div>
             </SectionCard>
 
-            <SectionCard title="Persistencia" icon="save" description="Guardá estos parámetros como configuración base del módulo de puertas." badge="Activo">
+            <SectionCard title="Guardar configuración" icon="save" description="Guardá estos parámetros como configuración base del módulo de puertas." badge="Activo">
               <div className="space-y-4">
                 <p className="text-[#a3aac4] text-sm leading-7">
-                  Esta configuración se guarda fuera del frontend, así que al reiniciar la app el módulo vuelve a abrir con estos mismos descuentos, holguras y medidas base.
+                  Esta configuración se guarda de forma persistente, así que al reiniciar la app el módulo vuelve a abrir con estos mismos descuentos, holguras y medidas base.
                 </p>
 
                 {configStatus.message ? (
@@ -1847,7 +1838,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                         </div>
                       </div>
                       <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300 uppercase tracking-[0.1em]">
-                        {record.status || 'OK'}
+                        {record.status || 'Completada'}
                       </span>
                     </div>
 
@@ -1913,7 +1904,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                           -{record.inventoryImpact.herrajesConsumed || 0} herrajes
                         </span>
                         <span className="rounded-lg border border-[#1a233a] bg-[#060e20] px-2 py-1 text-emerald-300">
-                          +{record.inventoryImpact.scrapsGenerated || 0} scraps
+                          +{record.inventoryImpact.scrapsGenerated || 0} sobrantes
                         </span>
                       </div>
                     ) : null}
@@ -1941,7 +1932,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                         className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/15 transition-colors"
                       >
                         <span className="material-symbols-outlined text-[16px]">content_copy</span>
-                        Reusar
+                        Reutilizar
                       </button>
                       <button
                         type="button"
@@ -1968,7 +1959,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
               </div>
               <div>
                 <h2 className="text-white text-xl font-bold font-['Space_Grotesk'] tracking-[-0.03em]">Sobrantes reutilizables</h2>
-                <p className="text-[#a3aac4] text-sm">Retales generados por fabricación de puertas y dados de alta en inventario.</p>
+                <p className="text-[#a3aac4] text-sm">Sobrantes generados por fabricación de puertas y dados de alta en inventario.</p>
               </div>
             </div>
 
@@ -1976,7 +1967,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
               <div className="rounded-[28px] border border-dashed border-[#1a233a] bg-[#0a1122] p-12 text-center">
                 <span className="material-symbols-outlined text-5xl text-[#40485d] mb-3">inventory_2</span>
                 <p className="text-[#6f7a97] text-sm">No hay sobrantes registrados todavía.</p>
-                <p className="text-[#6f7a97] text-sm mt-1">Confirmá una fabricación con nesting para que aparezcan acá.</p>
+                <p className="text-[#6f7a97] text-sm mt-1">Confirmá una fabricación con optimización de corte para que aparezcan acá.</p>
               </div>
             ) : (
               <>
@@ -2055,6 +2046,95 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
               </>
             )}
           </section>
+        )}
+
+        {showT4Modal && (
+          <div
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="t4-modal-title"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowT4Modal(false); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') setShowT4Modal(false); }}
+          >
+            <div className="bg-[#0a1122] rounded-[28px] border border-[#1a233a] w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+              <div className="sticky top-0 bg-[#0a1122] border-b border-[#1a233a] flex items-center justify-between p-6 rounded-t-[28px]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl border border-[#40485d]/30 bg-[#10182d] flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[#99f7ff]">calculate</span>
+                  </div>
+                  <div>
+                    <h3 id="t4-modal-title" className="text-white text-lg font-bold font-['Space_Grotesk']">Resultado geométrico</h3>
+                    <span className="inline-flex items-center rounded-full border border-[#99f7ff]/15 bg-[#99f7ff]/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#99f7ff]">T4</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowT4Modal(false)}
+                  aria-label="Cerrar"
+                  className="text-[#6f7a97] hover:text-white transition-colors"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                    <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Hoja</div>
+                    <div className="text-xl font-bold text-white">{calculation.hoja.altoMm} × {calculation.hoja.anchoMm}</div>
+                    <div className="text-sm text-[#6f7a97] mt-2">Espesor: {calculation.hoja.espesorMm} mm</div>
+                  </div>
+                  <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                    <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Recibidor</div>
+                    <div className="text-xl font-bold text-white">{calculation.recibidor.anchoMm} mm</div>
+                    <div className="text-sm text-[#6f7a97] mt-2">Ancho calculado</div>
+                  </div>
+                  <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
+                    <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Canto</div>
+                    <div className="text-xl font-bold text-white">{calculation.estructuraInterna.canto.linealesMm} mm</div>
+                    <div className="text-sm text-[#6f7a97] mt-2">Perímetro estimado</div>
+                  </div>
+                </div>
+
+                <div className="space-y-5 text-sm">
+                  <div>
+                    <div className="text-[#99f7ff] font-bold uppercase tracking-[0.18em] text-[11px] mb-2">Recibidor y marco</div>
+                    <div className="space-y-2">
+                      {[...calculation.recibidor.piezas, ...calculation.marco.piezas].map((piece) => (
+                        <div key={piece.id} className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3 flex items-center justify-between gap-4">
+                          <div>
+                            <div className="text-white font-semibold">{piece.detalle}</div>
+                            <div className="text-[#6f7a97]">{piece.largoMm} × {piece.anchoMm} mm</div>
+                          </div>
+                          <div className="text-[#a3aac4] font-bold">x{piece.cantidad}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[#99f7ff] font-bold uppercase tracking-[0.18em] text-[11px] mb-2">Estructura interna</div>
+                    <div className="space-y-2">
+                      {[...calculation.estructuraInterna.fondos, ...calculation.estructuraInterna.bastidores, ...(calculation.estructuraInterna.chapero ? [calculation.estructuraInterna.chapero] : [])].map((piece) => (
+                        <div key={piece.id} className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3 flex items-center justify-between gap-4">
+                          <div>
+                            <div className="text-white font-semibold">{piece.detalle}</div>
+                            <div className="text-[#6f7a97]">{piece.largoMm} × {piece.anchoMm} × {piece.espesorMm} mm</div>
+                          </div>
+                          <div className="text-[#a3aac4] font-bold">x{piece.cantidad}</div>
+                        </div>
+                      ))}
+                      <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3">
+                        <div className="text-white font-semibold">{calculation.estructuraInterna.alma.detalle}</div>
+                        <div className="text-[#6f7a97]">{calculation.estructuraInterna.alma.altoMm} × {calculation.estructuraInterna.alma.anchoMm} × {calculation.estructuraInterna.alma.espesorMm} mm</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {showNestingModal && selectedMaterial && nestingData && (
