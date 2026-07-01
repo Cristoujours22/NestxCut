@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { getPieceCantoInfo } from '../../../features/despiece/utils/pdfExport';
+import { computePieceAnnotation, computeFreeRectAnnotation } from './nestingAnnotation';
 
 const CANTO_EDGE_COLOR = '#fde047';
 // Live preview skin colors
@@ -202,10 +203,6 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
   const currentScale = Math.max(baseScale * zoom, 0.0001);
   const offsetX = pan.x + (containerSize.w - (safeBoardWidth * currentScale)) / 2;
   const offsetY = pan.y + (containerSize.h - (safeBoardHeight * currentScale)) / 2;
-  const canShowSecondaryLabel = ({ primaryPx, crossPx, minPrimaryPx, minCrossPx, minZoom = 1 }) => (
-    zoom >= minZoom && primaryPx >= minPrimaryPx && crossPx >= minCrossPx
-  );
-
   // Color-coded yield indicator
   const yieldNum = parseFloat(yieldPct);
   const yieldColor = yieldNum >= 70 ? 'text-emerald-400' : yieldNum >= 40 ? 'text-amber-400' : 'text-rose-400';
@@ -368,20 +365,7 @@ export default function NestingSheetPreview({ sheet, boardWidth, boardHeight, re
                 const rectDimFontPx = Math.max(10, Math.min(14, Math.min(rectScreenW, rectScreenH) * 0.22));
                 const rectDimFontSize = rectDimFontPx / currentScale;
                 const rectBorderWidth = 1.8 / currentScale;
-                const showRectWidthLabel = canShowSecondaryLabel({
-                  primaryPx: rectScreenW,
-                  crossPx: rectScreenH,
-                  minPrimaryPx: 64,
-                  minCrossPx: 18,
-                  minZoom: 0.9,
-                });
-                const showRectHeightLabel = canShowSecondaryLabel({
-                  primaryPx: rectScreenH,
-                  crossPx: rectScreenW,
-                  minPrimaryPx: 64,
-                  minCrossPx: 18,
-                  minZoom: 0.9,
-                });
+                const { showWidthLabel: showRectWidthLabel, showHeightLabel: showRectHeightLabel } = computeFreeRectAnnotation({ screenW: rectScreenW, screenH: rectScreenH, currentZoom: zoom });
                 
 return (
                   <div
@@ -454,89 +438,18 @@ return (
                 // Minimum rendered sizes (in screen px) for label tiers
                 const screenW = pWidth * currentScale;
                 const screenH = pHeight * currentScale;
-                const MIN_FULL_LABEL_W = 78;
-                const MIN_FULL_LABEL_H = 36;
-                const MIN_SHORT_LABEL_W = 36;
-                const MIN_SHORT_LABEL_H = 16;
-                const MIN_DIM_W = 30;
-                const MIN_DIM_H = 28;
-                const MIN_VERTICAL_LABEL_W = 18;
-                const MIN_VERTICAL_LABEL_H = 52;
-                const isMiniPiece = screenH < 24 || screenW < 60 || (isVertical && screenW < 28);
-                const isSub100Piece = Math.min(pieceWidth, pieceHeight) < 100;
-
-                // Determine label tier based on rendered size
-                const canShowFullLabel = !isMiniPiece && screenW >= MIN_FULL_LABEL_W && screenH >= MIN_FULL_LABEL_H;
-                const canShowShortLabel = screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H;
-
-                const showHorizontalDim = canShowSecondaryLabel({
-                  primaryPx: screenW,
-                  crossPx: screenH,
-                  minPrimaryPx: isSub100Piece ? 24 : MIN_DIM_W,
-                  minCrossPx: isSub100Piece ? 10 : 18,
-                  minZoom: 0.95,
-                });
-                const showVerticalDim = canShowSecondaryLabel({
-                  primaryPx: screenH,
-                  crossPx: screenW,
-                  minPrimaryPx: isSub100Piece ? 24 : MIN_DIM_H,
-                  minCrossPx: isSub100Piece ? 10 : 18,
-                  minZoom: 0.95,
-                });
-
-                // Dynamic font sizes
-                const maxLabelSize = Math.min(pWidth, pHeight) * 0.55;
-                const targetLabelSize = (isMiniPiece ? 10 : 12) / currentScale;
-                const labelFontSize = Math.max((isMiniPiece ? 3 : 3.5) / currentScale, Math.min(maxLabelSize, targetLabelSize));
-
-                const maxDimSize = Math.min(pWidth, pHeight) * 0.4;
-                const targetDimSize = (isMiniPiece ? 9 : 11) / currentScale;
-                const dimFontSize = Math.max((isMiniPiece ? 2.8 : 3) / currentScale, Math.min(maxDimSize, targetDimSize));
-                const dimEdgeInset = Math.max(2 / currentScale, dimFontSize + (2 / currentScale));
-
-                // Label derivation
                 const fullLabelSource = (piece.label || piece.ref || '').trim();
-                const shortAlias = (() => {
-                  if (!fullLabelSource) return '';
-                  const codeMatch = fullLabelSource.match(/^[A-Za-z]{1,4}\d{1,4}[A-Za-z0-9-]*/)?.[0];
-                  if (codeMatch) return codeMatch.toUpperCase();
-                  const prefix = fullLabelSource.split(/[\s,;:.()[\]{}]+/).filter(Boolean)[0] || '';
-                  return prefix.slice(0, 8).toUpperCase();
-                })();
 
-                const canShowVerticalLabel = isVertical
-                  && screenW >= MIN_VERTICAL_LABEL_W
-                  && screenH >= MIN_VERTICAL_LABEL_H;
-                const canShowVerticalFullLabel = isVertical
-                  && !isMiniPiece
-                  && screenW >= 26
-                  && screenH >= 96;
+                const ann = computePieceAnnotation({
+                  pieceWidth, pieceHeight,
+                  screenW, screenH,
+                  isVertical,
+                  fullLabelSource,
+                  currentScale,
+                  currentZoom: zoom,
+                });
 
-                const estimateTextWidth = (text, fontPx) => text.length * fontPx * 0.58;
-                const projectedRightDimWidth = showHorizontalDim ? Math.max(18, dimFontSize * currentScale * 3.2) : 0;
-                const projectedLeftDimWidth = showVerticalDim ? Math.max(14, dimFontSize * currentScale * 1.8) : 0;
-                const centerAvailablePx = Math.max(0, screenW - projectedLeftDimWidth - projectedRightDimWidth - 10);
-                const fullLabelFitsCenter = estimateTextWidth(fullLabelSource, labelFontSize * currentScale) <= centerAvailablePx;
-                const shortLabelFitsCenter = estimateTextWidth(shortAlias, labelFontSize * currentScale) <= centerAvailablePx;
-
-                const pieceLabel = isMiniPiece
-                  ? (canShowShortLabel ? shortAlias : '')
-                  : isVertical
-                  ? (canShowVerticalFullLabel ? fullLabelSource : (canShowVerticalLabel ? shortAlias : ''))
-                  : canShowFullLabel && fullLabelFitsCenter
-                    ? fullLabelSource
-                    : (canShowShortLabel && shortLabelFitsCenter)
-                      ? shortAlias
-                      : '';
-                const isShortLabel = Boolean(pieceLabel) && pieceLabel !== fullLabelSource;
-                const showDimValue = isSub100Piece
-                  ? true
-                  : (canShowFullLabel || (canShowShortLabel && !isShortLabel) || canShowVerticalFullLabel);
                 const labelTop = '50%';
-                const placeHorizontalDimAtRight = showHorizontalDim;
-                const verticalDimInset = isVertical
-                  ? `${Math.max(12, dimFontSize * 1.6)}px`
-                  : `${isMiniPiece ? 1 : 2 / currentScale}px`;
                 const hoverKey = piece.instanceId != null ? `instance:${piece.instanceId}` : `fallback:${i}`;
 
                 // Get canto info per side
@@ -578,44 +491,44 @@ return (
                     onMouseLeave={() => setHoveredPiece(null)}
                   >
                     {/* 1. Piece code/name centered inside */}
-                    {pieceLabel && (
+                    {ann.pieceLabel && (
                       <span
                         className="pointer-events-none absolute left-0 right-0 px-1 overflow-hidden"
                         style={{
                           top: labelTop,
-                          fontSize: `${labelFontSize}px`,
+                          fontSize: `${ann.labelFontSize}px`,
                           color: skin.textColor,
                           whiteSpace: 'nowrap',
                           textAlign: 'center',
                           transform: isVertical ? 'translateY(-50%) rotate(-90deg)' : 'translateY(-50%)',
                         }}
                       >
-                        {pieceLabel}
+                        {ann.pieceLabel}
                       </span>
                     )}
 
                     {/* 4. Small piece index in corner when cantos shown */}
-                    {hasAnyCanto && (screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H) && (
+                    {hasAnyCanto && ann.showCanto && (
                       <span
                         className="absolute top-0 left-0 pointer-events-none"
-                        style={{ fontSize: `${Math.max(3 / currentScale, dimFontSize * 0.75)}px`, padding: '1px 2px', color: exportSkin ? '#000' : '#0f172a' }}
+                        style={{ fontSize: `${Math.max(3 / currentScale, ann.dimFontSize * 0.75)}px`, padding: '1px 2px', color: exportSkin ? '#000' : '#0f172a' }}
                       >
                         {i + 1}
                       </span>
                     )}
 
                     {/* 2. Horizontal dimension near bottom edge, reading left→right */}
-                    {showDimValue && showHorizontalDim && (
+                    {ann.showDimValue && ann.showHorizontalDim && (
                       <span
-                        className={`absolute pointer-events-none whitespace-nowrap ${placeHorizontalDimAtRight ? '' : 'left-1/2 -translate-x-1/2'}`}
+                        className={`absolute pointer-events-none whitespace-nowrap ${ann.placeHorizontalDimAtRight ? '' : 'left-1/2 -translate-x-1/2'}`}
                         style={{ 
-                           bottom: `${isMiniPiece ? 1 : 2 / currentScale}px`, 
-                           right: placeHorizontalDimAtRight ? `${Math.max(4, dimFontSize * 0.8)}px` : undefined,
-                           fontSize: `${dimFontSize}px`, 
-                           padding: isMiniPiece ? '0 0.15em 1px' : '0 0.3em 2px',
+                           bottom: `${ann.isMiniPiece ? 1 : 2 / currentScale}px`, 
+                           right: ann.placeHorizontalDimAtRight ? `${Math.max(4, ann.dimFontSize * 0.8)}px` : undefined,
+                           fontSize: `${ann.dimFontSize}px`, 
+                           padding: ann.isMiniPiece ? '0 0.15em 1px' : '0 0.3em 2px',
                            color: skin.textColor,
-                           opacity: isMiniPiece ? 0.95 : 0.8,
-                           fontWeight: isMiniPiece ? 700 : 500,
+                           opacity: ann.isMiniPiece ? 0.95 : 0.8,
+                           fontWeight: ann.isMiniPiece ? 700 : 500,
                          }}
                       >
                         {Math.round(pieceWidth)}
@@ -623,19 +536,19 @@ return (
                     )}
 
                     {/* 3. Vertical dimension near left edge, reading vertically */}
-                    {showDimValue && showVerticalDim && (
+                    {ann.showDimValue && ann.showVerticalDim && (
                       <span
                         className="absolute pointer-events-none whitespace-nowrap"
                         style={{
                           top: '50%',
-                           left: verticalDimInset,
-                            fontSize: `${dimFontSize}px`,
-                            padding: isMiniPiece ? '1px 0 0 1px' : '2px 0 0 2px',
+                           left: ann.verticalDimInset,
+                            fontSize: `${ann.dimFontSize}px`,
+                            padding: ann.isMiniPiece ? '1px 0 0 1px' : '2px 0 0 2px',
                             transform: 'translateY(-50%) rotate(-90deg)',
                             transformOrigin: isVertical ? 'left center' : 'center center',
                             color: skin.textColor,
-                           opacity: isMiniPiece ? 0.95 : 0.8,
-                           fontWeight: isMiniPiece ? 700 : 500,
+                           opacity: ann.isMiniPiece ? 0.95 : 0.8,
+                           fontWeight: ann.isMiniPiece ? 700 : 500,
                          }}
                       >
                         {Math.round(pieceHeight)}
@@ -643,7 +556,7 @@ return (
                     )}
 
                     {/* Canto border treatment — full treated edge on applicable sides */}
-                    {hasAnyCanto && (screenW >= MIN_SHORT_LABEL_W && screenH >= MIN_SHORT_LABEL_H) && (
+                    {hasAnyCanto && ann.showCanto && (
                       <>
                         {bottomCanto && (
                           <div

@@ -129,8 +129,17 @@ export default function NestingDashboard({
       // No live preview dependency, no clone patching, no string-replacement skin hacks
       const sheetImages = {};
       const sheetImageCache = new Map();
+      const exportLongSide = 900;
+      const boardAspect = config.boardWidth / Math.max(config.boardHeight, 1);
+      const exportWidth = boardAspect >= 1
+        ? exportLongSide
+        : Math.round(exportLongSide * boardAspect);
+      const exportHeight = boardAspect >= 1
+        ? Math.round(exportLongSide / boardAspect)
+        : exportLongSide;
+
       const offscreenRoot = document.createElement('div');
-      offscreenRoot.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:800px;height:600px;overflow:hidden;';
+      offscreenRoot.style.cssText = `position:absolute;left:-9999px;top:-9999px;width:${exportWidth}px;height:${exportHeight}px;overflow:hidden;`;
       document.body.appendChild(offscreenRoot);
       const reactRoot = createRoot(offscreenRoot);
 
@@ -174,6 +183,8 @@ export default function NestingDashboard({
                 refiladoY={config.refiladoY}
                 rows={rows}
                 cantos={despieceData?.cantos || []}
+                viewportWidth={exportWidth}
+                viewportHeight={exportHeight}
               />
             );
             // Wait for React to paint
@@ -189,7 +200,7 @@ export default function NestingDashboard({
           const dataUrl = await toJpeg(exportNode, {
             quality: 0.92,
             backgroundColor: '#ffffff',
-            pixelRatio: 1.5,
+            pixelRatio: 1,
             skipFonts: true,
           });
           if (!dataUrl) {
