@@ -13,7 +13,7 @@ import AppLayout from './components/layout/AppLayout';
 import Dashboard from './components/dashboard/Dashboard';
 import ProjectWorkspace from './components/project/ProjectWorkspace';
 import SubscriptionExpired from './components/SubscriptionExpired';
-import ManualQuotePage from './components/quotes/ManualQuotePage';
+
 import ReportsPage from './components/reports/ReportsPage';
 import PuertasPage from './components/puertas/PuertasPage';
 import './App.css';
@@ -109,7 +109,7 @@ function App() {
                     {/* Main application route, redirects to Dashboard or acts as Dashboard */}
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/cotizacion" element={<ManualQuotePage />} />
+
                     <Route path="/reportes" element={<ReportsPage />} />
                     <Route path="/puertas" element={<PuertasPage />} />
                     
