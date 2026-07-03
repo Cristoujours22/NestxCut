@@ -35,7 +35,7 @@ function Field({ label, children }) {
   return <label className="flex flex-col gap-1 text-sm text-[#a3aac4]"> <span>{label}</span>{children}</label>;
 }
 
-export default function InventoryFormModal({ isOpen, type, item, existingItems = [], providers = [], onClose, onSubmit, submitError = '' }) {
+export default function InventoryFormModal({ isOpen, type, item, existingItems = [], providers = [], onClose, onSubmit, submitError = '', inventoryEnabled = true }) {
   const [form, setForm] = useState(defaultByType.tablero);
   const [errors, setErrors] = useState({});
   const [nuevaMarca, setNuevaMarca] = useState('');
@@ -60,7 +60,7 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
 
     if (!form.nombre?.trim()) nextErrors.nombre = 'El nombre es obligatorio';
     if (!form.codigo?.trim()) nextErrors.codigo = 'La referencia es obligatoria';
-    if (String(form.cantidad_disponible ?? '').trim() === '') nextErrors.cantidad_disponible = 'La cantidad es obligatoria';
+    if (inventoryEnabled && String(form.cantidad_disponible ?? '').trim() === '') nextErrors.cantidad_disponible = 'La cantidad es obligatoria';
     const duplicatedCode = existingItems.some((entry) => (
       entry.codigo?.trim().toLowerCase() === form.codigo?.trim().toLowerCase()
       && entry.id !== item?.id
@@ -96,7 +96,18 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
       return;
     }
 
-    const payload = { ...form, item_type: currentType };
+    const stockOrDefault = (candidate, fallback) => {
+      if (!inventoryEnabled && String(candidate ?? '').trim() === '') return fallback;
+      return candidate;
+    };
+
+    const payload = {
+      ...form,
+      item_type: currentType,
+      cantidad_disponible: inventoryEnabled ? form.cantidad_disponible : stockOrDefault(item?.cantidad_disponible ?? form.cantidad_disponible, 1),
+      stock_minimo: inventoryEnabled ? form.stock_minimo : stockOrDefault(item?.stock_minimo ?? form.stock_minimo, 0),
+      stock_objetivo: inventoryEnabled ? form.stock_objetivo : stockOrDefault(item?.stock_objetivo ?? form.stock_objetivo, 0),
+    };
     if (nuevaMarca.trim()) payload.marca = nuevaMarca.trim();
     onSubmit(payload);
   };
@@ -151,15 +162,15 @@ export default function InventoryFormModal({ isOpen, type, item, existingItems =
 
             {/* Row 2: Cantidad | Stock mínimo | Stock objetivo */}
             <Field label="Cantidad disponible">
-              <input type="number" value={form.cantidad_disponible || ''} onChange={(e) => set('cantidad_disponible', e.target.value)} className={inputClass('cantidad_disponible')} />
+              <input type="number" value={form.cantidad_disponible || ''} onChange={(e) => set('cantidad_disponible', e.target.value)} disabled={!inventoryEnabled} className={inputClass('cantidad_disponible')} />
               {errors.cantidad_disponible && <span className="text-red-400 text-xs">{errors.cantidad_disponible}</span>}
             </Field>
             <Field label="Stock mínimo">
-              <input type="number" value={form.stock_minimo || ''} onChange={(e) => set('stock_minimo', e.target.value)} className={inputClass('stock_minimo')} />
+              <input type="number" value={form.stock_minimo || ''} onChange={(e) => set('stock_minimo', e.target.value)} disabled={!inventoryEnabled} className={inputClass('stock_minimo')} />
               {errors.stock_minimo && <span className="text-red-400 text-xs">{errors.stock_minimo}</span>}
             </Field>
             <Field label="Stock objetivo">
-              <input type="number" value={form.stock_objetivo || ''} onChange={(e) => set('stock_objetivo', e.target.value)} className={inputClass('stock_objetivo')} />
+              <input type="number" value={form.stock_objetivo || ''} onChange={(e) => set('stock_objetivo', e.target.value)} disabled={!inventoryEnabled} className={inputClass('stock_objetivo')} />
               {errors.stock_objetivo && <span className="text-red-400 text-xs">{errors.stock_objetivo}</span>}
             </Field>
 

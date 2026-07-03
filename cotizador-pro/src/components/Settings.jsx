@@ -12,12 +12,13 @@ export default function Settings() {
   const navigate = useNavigate();
   const [company, setCompany] = useState({
     company_name: '', logo_data: '', currency: 'USD',
-    tax_rate: 0, contact_email: '', contact_phone: '', address: '', nit: ''
+    tax_rate: 0, contact_email: '', contact_phone: '', address: '', nit: '', inventory_mode: 'con_inventario'
   });
   const [previewUrl, setPreviewUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [loadedInventoryMode, setLoadedInventoryMode] = useState('con_inventario');
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
@@ -37,6 +38,7 @@ export default function Settings() {
             logo_path: s.logo_path || '',
             currency: s.currency || 'USD',
             tax_rate: Number(s.tax_rate) || 0,
+            inventory_mode: s.inventory_mode || 'con_inventario',
             contact_email: s.contact_email || '',
             contact_phone: s.contact_phone || '',
             address: s.address || '',
@@ -48,6 +50,7 @@ export default function Settings() {
           if (s.logo_data) {
             setPreviewUrl(s.logo_data);
           }
+          setLoadedInventoryMode(s.inventory_mode || 'con_inventario');
         }
       }
     } catch (e) {
@@ -61,12 +64,24 @@ export default function Settings() {
     setSaving(true);
     setMsg(null);
     try {
+      const previousMode = loadedInventoryMode || 'con_inventario';
+      const nextMode = company.inventory_mode || 'con_inventario';
+      if (previousMode === 'con_inventario' && nextMode === 'sin_inventario') {
+        const confirmed = window.confirm('Cambiar a modo sin inventario liberará todas las reservas actuales de stock. ¿Querés continuar?');
+        if (!confirmed) {
+          setCompany((prev) => ({ ...prev, inventory_mode: previousMode }));
+          setSaving(false);
+          return;
+        }
+      }
+
       const settingsToSave = {
         company_name: company.company_name || '',
         logo_data: previewUrl || '',
         logo_path: '',
         currency: company.currency || 'USD',
         tax_rate: company.tax_rate || 0,
+        inventory_mode: company.inventory_mode || 'con_inventario',
         contact_email: company.contact_email || '',
         contact_phone: company.contact_phone || '',
         address: company.address || '',
@@ -79,8 +94,16 @@ export default function Settings() {
 
       const result = await API?.saveCompanySettings?.(settingsToSave);
       if (result?.success) {
+        if (previousMode === 'con_inventario' && nextMode === 'sin_inventario' && API?.getInventoryItems && API?.updateInventoryItem) {
+          const items = await API.getInventoryItems();
+          const releasable = (items || []).filter((item) => Number(item.cantidad_reservada || 0) > 0);
+          for (const item of releasable) {
+            await API.updateInventoryItem({ ...item, cantidad_reservada: 0 });
+          }
+        }
         console.log('[Settings] save() success');
         setMsg({ ok: true, text: 'Guardado correctamente' });
+        setLoadedInventoryMode(nextMode);
         setCompany(p => ({ ...p, logo_data: previewUrl || '' }));
       } else {
         setMsg({ ok: false, text: result?.error || 'Error al guardar' });
@@ -364,6 +387,25 @@ export default function Settings() {
                         NIT
                       </label>
                       <input type="text" value={company.nit || ''} onChange={(e) => set('nit', e.target.value)} className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] font-medium focus:outline-none focus:border-[#99f7ff] transition-all placeholder:text-[#40485d]" placeholder="XXX.XXX.XXX-X" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5 relative z-10 pt-5 mt-2 border-t border-[#1a233a]">
+                    <div>
+                      <label className="block text-[#a3aac4] text-xs uppercase tracking-wider font-bold mb-2 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[16px] text-[#99f7ff]">inventory_2</span>
+                        Modo de inventario
+                      </label>
+                      <div className="relative">
+                        <select value={company.inventory_mode || 'con_inventario'} onChange={(e) => set('inventory_mode', e.target.value)} className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] font-medium focus:outline-none focus:border-[#99f7ff] transition-all appearance-none cursor-pointer">
+                          <option value="con_inventario">Con inventario</option>
+                          <option value="sin_inventario">Sin inventario</option>
+                        </select>
+                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#a3aac4] pointer-events-none">expand_more</span>
+                      </div>
+                      <p className="text-[#6f7a97] text-xs mt-2">
+                        En modo sin inventario, el sistema usa el inventario como catálogo y precios, pero no reserva ni descuenta stock. Recomendado solo si no tenés trabajos en curso con reservas activas.
+                      </p>
                     </div>
                   </div>
 

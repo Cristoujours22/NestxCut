@@ -1,7 +1,16 @@
 import InventoryStatusBadge from './InventoryStatusBadge';
 import { getStockStatus, getStockReal, getReorderQuantity, getReorderTarget, getRestockPriority } from '../../features/inventory/utils/inventoryStock';
 
-export default function InventoryAlertsPanel({ items, onOpenStockEntry, onOpenEdit }) {
+export default function InventoryAlertsPanel({ items, onOpenStockEntry, onOpenEdit, inventoryEnabled = true }) {
+  if (!inventoryEnabled) {
+    return (
+      <div className="bg-[#0a1122] border border-[#1a233a] rounded-2xl p-8 text-center">
+        <h3 className="text-[#dee5ff] font-bold mb-2">Alertas de stock deshabilitadas</h3>
+        <p className="text-[#6f7a97] text-sm">En modo sin inventario, este módulo funciona como catálogo y precios. No se monitorean niveles de stock ni reposición.</p>
+      </div>
+    );
+  }
+
   const low = items.filter((item) => getStockStatus(item) !== 'ok');
   const exhausted = low.filter((item) => getStockStatus(item) === 'agotado');
   const lowOnly = low.filter((item) => getStockStatus(item) === 'bajo');
@@ -82,7 +91,7 @@ export default function InventoryAlertsPanel({ items, onOpenStockEntry, onOpenEd
               </div>
               <div className="flex items-center gap-2">
                 <InventoryStatusBadge status={getStockStatus(item)} />
-                <button onClick={() => onOpenStockEntry?.(item)} className="px-3 py-1.5 rounded-lg border border-green-500/20 bg-green-500/10 text-green-400 hover:bg-green-500/15 text-xs font-bold">Registrar entrada</button>
+                {inventoryEnabled && <button onClick={() => onOpenStockEntry?.(item)} className="px-3 py-1.5 rounded-lg border border-green-500/20 bg-green-500/10 text-green-400 hover:bg-green-500/15 text-xs font-bold">Registrar entrada</button>}
               </div>
             </div>
           ))}

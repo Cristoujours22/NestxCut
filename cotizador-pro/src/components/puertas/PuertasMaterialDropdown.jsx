@@ -65,14 +65,14 @@ export default function PuertasMaterialDropdown({
           <>
             <div className="min-w-[180px]">
               <div className="flex items-center gap-2">
-                <div className="text-[#a3aac4] text-xs uppercase tracking-widest font-bold">{title || 'Material del despiece'}</div>
+                <div className="text-[#a3aac4] text-xs uppercase tracking-widest font-bold">{title || 'Material de la puerta'}</div>
                 {status !== undefined && (
                   <span className={`material-symbols-outlined text-[16px] ${status ? 'text-emerald-300' : 'text-red-400'}`}>
                     {status ? 'check_circle' : 'error'}
                   </span>
                 )}
               </div>
-              <div className="text-[#6f7a97] text-sm mt-1">{subtitle || 'Definí el tablero base para conectar inventario y cotización.'}</div>
+              <div className="text-[#6f7a97] text-sm mt-1">{subtitle || 'Definí la lámina base para conectar inventario y cotización.'}</div>
             </div>
           </>
         )}

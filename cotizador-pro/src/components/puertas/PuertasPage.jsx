@@ -72,6 +72,7 @@ function formatCurrency(value) {
 
 export default function PuertasPage() {
   const [activeTab, setActiveTab] = useState('nueva');
+  const [companySettings, setCompanySettings] = useState({ inventory_mode: 'con_inventario' });
   const [config, setConfig] = useState(() => createPuertaConfig(DEFAULT_PUERTA_CONFIG));
   const [draft, setDraft] = useState(() => createPuertaDraft());
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -107,6 +108,10 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
         if (API?.getDoorConfig) {
           const savedConfig = await API.getDoorConfig();
           if (savedConfig) setConfig(createPuertaConfig(savedConfig));
+        }
+        if (API?.getCompanySettings) {
+          const settings = await API.getCompanySettings();
+          if (settings) setCompanySettings({ inventory_mode: settings.inventory_mode || 'con_inventario' });
         }
       } catch (error) {
         console.error('Error loading puertas dependencies:', error);
@@ -231,6 +236,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
   );
 
   const calculation = useMemo(() => calcularPuerta(draft, config, selectedHoneycomb), [draft, config, selectedHoneycomb]);
+  const inventoryEnabled = (companySettings?.inventory_mode || 'con_inventario') === 'con_inventario';
 
 
   const supplyValidation = useMemo(() => {
@@ -246,35 +252,35 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     const honeycombQty = Number(calculation?.estructuraInterna?.alma?.cantidad || 0) * qtyDoors;
     const cantoQty = Math.max(1, Math.ceil(Number(calculation?.estructuraInterna?.canto?.linealesMm || 0) / 1000)) * qtyDoors;
 
-    const pinoExists = Boolean(selectedBastidor) && available(selectedBastidor) >= bastidorQty;
-    const peganteExists = Boolean(selectedPegante) && available(selectedPegante) >= peganteQty;
-    const honeycombExists = Boolean(selectedHoneycomb) && available(selectedHoneycomb) >= honeycombQty;
-    const cantoExists = Boolean(selectedCanto) && available(selectedCanto) >= cantoQty;
+    const pinoExists = Boolean(selectedBastidor) && (!inventoryEnabled || available(selectedBastidor) >= bastidorQty);
+    const peganteExists = Boolean(selectedPegante) && (!inventoryEnabled || available(selectedPegante) >= peganteQty);
+    const honeycombExists = Boolean(selectedHoneycomb) && (!inventoryEnabled || available(selectedHoneycomb) >= honeycombQty);
+    const cantoExists = Boolean(selectedCanto) && (!inventoryEnabled || available(selectedCanto) >= cantoQty);
 
     const checks = [
       {
         key: 'fondo6mm',
-        label: 'Fondos 6mm en Tablero/Material',
+        label: 'Fondo visible 6 mm',
         ok: selectedIsFondo6mm,
-        help: 'El tablero base seleccionado debe tener espesor 6 mm.',
+        help: 'El fondo visible seleccionado debe tener espesor 6 mm.',
       },
       {
         key: 'pino',
-        label: 'Bastidor / pino en Tablero/Material',
+        label: 'Bastidor estructural',
         ok: pinoExists,
-        help: 'Debe existir un item de bastidor o pino en Tablero/Material.',
+        help: 'Debe existir un bastidor estructural en inventario.',
       },
       {
         key: 'pegante',
-        label: 'Pegante en Herrajes',
+        label: 'Pegante',
         ok: peganteExists,
         help: 'Debe existir un item de pegante en Herrajes.',
       },
       {
         key: 'honeycomb',
-        label: 'Honeycomb / alma en Herrajes',
+        label: 'Alma',
         ok: honeycombExists,
-        help: 'Debe existir un item de honeycomb o alma en Herrajes.',
+        help: 'Debe existir un item de alma en Herrajes.',
       },
       {
         key: 'canto',
@@ -289,7 +295,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
       missing: checks.filter((check) => !check.ok),
       canFabricate: checks.every((check) => check.ok),
     };
-  }, [selectedMaterial, selectedBastidor, selectedPegante, selectedHoneycomb, selectedCanto, calculation, draft.cantidad]);
+   }, [selectedMaterial, selectedBastidor, selectedPegante, selectedHoneycomb, selectedCanto, calculation, draft.cantidad, inventoryEnabled]);
 
   const selectedHerrajes = useMemo(
     () => draft.herrajesSeleccionados
@@ -555,6 +561,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
 
   useEffect(() => {
     const API = window.electronAPI;
+    if ((companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario') return;
     if (!API?.updateInventoryItem || !API?.addInventoryMovement) return;
 
     const nextMap = reservedInventoryTargets;
@@ -629,11 +636,12 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
       console.error('Error reservando insumos para puerta', error);
       setFabricationStatus({ type: 'error', message: error?.message || 'Conflicto de stock en insumos.' });
     });
-  }, [reservedInventoryTargets]);
+  }, [reservedInventoryTargets, companySettings?.inventory_mode]);
 
   useEffect(() => {
     return () => {
       const API = window.electronAPI;
+      if ((companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario') return;
       if (!API?.updateInventoryItem || !API?.addInventoryMovement) return;
       const baseline = inventoryReservationBaselineRef.current || {};
       const entries = Object.entries(baseline).filter(([, qty]) => Number(qty || 0) > 0);
@@ -661,7 +669,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
         console.error('Error liberando reserva temporal de insumos', error);
       });
     };
-  }, []);
+  }, [companySettings?.inventory_mode]);
 
   const buildScrapItemsFromPreview = () => {
     if (!nestingData?.fondos?.preview?.sheets?.length || !selectedMaterial) return [];
@@ -698,9 +706,11 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
   const confirmFabrication = async () => {
     if (!selectedMaterial || !nestingData) return;
     if (confirmingFabricationRef.current) return;
+    const inventoryMode = companySettings?.inventory_mode || 'con_inventario';
+    const inventoryEnabled = inventoryMode === 'con_inventario';
 
     const API = window.electronAPI;
-    if (!API?.updateInventoryItem || !API?.addInventoryMovement || !API?.addInventoryItem) {
+    if (inventoryEnabled && (!API?.updateInventoryItem || !API?.addInventoryMovement || !API?.addInventoryItem)) {
       setFabricationStatus({
         type: 'error',
         message: 'Falta la conexión con el inventario para confirmar la fabricación.',
@@ -708,7 +718,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
       return;
     }
 
-    if (!supplyValidation.canFabricate) {
+    if (inventoryEnabled && !supplyValidation.canFabricate) {
       setFabricationStatus({
         type: 'error',
         message: `No se puede fabricar. Faltan insumos requeridos: ${supplyValidation.missing.map((item) => item.label).join(', ')}.`,
@@ -721,14 +731,14 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     const availableBoards = Number(selectedMaterial.cantidad_disponible || 0) - Math.max(0, Number(selectedMaterial.cantidad_reservada || 0) - Number(ownReservedMap[selectedMaterial.id] || 0));
 
     if (requiredBoards <= 0) {
-      setFabricationStatus({ type: 'error', message: 'No hay tableros calculados para fabricar esta puerta.' });
+      setFabricationStatus({ type: 'error', message: 'No hay láminas calculadas para fabricar esta puerta.' });
       return;
     }
 
-    if (availableBoards < requiredBoards) {
+    if (inventoryEnabled && availableBoards < requiredBoards) {
       setFabricationStatus({
         type: 'error',
-        message: `No alcanza el stock del tablero base. Disponible: ${availableBoards}, requerido: ${requiredBoards}.`,
+        message: `Stock insuficiente del fondo visible. Disponible: ${availableBoards}, requerido: ${requiredBoards}.`,
       });
       return;
     }
@@ -740,18 +750,20 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
       })
       .filter(Boolean);
 
-    const insufficientHardware = selectedHardwareWithQty.find((item) => {
+    const insufficientHardware = inventoryEnabled ? selectedHardwareWithQty.find((item) => {
       const real = Number(item.cantidad_disponible || 0) - Math.max(0, Number(item.cantidad_reservada || 0) - Number(ownReservedMap[item.id] || 0));
       return real < Number(item.selectedQuantity || 0);
-    });
+    }) : null;
 
     if (insufficientHardware) {
       setFabricationStatus({
         type: 'error',
-        message: `No alcanza el stock de ${insufficientHardware.nombre}.`,
+        message: `Stock insuficiente de ${insufficientHardware.nombre}.`,
       });
       return;
     }
+
+    const scrapItems = inventoryEnabled ? buildScrapItemsFromPreview() : [];
 
     confirmingFabricationRef.current = true;
     setIsConfirmingFabrication(true);
@@ -770,29 +782,31 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
     try {
       const referenceId = `door_prod_${Date.now()}`;
 
-      const nextBoardQty = Number(selectedMaterial.cantidad_disponible || 0) - requiredBoards;
-      const nextBoardReserved = Math.max(0, Number(selectedMaterial.cantidad_reservada || 0) - requiredBoards);
-      rememberInventorySnapshot(selectedMaterial);
-      await API.updateInventoryItem({
-        ...selectedMaterial,
-        cantidad_disponible: nextBoardQty,
-        cantidad_reservada: nextBoardReserved,
-      });
+      if (inventoryEnabled) {
+        const nextBoardQty = Number(selectedMaterial.cantidad_disponible || 0) - requiredBoards;
+        const nextBoardReserved = Math.max(0, Number(selectedMaterial.cantidad_reservada || 0) - requiredBoards);
+        rememberInventorySnapshot(selectedMaterial);
+        await API.updateInventoryItem({
+          ...selectedMaterial,
+          cantidad_disponible: nextBoardQty,
+          cantidad_reservada: nextBoardReserved,
+        });
 
-      const boardMovement = await API.addInventoryMovement({
-        item_id: selectedMaterial.id,
-        item_name_snapshot: selectedMaterial.nombre,
-        item_type_snapshot: selectedMaterial.item_type,
-        movement_type: 'door_production_material_out',
-        direction: 'out',
-        cantidad: requiredBoards,
-        unit_cost: Number(selectedMaterial.costo_unitario || 0),
-        total_cost: Number(selectedMaterial.costo_unitario || 0) * requiredBoards,
-        reference_type: 'door_production',
-        reference_id: referenceId,
-        motivo: `Fabricación puerta ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
-      });
-      if (boardMovement?.id) createdMovementIds.push(boardMovement.id);
+        const boardMovement = await API.addInventoryMovement({
+          item_id: selectedMaterial.id,
+          item_name_snapshot: selectedMaterial.nombre,
+          item_type_snapshot: selectedMaterial.item_type,
+          movement_type: 'door_production_material_out',
+          direction: 'out',
+          cantidad: requiredBoards,
+          unit_cost: Number(selectedMaterial.costo_unitario || 0),
+          total_cost: Number(selectedMaterial.costo_unitario || 0) * requiredBoards,
+          reference_type: 'door_production',
+          reference_id: referenceId,
+          motivo: `Fabricación de puerta ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
+        });
+        if (boardMovement?.id) createdMovementIds.push(boardMovement.id);
+      }
 
       const supplyItemsToConsume = [
         selectedBastidor ? { item: selectedBastidor, qty: (calculation?.estructuraInterna?.bastidores || []).reduce((acc, piece) => acc + Number(piece.cantidad || 0), 0) * Math.max(1, Number(draft.cantidad || 1)), movement: 'door_production_bastidor_out' } : null,
@@ -801,7 +815,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
         selectedCanto ? { item: selectedCanto, qty: Math.max(1, Math.ceil(Number(calculation?.estructuraInterna?.canto?.linealesMm || 0) / 1000)) * Math.max(1, Number(draft.cantidad || 1)), movement: 'door_production_canto_out' } : null,
       ].filter((entry) => entry && Number(entry.qty || 0) > 0);
 
-      for (const entry of supplyItemsToConsume) {
+      for (const entry of (inventoryEnabled ? supplyItemsToConsume : [])) {
         const nextQty = Number(entry.item.cantidad_disponible || 0) - Number(entry.qty || 0);
         const nextReserved = Math.max(0, Number(entry.item.cantidad_reservada || 0) - Number(entry.qty || 0));
         rememberInventorySnapshot(entry.item);
@@ -822,12 +836,12 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
           total_cost: Number(entry.item.costo_unitario || 0) * Number(entry.qty || 0),
           reference_type: 'door_production',
           reference_id: referenceId,
-          motivo: `Insumo puerta ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
+          motivo: `Insumo para puerta ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
         });
         if (supplyMovement?.id) createdMovementIds.push(supplyMovement.id);
       }
 
-      for (const item of selectedHardwareWithQty) {
+      for (const item of (inventoryEnabled ? selectedHardwareWithQty : [])) {
         const nextQty = Number(item.cantidad_disponible || 0) - Number(item.selectedQuantity || 0);
         const nextReserved = Math.max(0, Number(item.cantidad_reservada || 0) - Number(item.selectedQuantity || 0));
         rememberInventorySnapshot(item);
@@ -848,37 +862,38 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
           total_cost: Number(item.costo_unitario || 0) * Number(item.selectedQuantity || 0),
           reference_type: 'door_production',
           reference_id: referenceId,
-          motivo: `Complemento puerta ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
+          motivo: `Complemento para puerta ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
         });
         if (hardwareMovement?.id) createdMovementIds.push(hardwareMovement.id);
       }
 
       inventoryReservationBaselineRef.current = {};
 
-      const scrapItems = buildScrapItemsFromPreview();
-      for (const scrap of scrapItems) {
-        const response = await API.addInventoryItem(scrap);
-        if (response?.id) {
-          createdScrapInventoryIds.push(response.id);
-          const scrapMovement = await API.addInventoryMovement({
-            item_id: response.id,
-            item_name_snapshot: scrap.nombre,
-            item_type_snapshot: scrap.item_type,
-            movement_type: 'door_production_scrap_in',
-            direction: 'in',
-            cantidad: 1,
-            unit_cost: Number(scrap.costo_unitario || 0),
-            total_cost: Number(scrap.costo_unitario || 0),
-            reference_type: 'door_production',
-            reference_id: referenceId,
-            motivo: `Alta de sobrante reutilizable ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
-          });
-          if (scrapMovement?.id) createdMovementIds.push(scrapMovement.id);
+      if (inventoryEnabled) {
+        for (const scrap of scrapItems) {
+          const response = await API.addInventoryItem(scrap);
+          if (response?.id) {
+            createdScrapInventoryIds.push(response.id);
+            const scrapMovement = await API.addInventoryMovement({
+              item_id: response.id,
+              item_name_snapshot: scrap.nombre,
+              item_type_snapshot: scrap.item_type,
+              movement_type: 'door_production_scrap_in',
+              direction: 'in',
+              cantidad: 1,
+              unit_cost: Number(scrap.costo_unitario || 0),
+              total_cost: Number(scrap.costo_unitario || 0),
+              reference_type: 'door_production',
+              reference_id: referenceId,
+              motivo: `Alta de sobrante reutilizable ${draft.nombre || `${calculation.hoja.altoMm}x${calculation.hoja.anchoMm}`}`,
+            });
+            if (scrapMovement?.id) createdMovementIds.push(scrapMovement.id);
+          }
         }
-      }
 
-      const refreshedItems = API?.getInventoryItems ? await API.getInventoryItems() : [];
-      setInventoryItems(Array.isArray(refreshedItems) ? refreshedItems : []);
+        const refreshedItems = API?.getInventoryItems ? await API.getInventoryItems() : [];
+        setInventoryItems(Array.isArray(refreshedItems) ? refreshedItems : []);
+      }
 
       // Persist fabrication record
       try {
@@ -930,9 +945,9 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             almaStatus: 'pending',
           },
           inventoryImpact: {
-            boardsConsumed: requiredBoards,
-            herrajesConsumed: selectedHardwareWithQty.length,
-            scrapsGenerated: scrapItems.length,
+            boardsConsumed: inventoryEnabled ? requiredBoards : 0,
+            herrajesConsumed: inventoryEnabled ? selectedHardwareWithQty.length : 0,
+            scrapsGenerated: inventoryEnabled ? scrapItems.length : 0,
           },
           totals: {
             materialCost: costSummary.materialCost,
@@ -953,7 +968,9 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
 
       setFabricationStatus({
         type: 'success',
-        message: `Fabricación confirmada. Se descontaron ${requiredBoards} tableros y se generaron ${scrapItems.length} sobrantes reutilizables.`,
+        message: inventoryEnabled
+          ? `Fabricación confirmada. Se descontaron ${requiredBoards} láminas y se generaron ${scrapItems.length} sobrantes reutilizables.`
+          : 'Fabricación confirmada en modo sin inventario. No se realizaron descuentos ni movimientos de stock.',
       });
     } catch (error) {
       console.error('Error confirming door fabrication:', error);
@@ -1191,7 +1208,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
 
               {tableros6mm.length === 0 ? (
                 <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
-                  No hay tableros de 6 mm en inventario para usar como fondo visible.
+                  No hay láminas de 6 mm en inventario para usar como fondo visible.
                 </div>
               ) : null}
 
@@ -1204,12 +1221,12 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   <PuertasMaterialDropdown
                     compact
-                    title="Bastidor / pino"
+                    title="Bastidor estructural"
                     value={draft.insumosSeleccionados?.bastidorItemId}
                     materials={bastidorOptions}
                     onChange={(value) => updateDraft('insumosSeleccionados.bastidorItemId', value)}
-                    buttonPlaceholder="Seleccionar bastidor / pino..."
-                    searchPlaceholder="Buscar bastidor o pino..."
+                    buttonPlaceholder="Seleccionar bastidor..."
+                    searchPlaceholder="Buscar bastidor..."
                     status={supplyValidation.checks.find((c) => c.key === 'pino')?.ok}
                   />
                   <PuertasMaterialDropdown
@@ -1224,12 +1241,12 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                   />
                   <PuertasMaterialDropdown
                     compact
-                    title="Honeycomb / alma"
+                    title="Alma"
                     value={draft.insumosSeleccionados?.honeycombItemId}
                     materials={honeycombOptions}
                     onChange={(value) => updateDraft('insumosSeleccionados.honeycombItemId', value)}
-                    buttonPlaceholder="Seleccionar honeycomb / alma..."
-                    searchPlaceholder="Buscar honeycomb o alma..."
+                    buttonPlaceholder="Seleccionar alma..."
+                    searchPlaceholder="Buscar alma..."
                     status={supplyValidation.checks.find((c) => c.key === 'honeycomb')?.ok}
                   />
                   <PuertasMaterialDropdown
@@ -1258,12 +1275,12 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             <SectionCard
               title="Resultado geométrico"
               icon="calculate"
-              description="Resultado del cálculo geométrico: hoja, recibidor, marco e insumos estructurales principales."
+              description="Resultado del cálculo geométrico: puerta, recibidor, marco e insumos estructurales principales."
               badge="T4"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                  <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Hoja</div>
+                  <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Puerta</div>
                   <div className="text-xl font-bold text-white">{calculation.hoja.altoMm} × {calculation.hoja.anchoMm}</div>
                   <div className="text-sm text-[#6f7a97] mt-2">Espesor: {calculation.hoja.espesorMm} mm</div>
                 </div>
@@ -1456,11 +1473,11 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             {showCostBreakdown && (
               <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Fondos 6mm</div>
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Fondo visible 6 mm</div>
                   <div className="text-lg font-extrabold text-white">{formatCurrency(costSummary.fondoCost)}</div>
                 </div>
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Bastidor / pino</div>
+                  <div className="text-[#6f7a97] text-[10px] font-bold uppercase tracking-[0.15em] mb-1">Bastidor estructural</div>
                   <div className="text-lg font-extrabold text-cyan-300">{formatCurrency(costSummary.bastidorCost)}</div>
                 </div>
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
@@ -1548,7 +1565,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                 </div>
                 <h2 className="text-white text-2xl font-bold font-['Space_Grotesk'] tracking-[-0.03em] mb-2">Optimización de corte</h2>
                 <p className="text-[#a3aac4] text-sm leading-7 max-w-3xl">
-                  Incluye distribución de cortes para fondos 6mm y bastidores / listones con tableros reales del inventario. El alma se excluye de la optimización por ahora.
+                  Incluye distribución de cortes para fondo visible 6 mm y bastidor estructural con láminas reales del inventario. El alma se excluye de la optimización en esta versión.
                 </p>
               </div>
 
@@ -1565,11 +1582,11 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             {/* Combined nesting stats */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Láminas fondos</div>
+                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Fondo visible 6 mm</div>
                 <div className="text-2xl font-extrabold text-white">{nestingData.summary.fondosSheetCount}</div>
               </div>
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Láminas bastidores</div>
+                <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Bastidor estructural</div>
                 <div className="text-2xl font-extrabold text-cyan-300">{nestingData.summary.bastidoresSheetCount}</div>
               </div>
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
@@ -1581,15 +1598,15 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             {/* Bastidor nesting detail when selected */}
             {nestingData.bastidores && (
               <div className="mt-5 rounded-2xl border border-cyan-400/15 bg-[#060e20] p-4">
-                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle de corte: bastidores</div>
+                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle de corte: bastidor estructural</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <div className="text-[#6f7a97]">Tablero bastidor</div>
+                    <div className="text-[#6f7a97]">Bastidor estructural</div>
                     <div className="text-white font-semibold">{nestingData.bastidores.boardName}</div>
                     <div className="text-[#6f7a7a] text-xs">{nestingData.bastidores.boardDimensions}</div>
                   </div>
                   <div>
-                    <div className="text-[#6f7a97]">Láminas estimadas</div>
+                    <div className="text-[#6f7a97]">Láminas</div>
                     <div className="text-cyan-300 font-bold text-lg">{nestingData.bastidores.sheetCount}</div>
                   </div>
                   <div>
@@ -1607,10 +1624,10 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             {/* Fondo nesting detail */}
             {nestingData.fondos && (
               <div className="mt-4 rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle de corte: fondos 6mm</div>
+                <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-3">Detalle de corte: fondo visible 6 mm</div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <div className="text-[#6f7a97]">Láminas estimadas</div>
+                    <div className="text-[#6f7a97]">Láminas</div>
                     <div className="text-white font-bold text-lg">{nestingData.fondos.sheetCount}</div>
                   </div>
                   <div>
@@ -1632,12 +1649,12 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
             {nestingInterpretation && nestingData.fondos?.preview ? (
               <div className="mt-6 grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
                 <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                  <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Lectura del tablero útil</div>
+                  <div className="text-[#99f7ff] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Lectura de la lámina útil</div>
                   <div className="text-white text-lg font-bold mb-2">
                     {nestingInterpretation.usableLargo} × {nestingInterpretation.usableAncho} mm
                   </div>
                   <p className="text-[#a3aac4] text-sm leading-7">
-                    Esta área es la superficie realmente cortable después del refilado. Las piezas de la puerta se acomodan dentro de este rectángulo, no del tablero bruto completo.
+                    Esta área es la superficie realmente cortable después del refilado. Las piezas de la puerta se distribuyen dentro de este rectángulo, no de la lámina bruta completa.
                   </p>
                 </div>
 
@@ -1706,7 +1723,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
 
         {activeTab === 'configuracion' && (
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <SectionCard title="Geometría" icon="straighten" description="Parámetros base para el cálculo de hoja, superiores y recibidor." badge="Activo">
+            <SectionCard title="Geometría" icon="straighten" description="Parámetros base para el cálculo de puerta, superiores y recibidor." badge="Activo">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <ConfigField label="Espesor total puerta" value={config.geometry.espesorTotalPuertaMm} onChange={(value) => updateConfig('geometry', 'espesorTotalPuertaMm', value)} />
                 <ConfigField label="Descuento alto puerta" value={config.geometry.descuentoAltoPuertaMm} onChange={(value) => updateConfig('geometry', 'descuentoAltoPuertaMm', value)} />
@@ -1898,7 +1915,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
                     {record.inventoryImpact ? (
                       <div className="flex gap-2 text-xs">
                         <span className="rounded-lg border border-[#1a233a] bg-[#060e20] px-2 py-1 text-amber-300">
-                          -{record.inventoryImpact.boardsConsumed || 0} tableros
+                          -{record.inventoryImpact.boardsConsumed || 0} láminas
                         </span>
                         <span className="rounded-lg border border-[#1a233a] bg-[#060e20] px-2 py-1 text-red-300">
                           -{record.inventoryImpact.herrajesConsumed || 0} herrajes
@@ -2081,7 +2098,7 @@ const [draftStatus, setDraftStatus] = useState({ type: '', message: '' });
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
-                    <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Hoja</div>
+                    <div className="text-[#a3aac4] text-[11px] font-bold uppercase tracking-[0.18em] mb-2">Puerta</div>
                     <div className="text-xl font-bold text-white">{calculation.hoja.altoMm} × {calculation.hoja.anchoMm}</div>
                     <div className="text-sm text-[#6f7a97] mt-2">Espesor: {calculation.hoja.espesorMm} mm</div>
                   </div>
