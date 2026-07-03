@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
+const { fileURLToPath } = require('url');
 const { machineIdSync } = require('node-machine-id');
 const { registerInventoryHandlers } = require('./ipc/inventoryHandlers.cjs');
 const { registerServiceHandlers } = require('./ipc/serviceHandlers.cjs');
@@ -208,22 +209,63 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Allow local app URLs (dev server or bundled file) to open inside Electron
     if (
-      url.startsWith('file://') ||
-      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(url)
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url)
     ) {
       return { action: 'allow' };
     }
+    if (url.startsWith('file://')) {
+      try {
+        const openedPath = path.resolve(fileURLToPath(url));
+        const allowedDistDir = path.resolve(path.join(__dirname, '../dist')) + path.sep;
+        if (openedPath.startsWith(allowedDistDir)) {
+          return { action: 'allow' };
+        }
+      } catch {
+        // fall through to deny
+      }
+    }
     // True external URLs and mailto:/tel: → system browser
+    if (
+        url.startsWith('http://') ||
+        url.startsWith('https://') ||
+        url.startsWith('mailto:') ||
+        url.startsWith('tel:')
+    ) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'deny' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url)) {
+      return;
+    }
+
+    if (url.startsWith('file://')) {
+      try {
+        const openedPath = path.resolve(fileURLToPath(url));
+        const allowedDistDir = path.resolve(path.join(__dirname, '../dist')) + path.sep;
+        if (openedPath.startsWith(allowedDistDir)) {
+          return;
+        }
+      } catch {
+        // fall through to external/deny
+      }
+    }
+
     if (
       url.startsWith('http://') ||
       url.startsWith('https://') ||
       url.startsWith('mailto:') ||
       url.startsWith('tel:')
     ) {
+      event.preventDefault();
       shell.openExternal(url);
-      return { action: 'deny' };
+      return;
     }
-    return { action: 'allow' };
+
+    event.preventDefault();
   });
 
   mainWindow.loadURL(startUrl);
@@ -340,7 +382,16 @@ ipcMain.handle('get-file-data', async (event, filename) => {
       const path = require('path');
       
       const logosDir = path.join(app.getPath('userData'), 'logos');
-      const filePath = path.join(logosDir, filename);
+      if (typeof filename !== 'string' || !/^[a-zA-Z0-9._-]+\.(png|jpg|jpeg|webp)$/i.test(filename)) {
+        resolve(null);
+        return;
+      }
+      const filePath = path.resolve(logosDir, filename);
+      const resolvedLogosDir = path.resolve(logosDir) + path.sep;
+      if (!filePath.startsWith(resolvedLogosDir)) {
+        resolve(null);
+        return;
+      }
       
       if (fs.existsSync(filePath)) {
         const buffer = fs.readFileSync(filePath);
@@ -357,8 +408,30 @@ ipcMain.handle('get-file-data', async (event, filename) => {
 
 // Open URL in system browser
 ipcMain.handle('open-external', async (event, url) => {
-  await shell.openExternal(url);
-  return { success: true };
+  try {
+    if (typeof url !== 'string' || !url.trim()) {
+      return { success: false, error: 'URL inválida' };
+    }
+
+    const trimmed = url.trim();
+    if (trimmed.startsWith('mailto:') || trimmed.startsWith('tel:')) {
+      await shell.openExternal(trimmed);
+      return { success: true };
+    }
+
+    const parsed = new URL(trimmed);
+    const allowedProtocols = new Set(['https:']);
+    const allowedHosts = new Set(['wa.me', 'api.whatsapp.com', 'web.whatsapp.com']);
+
+    if (!allowedProtocols.has(parsed.protocol) || !allowedHosts.has(parsed.hostname)) {
+      return { success: false, error: 'Destino externo no permitido' };
+    }
+
+    await shell.openExternal(parsed.toString());
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 // --- PROJECTS IPC HANDLERS ---

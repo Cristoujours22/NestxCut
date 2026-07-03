@@ -143,7 +143,7 @@ function SuppliersView({ providers, onEdit, onDelete }) {
   );
 }
 
-function PurchasesView({ purchases, onEdit, onReceive }) {
+function PurchasesView({ purchases, onEdit, onReceive, inventoryEnabled = true }) {
   const statusBadge = (status) => {
     switch (status) {
       case 'received': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
@@ -179,7 +179,7 @@ function PurchasesView({ purchases, onEdit, onReceive }) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
-                    {p.status !== 'received' && (
+                    {inventoryEnabled && p.status !== 'received' && (
                       <button onClick={() => onReceive(p)} className="text-xs text-[#00e0fe] hover:underline">Recibir</button>
                     )}
                     <button onClick={() => onEdit(p)} className="text-xs text-[#6f7a97] hover:text-[#dee5ff]">Ver</button>
@@ -196,6 +196,7 @@ function PurchasesView({ purchases, onEdit, onReceive }) {
 
 export default function InventoryPage() {
   const API = window.electronAPI;
+  const [companySettings, setCompanySettings] = useState({ inventory_mode: 'con_inventario' });
   const [activeTab, setActiveTab] = useState('tableros');
   const [items, setItems] = useState([]);
   const [providers, setProviders] = useState([]);
@@ -225,17 +226,20 @@ export default function InventoryPage() {
         API?.getInventoryProviders ? API.getInventoryProviders() : [],
         API?.getInventoryPurchases ? API.getInventoryPurchases() : [],
         API?.getInventoryMovements ? API.getInventoryMovements() : [],
+        API?.getCompanySettings ? API.getCompanySettings() : {},
       ]);
 
       const inventoryItems = results[0].status === 'fulfilled' ? results[0].value : [];
       const inventoryProviders = results[1].status === 'fulfilled' ? results[1].value : [];
       const inventoryPurchases = results[2].status === 'fulfilled' ? results[2].value : [];
       const inventoryMovements = results[3].status === 'fulfilled' ? results[3].value : [];
+      const settings = results[4].status === 'fulfilled' ? results[4].value : {};
 
       setItems(inventoryItems || []);
       setProviders(inventoryProviders || []);
       setPurchases(inventoryPurchases || []);
       setMovements(inventoryMovements || []);
+      setCompanySettings({ inventory_mode: settings?.inventory_mode || 'con_inventario' });
 
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -259,6 +263,7 @@ export default function InventoryPage() {
   }, [activeTab]);
 
   const itemType = activeTab === 'herrajes' ? 'herraje' : activeTab === 'cantos' ? 'canto' : 'tablero';
+  const inventoryEnabled = (companySettings?.inventory_mode || 'con_inventario') === 'con_inventario';
   const filteredItems = useMemo(() => filterInventoryItems(items, {
     type: itemType,
     search,
@@ -306,7 +311,7 @@ export default function InventoryPage() {
   }, [items, itemType]);
 
   const handleDelete = async (item) => {
-    if (API?.addInventoryMovement) {
+    if (inventoryEnabled && API?.addInventoryMovement) {
           await API.addInventoryMovement({
             item_id: item.id,
             item_name_snapshot: item.nombre,
@@ -336,7 +341,7 @@ export default function InventoryPage() {
       if (payload.id) {
           await API.updateInventoryItem(payload);
 
-        if (API?.addInventoryMovement && previousQuantity !== nextQuantity) {
+        if (inventoryEnabled && API?.addInventoryMovement && previousQuantity !== nextQuantity) {
           const increased = nextQuantity > previousQuantity;
           const diff = Math.abs(nextQuantity - previousQuantity);
           await API.addInventoryMovement({
@@ -355,7 +360,7 @@ export default function InventoryPage() {
       } else {
         const result = await API.addInventoryItem(payload);
 
-        if (API?.addInventoryMovement && result?.id && nextQuantity > 0) {
+        if (inventoryEnabled && API?.addInventoryMovement && result?.id && nextQuantity > 0) {
           await API.addInventoryMovement({
             item_id: result.id,
             item_name_snapshot: payload.nombre,
@@ -382,6 +387,9 @@ export default function InventoryPage() {
   const handleStockEntry = async ({ itemId, cantidad, mode, motivo }) => {
     setStockEntryError('');
     try {
+      if (!inventoryEnabled) {
+        throw new Error('Las entradas y salidas de stock están deshabilitadas en modo sin inventario.');
+      }
       const item = items.find((item) => item.id === itemId);
       if (!item) throw new Error('Item no encontrado');
 
@@ -397,7 +405,7 @@ export default function InventoryPage() {
         cantidad_disponible: newQuantity,
       });
 
-      if (API?.addInventoryMovement) {
+       if (inventoryEnabled && API?.addInventoryMovement) {
         await API.addInventoryMovement({
           item_id: itemId,
           item_name_snapshot: item.nombre,
@@ -446,6 +454,9 @@ export default function InventoryPage() {
   const handlePurchaseSubmit = async (payload) => {
     setPurchaseError('');
     try {
+      if (!inventoryEnabled) {
+        throw new Error('Las órdenes de compra están deshabilitadas en modo sin inventario.');
+      }
       await API.saveInventoryPurchase(payload);
       setPurchaseState({ open: false, purchase: null });
       await load();
@@ -457,6 +468,9 @@ export default function InventoryPage() {
   const handlePurchaseReceive = async (purchase) => {
     setPurchaseError('');
     try {
+      if (!inventoryEnabled) {
+        throw new Error('La recepción de compras está deshabilitada en modo sin inventario.');
+      }
       await API.receiveInventoryPurchase(purchase.id);
       await load();
     } catch (error) {
@@ -484,7 +498,7 @@ export default function InventoryPage() {
         submitError={providerError}
       />
 
-      <InventoryPurchaseModal
+        <InventoryPurchaseModal
         isOpen={purchaseState.open}
         purchase={purchaseState.purchase}
         providers={providers}
@@ -509,7 +523,7 @@ export default function InventoryPage() {
         submitError={stockEntryError}
       />
 
-      <InventoryFormModal
+        <InventoryFormModal
         isOpen={modalState.open}
         type={modalState.type}
         item={modalState.item}
@@ -518,12 +532,16 @@ export default function InventoryPage() {
         onClose={() => setModalState({ open: false, type: 'tablero', item: null })}
         onSubmit={handleSubmit}
         submitError={submitError}
+        inventoryEnabled={inventoryEnabled}
       />
 
       <section className="rounded-3xl bg-gradient-to-br from-[#0f1930] to-[#1a233a] border border-[#40485d]/30 p-8 shadow-xl">
         <div className="max-w-3xl">
           <h1 className="font-['Space_Grotesk'] text-4xl font-bold text-white mb-3">Inventario</h1>
           <p className="text-[#a3aac4] text-lg">Base central para tableros y herrajes que alimentará cotización, compras y producción.</p>
+          {!inventoryEnabled && (
+            <p className="text-amber-300 text-sm mt-3">Modo sin inventario activo: este módulo funciona como catálogo y precios. Las entradas, salidas y recepciones de stock están deshabilitadas.</p>
+          )}
         </div>
       </section>
 
@@ -565,7 +583,9 @@ export default function InventoryPage() {
         ) : activeTab === 'alertas' ? (
           <InventoryAlertsPanel
             items={items}
+            inventoryEnabled={inventoryEnabled}
             onOpenStockEntry={(item) => {
+              if (!inventoryEnabled) return;
               setStockEntryError('');
               setStockEntryState({ open: true, item, mode: 'entry' });
             }}
@@ -594,6 +614,7 @@ export default function InventoryPage() {
         ) : activeTab === 'compras' ? (
           <PurchasesView
             purchases={filteredPurchases}
+            inventoryEnabled={inventoryEnabled}
             onEdit={(purchase) => {
               setPurchaseError('');
               setPurchaseState({ open: true, purchase });
@@ -604,16 +625,19 @@ export default function InventoryPage() {
                 <InventoryTable
                   columns={columns}
                   items={filteredItems}
+                  inventoryEnabled={inventoryEnabled}
                   onEdit={(item) => {
                     setSubmitError('');
                     setModalState({ open: true, type: item.item_type, item });
                   }}
                   onDelete={(item) => setDeleteState({ open: true, item })}
                   onStockEntry={(item) => {
+                    if (!inventoryEnabled) return;
                     setStockEntryError('');
                     setStockEntryState({ open: true, item, mode: 'entry' });
                   }}
                   onStockExit={(item) => {
+                    if (!inventoryEnabled) return;
                     setStockEntryError('');
                     setStockEntryState({ open: true, item, mode: 'exit' });
                   }}

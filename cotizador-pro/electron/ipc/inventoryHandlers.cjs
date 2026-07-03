@@ -1,4 +1,30 @@
+// ── inventory mode guard ──────────────────────────────────────────────
+function getInventoryMode() {
+  try {
+    const { app } = require('electron');
+    const path = require('path');
+    const fs = require('fs');
+    const settingsPath = path.join(app.getPath('userData'), 'company-settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      return settings.inventory_mode || null;
+    }
+  } catch (e) {
+    console.error('[inventoryHandlers] Error reading inventory mode:', e.message);
+  }
+  return null;
+}
+
+function assertInventoryEnabled() {
+  const mode = getInventoryMode();
+  if (mode !== 'con_inventario') {
+    throw new Error('INVENTORY_DISABLED: Operación no permitida cuando el modo de inventario está deshabilitado o no pudo determinarse.');
+  }
+}
+// ───────────────────────────────────────────────────────────────────────
+
 function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStore }) {
+  // ── reads (no guard needed) ──────────────────────────────────────────
   ipcMain.handle('get-inventory-purchases', async () => {
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.getInventoryPurchases) {
@@ -9,6 +35,7 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
   });
 
   ipcMain.handle('save-inventory-purchase', async (event, purchase) => {
+    assertInventoryEnabled();
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.saveInventoryPurchase) {
       return inventoryStore.saveInventoryPurchase(purchase);
@@ -74,6 +101,7 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
   });
 
   ipcMain.handle('receive-inventory-purchase', async (event, purchaseId) => {
+    assertInventoryEnabled();
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.receiveInventoryPurchase) {
       return inventoryStore.receiveInventoryPurchase(purchaseId);
@@ -208,6 +236,7 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
   });
 
   ipcMain.handle('add-inventory-item', async (event, item) => {
+    assertInventoryEnabled();
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.addInventoryItem) {
       return inventoryStore.addInventoryItem(item);
@@ -239,6 +268,7 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
   });
 
   ipcMain.handle('update-inventory-item', async (event, item) => {
+    assertInventoryEnabled();
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.updateInventoryItem) {
       return inventoryStore.updateInventoryItem(item);
@@ -272,6 +302,7 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
   });
 
   ipcMain.handle('delete-inventory-item', async (event, id) => {
+    assertInventoryEnabled();
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.deleteInventoryItem) {
       return inventoryStore.deleteInventoryItem(id);
@@ -294,6 +325,7 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
   });
 
   ipcMain.handle('delete-inventory-movement', async (event, id) => {
+    assertInventoryEnabled();
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.deleteInventoryMovement) {
       return inventoryStore.deleteInventoryMovement(id);
@@ -307,6 +339,7 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
   });
 
   ipcMain.handle('add-inventory-movement', async (event, movement) => {
+    assertInventoryEnabled();
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.addInventoryMovement) {
       return inventoryStore.addInventoryMovement(movement);

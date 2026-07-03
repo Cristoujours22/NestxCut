@@ -253,6 +253,7 @@ export default function ProjectWorkspace() {
   }, [loading, despieceData]);
 
   useEffect(() => {
+    if ((companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario') return;
     if (!reservationsReadyRef.current || !project?.id || !window.electronAPI?.updateInventoryItem || !window.electronAPI?.addInventoryMovement || !['EDICION', 'COTIZACION', 'ACEPTADA'].includes(project?.state || 'EDICION')) return;
 
     const nextMap = (hardwareData.items || []).reduce((acc, item) => {
@@ -333,9 +334,10 @@ export default function ProjectWorkspace() {
       console.error('Error reservando stock para proyecto', error);
       showToast('error', error.message || 'Conflicto de stock en herrajes');
     });
-  }, [hardwareData.items, project?.id, project?.state, loading, showToast]);
+  }, [hardwareData.items, project?.id, project?.state, loading, showToast, companySettings?.inventory_mode]);
 
   useEffect(() => {
+    if ((companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario') return;
     if (!boardReservationsReadyRef.current || !project?.id || !window.electronAPI?.updateInventoryItem || !window.electronAPI?.addInventoryMovement || !['EDICION', 'COTIZACION', 'ACEPTADA'].includes(project?.state || 'EDICION')) return;
 
     const nextMap = buildBoardReservationMap(despieceData);
@@ -411,9 +413,10 @@ export default function ProjectWorkspace() {
       console.error('Error reservando tableros para proyecto', error);
       showToast('error', error.message || 'Conflicto de stock en tableros');
     });
-  }, [despieceData, project?.id, project?.state, showToast]);
+  }, [despieceData, project?.id, project?.state, showToast, companySettings?.inventory_mode]);
 
   useEffect(() => {
+    if ((companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario') return;
     if (!cantoReservationsReadyRef.current || !project?.id || !window.electronAPI?.updateInventoryItem || !window.electronAPI?.addInventoryMovement || !['EDICION', 'COTIZACION', 'ACEPTADA'].includes(project?.state || 'EDICION')) return;
 
     const nextMap = buildCantoReservationMap(despieceData);
@@ -489,7 +492,7 @@ export default function ProjectWorkspace() {
       console.error('Error reservando cantos para proyecto', error);
       showToast('error', error.message || 'Conflicto de stock en cantos');
     });
-  }, [despieceData, project?.id, project?.state, showToast]);
+  }, [despieceData, project?.id, project?.state, showToast, companySettings?.inventory_mode]);
 
   const handleSave = async () => {
     if (!project || !window.electronAPI?.saveProject) return;
@@ -534,6 +537,7 @@ export default function ProjectWorkspace() {
   };
 
   const applyFinalInventoryTransition = async ({ mode }) => {
+    if ((companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario') return;
     if (!window.electronAPI?.updateInventoryItem || !window.electronAPI?.addInventoryMovement || !project?.id) return;
 
     const herrajeMap = buildHardwareReservationMap(hardwareData.items || []);
@@ -601,9 +605,9 @@ export default function ProjectWorkspace() {
       return amount ? { ...item, cantidad_disponible: mode === 'consume' ? Math.max(0, Number(item.cantidad_disponible || 0) - amount) : mode === 'reopen' ? Number(item.cantidad_disponible || 0) + amount : item.cantidad_disponible, cantidad_reservada: mode === 'reopen' ? Number(item.cantidad_reservada || 0) + amount : Math.max(0, Number(item.cantidad_reservada || 0) - amount) } : item;
     }));
 
-    reservationBaselineRef.current = {};
-    boardReservationBaselineRef.current = {};
-    cantoReservationBaselineRef.current = {};
+    reservationBaselineRef.current = mode === 'reopen' ? herrajeMap : {};
+    boardReservationBaselineRef.current = mode === 'reopen' ? tableroMap : {};
+    cantoReservationBaselineRef.current = mode === 'reopen' ? cantoMap : {};
     reservationsReadyRef.current = true;
     boardReservationsReadyRef.current = true;
     cantoReservationsReadyRef.current = true;
@@ -623,7 +627,7 @@ export default function ProjectWorkspace() {
     try {
       await applyFinalInventoryTransition({ mode: 'release' });
       await updateProjectState('RECHAZADA');
-      showToast('success', 'Proyecto rechazado y reservas liberadas');
+      showToast('success', (companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario' ? 'Proyecto rechazado.' : 'Proyecto rechazado y reservas liberadas');
     } catch (error) {
       console.error('Error rechazando proyecto', error);
       showToast('error', 'No se pudo rechazar el proyecto');
@@ -647,7 +651,7 @@ export default function ProjectWorkspace() {
       await updateProjectState('FACTURADA');
       setBillingModalOpen(false);
       setCashReceived('');
-      showToast('success', 'Proyecto facturado y stock consumido');
+      showToast('success', (companySettings?.inventory_mode || 'con_inventario') === 'sin_inventario' ? 'Proyecto facturado.' : 'Proyecto facturado y stock consumido');
     } catch (error) {
       console.error('Error completando facturación', error);
       showToast('error', 'No se pudo completar la facturación');
