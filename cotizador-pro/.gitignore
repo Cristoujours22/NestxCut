@@ -25,3 +25,6 @@ dist-ssr
 *.sw?
 releases/
 *.exe
+inject.js
+repro-symmetric.test.js
+test-inject.cjs
