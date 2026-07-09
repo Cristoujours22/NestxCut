@@ -185,15 +185,16 @@ try {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center flex-col bg-gray-900 text-white">
-      <div className="login-box p-8 rounded-lg shadow-xl bg-gray-800 w-full max-w-sm">
+    <div className="flex min-h-screen flex-col bg-gray-900 text-white">
+      <div className="flex-1 flex items-center justify-center">
+      <div className="login-box p-5 rounded-lg shadow-xl bg-gray-800 w-full max-w-sm">
         <div className="login-brand" style={{ textAlign: 'center' }}>
           <img src={logo} alt="Cotizador Pro" style={{ width: '140px', height: 'auto', display: 'block', margin: '0 auto 16px' }} />
         </div>
         
         <form onSubmit={handleLogin} noValidate>
           {/* Email */}
-          <div className="user-box relative mb-6">
+          <div className="user-box relative mb-4">
             <input
               id="email" type="email" name="email" required
               value={email}
@@ -221,7 +222,7 @@ try {
           </div>
 
           {/* Recordarme */}
-          <div className="flex items-center mb-6">
+          <div className="flex items-center mb-4">
             <input id="remember" type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
             <label htmlFor="remember" className="ml-2 text-sm text-gray-300 cursor-pointer">Recordarme</label>
           </div>
@@ -259,7 +260,7 @@ try {
         </form>
 
         {/* Link a Registro */}
-        <div className="mt-6 text-center">
+        <div className="mt-4 text-center">
           <p className="text-gray-400 text-sm">
             ¿No tienes cuenta?{' '}
             <Link to="/register" className="text-cyan-400 hover:underline">
@@ -267,6 +268,7 @@ try {
             </Link>
           </p>
         </div>
+      </div>
       </div>
 
       {/* Toast notification */}
@@ -279,7 +281,7 @@ try {
         </div>
       )}
 
-      <footer className="footer mt-8 text-center text-gray-500 text-sm">
+      <footer className="footer text-center text-gray-500 text-sm">
         <p>Todos los derechos reservados &copy; {new Date().getFullYear()} | Diseñado por Cristian</p>
       </footer>
     </div>
