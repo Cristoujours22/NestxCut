@@ -27,6 +27,8 @@ export default function Register() {
   const [errors, setErrors] = useState({});
   const [isRegistering, setIsRegistering] = useState(false);
   const [generalError, setGeneralError] = useState('');
+  const [step, setStep] = useState(1); // 1 = form, 2 = inventory choice
+  const [inventoryMode, setInventoryMode] = useState('con_inventario');
 
   // Validation functions
   const validateEmail = (email) => {
@@ -143,29 +145,8 @@ export default function Register() {
       
       console.log('[Register] Usuario creado exitosamente:', uid);
 
-      // 4. Pre-fill company settings from registration data
-      try {
-        if (window.electronAPI?.getCompanySettings && window.electronAPI?.saveCompanySettings) {
-          const existing = await window.electronAPI.getCompanySettings() || {};
-          await window.electronAPI.saveCompanySettings({
-            ...existing,
-            company_name: formData.empresa?.trim() || `${formData.nombre} ${formData.apellido}`.trim(),
-            contact_phone: formData.celular?.trim() || '',
-            address: formData.direccion?.trim() || '',
-            nit: formData.cedula?.trim() || '',
-            contact_email: formData.email?.toLowerCase().trim() || '',
-            updatedAt: now.toISOString(),
-          });
-        }
-      } catch (e) {
-        console.warn('[Register] Could not save company settings:', e);
-      }
-      
-      // 5. Sign out until verifies email
-      await auth.signOut();
-      
-      // 6. Redirect to login with message
-      navigate('/login', { state: { message: 'Registro exitoso. Se envió un email de verificación a tu correo. Por favor, verifica tu email antes de iniciar sesión.' } });
+      // 4. Move to inventory mode selection
+      setStep(2);
       
     } catch (error) {
       console.error('[Register] Error:', error);
@@ -183,6 +164,109 @@ export default function Register() {
       setIsRegistering(false);
     }
   };
+
+  const handleConfirmInventory = async () => {
+    setIsRegistering(true);
+    try {
+      const now = new Date();
+      if (window.electronAPI?.getCompanySettings && window.electronAPI?.saveCompanySettings) {
+        const existing = await window.electronAPI.getCompanySettings() || {};
+        await window.electronAPI.saveCompanySettings({
+          ...existing,
+          inventory_mode: inventoryMode,
+          company_name: formData.empresa?.trim() || `${formData.nombre} ${formData.apellido}`.trim(),
+          contact_phone: formData.celular?.trim() || '',
+          address: formData.direccion?.trim() || '',
+          nit: formData.cedula?.trim() || '',
+          contact_email: formData.email?.toLowerCase().trim() || '',
+          updatedAt: now.toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('[Register] Could not save company settings:', e);
+    }
+
+    await auth.signOut();
+    navigate('/login', { state: { message: 'Registro exitoso. Se envió un email de verificación a tu correo. Por favor, verifica tu email antes de iniciar sesión.' } });
+  };
+
+  if (step === 2) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white px-3 sm:px-4 py-3 sm:py-4 flex flex-col justify-between">
+        <div className="flex-1 flex items-center justify-center min-h-0">
+          <div className="w-full max-w-lg rounded-2xl shadow-xl bg-gray-800 border border-gray-700 overflow-hidden p-6 sm:p-8">
+            <div className="text-center mb-6">
+              <img src={logo} alt="NestxCut" className="w-24 h-auto mx-auto mb-4" />
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                ¡Cuenta creada!
+              </h2>
+              <p className="text-gray-300 text-sm">
+                Antes de empezar, elegí cómo querés manejar el inventario.
+                {/*
+                Esto puede cambiarse después desde Configuración.
+                */}
+              </p>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <button
+                onClick={() => setInventoryMode('con_inventario')}
+                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                  inventoryMode === 'con_inventario'
+                    ? 'border-cyan-400 bg-cyan-900/20'
+                    : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-cyan-400 text-3xl">inventory_2</span>
+                  <div>
+                    <p className="font-semibold text-white">Con inventario</p>
+                    <p className="text-sm text-gray-400 mt-0.5">
+                      El sistema reserva y descuenta stock automáticamente al crear proyectos y fabricar.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setInventoryMode('sin_inventario')}
+                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                  inventoryMode === 'sin_inventario'
+                    ? 'border-cyan-400 bg-cyan-900/20'
+                    : 'border-gray-600 bg-gray-700/50 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-amber-400 text-3xl">database_off</span>
+                  <div>
+                    <p className="font-semibold text-white">Sin inventario</p>
+                    <p className="text-sm text-gray-400 mt-0.5">
+                      El inventario funciona como catálogo de precios. No se reserva ni descuenta stock.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center mb-4">
+              Podés cambiar esta opción después desde <strong>Configuración</strong>.
+            </p>
+
+            <button
+              onClick={handleConfirmInventory}
+              disabled={isRegistering}
+              className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
+            >
+              {isRegistering ? 'Guardando...' : 'Confirmar y continuar'}
+            </button>
+          </div>
+        </div>
+        <footer className="footer mt-3 sm:mt-4 text-center text-gray-500 text-xs sm:text-sm shrink-0">
+          <p>Todos los derechos reservados &copy; {new Date().getFullYear()} | Diseñado por Cristian</p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white px-3 sm:px-4 py-3 sm:py-4 flex flex-col justify-between">

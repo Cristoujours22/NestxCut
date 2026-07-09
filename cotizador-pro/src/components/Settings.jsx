@@ -67,7 +67,7 @@ export default function Settings() {
       const previousMode = loadedInventoryMode || 'con_inventario';
       const nextMode = company.inventory_mode || 'con_inventario';
       if (previousMode === 'con_inventario' && nextMode === 'sin_inventario') {
-        const confirmed = window.confirm('Cambiar a modo sin inventario liberará todas las reservas actuales de stock. ¿Querés continuar?');
+        const confirmed = window.confirm('Cambiar a modo sin inventario no reservará ni descontará stock nuevo. Las reservas activas se conservan para cuando vuelvas a activar el inventario. ¿Querés continuar?');
         if (!confirmed) {
           setCompany((prev) => ({ ...prev, inventory_mode: previousMode }));
           setSaving(false);
@@ -94,13 +94,6 @@ export default function Settings() {
 
       const result = await API?.saveCompanySettings?.(settingsToSave);
       if (result?.success) {
-        if (previousMode === 'con_inventario' && nextMode === 'sin_inventario' && API?.getInventoryItems && API?.updateInventoryItem) {
-          const items = await API.getInventoryItems();
-          const releasable = (items || []).filter((item) => Number(item.cantidad_reservada || 0) > 0);
-          for (const item of releasable) {
-            await API.updateInventoryItem({ ...item, cantidad_reservada: 0 });
-          }
-        }
         console.log('[Settings] save() success');
         setMsg({ ok: true, text: 'Guardado correctamente' });
         setLoadedInventoryMode(nextMode);
@@ -396,12 +389,31 @@ export default function Settings() {
                         <span className="material-symbols-outlined text-[16px] text-[#99f7ff]">inventory_2</span>
                         Modo de inventario
                       </label>
-                      <div className="relative">
-                        <select value={company.inventory_mode || 'con_inventario'} onChange={(e) => set('inventory_mode', e.target.value)} className="w-full bg-[#060e20] border-2 border-[#1a233a] rounded-lg px-4 py-2.5 text-[#dee5ff] font-medium focus:outline-none focus:border-[#99f7ff] transition-all appearance-none cursor-pointer">
-                          <option value="con_inventario">Con inventario</option>
-                          <option value="sin_inventario">Sin inventario</option>
-                        </select>
-                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#a3aac4] pointer-events-none">expand_more</span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => set('inventory_mode', 'con_inventario')}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all ${
+                            (company.inventory_mode || 'con_inventario') === 'con_inventario'
+                              ? 'border-cyan-400 bg-cyan-900/20 text-[#dee5ff]'
+                              : 'border-[#1a233a] text-[#6f7a97] hover:border-[#3a466a]'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-lg">inventory_2</span>
+                          <span className="font-medium">Con inventario</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => set('inventory_mode', 'sin_inventario')}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all ${
+                            (company.inventory_mode || 'con_inventario') === 'sin_inventario'
+                              ? 'border-amber-400 bg-amber-900/20 text-[#dee5ff]'
+                              : 'border-[#1a233a] text-[#6f7a97] hover:border-[#3a466a]'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-lg">database_off</span>
+                          <span className="font-medium">Sin inventario</span>
+                        </button>
                       </div>
                       <p className="text-[#6f7a97] text-xs mt-2">
                         En modo sin inventario, el sistema usa el inventario como catálogo y precios, pero no reserva ni descuenta stock. Recomendado solo si no tenés trabajos en curso con reservas activas.

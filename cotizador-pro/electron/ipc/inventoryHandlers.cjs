@@ -7,7 +7,7 @@ function getInventoryMode() {
     const settingsPath = path.join(app.getPath('userData'), 'company-settings.json');
     if (fs.existsSync(settingsPath)) {
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-      return settings.inventory_mode || null;
+      return settings.inventory_mode || 'con_inventario';
     }
   } catch (e) {
     console.error('[inventoryHandlers] Error reading inventory mode:', e.message);
