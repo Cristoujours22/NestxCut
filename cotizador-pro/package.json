@@ -2,13 +2,19 @@
   "name": "NESTXCUT",
   "type": "module",
   "version": "0.2.2",
+  "description": "Nesting software for CNC cutting optimization",
+  "author": "Cristoujours22",
   "private": true,
   "main": "electron/main.cjs",
   "packageManager": "pnpm@10.12.4",
   "scripts": {
+    "postinstall": "electron-builder install-app-deps",
     "dev": "concurrently \"pnpm dev:vite\" \"pnpm dev:electron\"",
     "dev:vite": "vite",
     "build": "vite build && electron-builder",
+    "build:win": "vite build && electron-builder --win",
+    "build:mac": "vite build && electron-builder --mac",
+    "build:all": "vite build && electron-builder --win --mac",
     "dev:electron": "wait-on tcp:5174 && electron .",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -30,7 +36,6 @@
     "react-router-dom": "^7.5.3"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
     "@tailwindcss/postcss": "^4.1.4",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.21",
@@ -69,6 +74,15 @@
         "nsis"
       ],
       "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.business",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

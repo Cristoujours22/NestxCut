@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import pkg from '../../../package.json' with { type: 'json' };
+import { changelog, upcoming } from '../../data/changelog';
 
 export default function Sidebar({ onOpenNewProject, onOpenFeedback, collapsed = false, onToggleCollapsed }) {
   const { user } = useAuth();
   const location = useLocation();
   const [companyName, setCompanyName] = useState('Workshop Alpha');
+  const [showChangelog, setShowChangelog] = useState(false);
+  const appVersion = pkg.version;
 
   useEffect(() => {
     const loadCompany = async () => {
@@ -136,7 +140,96 @@ export default function Sidebar({ onOpenNewProject, onOpenFeedback, collapsed = 
           <span className="material-symbols-outlined text-[18px]">lightbulb</span>
           {!collapsed && 'Enviar sugerencia'}
         </button>
+
+        {/* Version button */}
+        <div className={`${collapsed ? 'flex justify-center' : ''}`}>
+          <button
+            onClick={() => setShowChangelog(true)}
+            className="sidebar-version-btn w-full py-2 px-3 rounded-lg text-xs font-medium text-[#5a647f] transition-all duration-300 flex items-center justify-center gap-2"
+            title={collapsed ? `v${appVersion} — Ver changelog` : undefined}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span className="material-symbols-outlined text-[14px] relative z-10">info</span>
+            {!collapsed && <span className="relative z-10">v{appVersion}</span>}
+          </button>
+        </div>
       </div>
+
+      {/* Changelog / Updates Modal */}
+      {showChangelog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowChangelog(false)}>
+          <div className="bg-[#0d1528] border border-[#1a233a] rounded-2xl max-w-lg w-full max-h-[75vh] overflow-y-auto shadow-2xl shadow-[#00e0fe]/5" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-[#0d1528] z-10 flex items-center justify-between p-5 border-b border-[#1a233a]">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#00e0fe]/20 to-[#004466]/20 flex items-center justify-center border border-[#00e0fe]/20">
+                  <span className="material-symbols-outlined text-[#00e0fe] text-xl">diamond</span>
+                </div>
+                <div>
+                  <h2 className="text-white font-bold text-base">v{appVersion}</h2>
+                  <p className="text-[#7a84a4] text-xs">NestxCut</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowChangelog(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#5a647f] hover:text-white hover:bg-[#1a233a] transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-6">
+              {/* Changelog */}
+              <section>
+                <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-[#99f7ff] mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base">history</span>
+                  Changelog
+                </h3>
+                <div className="space-y-3">
+                  {changelog.map((entry) => (
+                    <div key={entry.version} className="bg-[#1a233a]/50 rounded-xl p-4 border border-[#1a233a]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[#99f7ff] font-bold text-sm">v{entry.version}</span>
+                        <span className="text-[#5a647f] text-xs">{entry.date}</span>
+                      </div>
+                      <ul className="space-y-1.5 text-[#a3aac4] text-sm">
+                        {entry.items.map((item, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-green-400 mt-0.5 text-xs shrink-0">✓</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Próximamente */}
+              <section>
+                <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-[#99f7ff] mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base">rocket_launch</span>
+                  Próximamente
+                </h3>
+                <div className="bg-[#1a233a]/30 rounded-xl p-4 border border-[#1a233a] border-dashed">
+                  <ul className="space-y-2.5 text-[#a3aac4] text-sm">
+                    {upcoming.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="material-symbols-outlined text-amber-400 text-base shrink-0">auto_awesome</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
