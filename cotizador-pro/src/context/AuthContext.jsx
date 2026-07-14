@@ -124,6 +124,14 @@ export const AuthProvider = ({ children }) => {
                 lastSeenAt: new Date(),
                 updatedAt: new Date(),
             }, { merge: true });
+
+            // También guardar el HID en el documento del usuario
+            const userRef = doc(db, 'users', firebaseUser.uid);
+            await setDoc(userRef, {
+                hid: stableHid,
+                lastDeviceHid: stableHid,
+                lastSeenAt: new Date(),
+            }, { merge: true });
         } catch (err) {
             console.error('[AuthContext] Error syncing device presence:', err);
         }

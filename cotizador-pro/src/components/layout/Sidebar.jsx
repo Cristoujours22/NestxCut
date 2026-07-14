@@ -145,15 +145,11 @@ export default function Sidebar({ onOpenNewProject, onOpenFeedback, collapsed = 
         <div className={`${collapsed ? 'flex justify-center' : ''}`}>
           <button
             onClick={() => setShowChangelog(true)}
-            className="sidebar-version-btn w-full py-2 px-3 rounded-lg text-xs font-medium text-[#5a647f] transition-all duration-300 flex items-center justify-center gap-2"
+            className="w-full py-2 px-3 rounded-lg text-xs font-medium text-[#7a84a4] hover:text-[#99f7ff] hover:bg-[#1a233a]/40 transition-all duration-300 flex items-center justify-center gap-2"
             title={collapsed ? `v${appVersion} — Ver changelog` : undefined}
           >
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span className="material-symbols-outlined text-[14px] relative z-10">info</span>
-            {!collapsed && <span className="relative z-10">v{appVersion}</span>}
+            <span className="material-symbols-outlined text-[14px]">info</span>
+            {!collapsed && <span>v{appVersion}</span>}
           </button>
         </div>
       </div>
