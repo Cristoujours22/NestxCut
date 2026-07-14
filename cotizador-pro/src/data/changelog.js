@@ -1,5 +1,23 @@
 export const changelog = [
   {
+    version: '0.2.4',
+    date: '13 Jul 2026',
+    items: [
+      'HID ahora se guarda también en users de Firestore',
+      'Botón de versión más visible en la barra lateral',
+      'Corregido cacheo de workflow CI/CD',
+    ],
+  },
+  {
+    version: '0.2.3',
+    date: '13 Jul 2026',
+    items: [
+      'Botón de versión con modal de changelog',
+      'Builds para Windows y Mac (Apple Silicon)',
+      'CI/CD con GitHub Actions',
+    ],
+  },
+  {
     version: '0.2.2',
     date: '9 Jul 2026',
     items: [
