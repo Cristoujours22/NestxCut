@@ -1,5 +1,13 @@
 export const changelog = [
   {
+    version: '0.2.6',
+    date: '13 Jul 2026',
+    items: [
+      'Mejor manejo de email no verificado: mensaje claro + botón para reenviar',
+      'Corregido bug: botón "Reenviar verificación" usaba contexto incorrecto',
+    ],
+  },
+  {
     version: '0.2.5',
     date: '13 Jul 2026',
     items: [
