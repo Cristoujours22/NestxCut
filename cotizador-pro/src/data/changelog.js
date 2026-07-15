@@ -1,5 +1,12 @@
 export const changelog = [
   {
+    version: '0.2.5',
+    date: '13 Jul 2026',
+    items: [
+      'Admin bypassa regla de HID compartida — puede acceder desde cualquier equipo',
+    ],
+  },
+  {
     version: '0.2.4',
     date: '13 Jul 2026',
     items: [

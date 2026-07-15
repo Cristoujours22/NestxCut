@@ -1,7 +1,7 @@
 {
   "name": "NESTXCUT",
   "type": "module",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Nesting software for CNC cutting optimization",
   "author": "Cristoujours22",
   "private": true,
