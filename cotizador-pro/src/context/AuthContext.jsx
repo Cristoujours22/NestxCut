@@ -138,9 +138,16 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const ensureTrialDeviceLicense = useCallback(async (firebaseUser, userData, existingLicense) => {
-        if (!firebaseUser?.uid || existingLicense) return existingLicense;
+        if (!firebaseUser?.uid) return existingLicense;
 
+        // Admin no necesita licencia de dispositivo — bypass completo
         const userAccess = getUserAccessState(userData)
+        if (userAccess.reason === 'admin') {
+            return existingLicense
+        }
+
+        if (existingLicense) return existingLicense;
+
         if (!userAccess.hasAccess || userAccess.reason !== 'trial') {
             return existingLicense
         }

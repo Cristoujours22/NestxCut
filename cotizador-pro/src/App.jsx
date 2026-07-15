@@ -20,7 +20,7 @@ import './App.css';
 
 // --- Protected Route Component ---
 function ProtectedRoute() {
-    const { isAuthenticated, isLoading, userData, hasAccess } = useAuth();
+    const { isAuthenticated, isLoading, userData, hasAccess, isAdmin } = useAuth();
     const location = useLocation();
 
     useEffect(() => {
@@ -37,6 +37,11 @@ function ProtectedRoute() {
 
     if (isAuthenticated && !userData) {
         return <div>Verificando suscripción...</div>;
+    }
+
+    // Admin siempre tiene acceso — bypass completo de licencia/HID
+    if (isAdmin) {
+        return <Outlet />;
     }
 
     // Verificar suscripción
