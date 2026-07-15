@@ -15,19 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.2
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: cotizador-pro/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
+      - run: npm install
 
-      - run: pnpm build:win
+      - run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -36,21 +30,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.2
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: cotizador-pro/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
+      - run: npm install
 
       # Generate PNG icon for Mac (needs to run on macOS for electron-builder to convert to .icns)
       - run: node scripts/gen-icon-png.mjs
 
-      - run: pnpm build:mac
+      - run: npm run build:mac
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
