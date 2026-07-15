@@ -320,11 +320,12 @@ export const AuthProvider = ({ children }) => {
             await result.user.reload()
             const freshUser = auth.currentUser || result.user
             log("[AuthContext] Login successful:", freshUser.email);
-            
+
+            // Email no verificado — devolver estado para que Login.jsx muestre opción de reenviar
             if (!freshUser.emailVerified) {
                 log('[AuthContext] Email no verificado en login');
                 await signOut(auth)
-                throw new Error('EMAIL_NO_VERIFICADO')
+                return { success: false, reason: 'EMAIL_NO_VERIFICADO', email: freshUser.email };
             }
 
             const { data, license, accessDecision } = await resolveAccessForUser(freshUser);
@@ -334,11 +335,9 @@ export const AuthProvider = ({ children }) => {
 
             if (!accessDecision.hasAccess) {
                 log('[AuthContext] Acceso denegado en login:', accessDecision.reason);
-                // Keep user authenticated — ProtectedRoute will show SubscriptionExpired
                 setUser(freshUser);
                 setUserData(data);
                 setLicenseData(license);
-                // Return expired signal instead of signing out
                 return { success: true, expired: true, reason: accessDecision.reason };
             }
             

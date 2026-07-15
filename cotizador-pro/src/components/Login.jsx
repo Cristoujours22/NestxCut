@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { auth } from '../firebase';
+import { auth as firebaseAuth } from '../firebase';
 import { sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 import '../index.css';
 import logo from '../assets/Logo.png';
@@ -48,27 +48,23 @@ export default function Login() {
     try {
       // Intentar sign in - el resultado puede tener el usuario aunque no esté verificado
       try {
-        const result = await signInWithEmailAndPassword(auth, email, password);
+        const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
         tempUser = result.user;
       } catch (loginErr) {
         console.log('[Login] Login error (esperado):', loginErr.code);
         
         // Cuando el email no está verificado, Firebase igual crea el usuario temporalmente
-        // Intentamos obtenerlo de otra manera
-        tempUser = auth.currentUser;
+        tempUser = firebaseAuth.currentUser;
       }
       
-      // Si aún no tenemos usuario, no se puede
       if (!tempUser) {
         throw new Error('No se pudo obtener el usuario. Intenta iniciar sesión primero.');
       }
       
-      // Enviar verificación
       console.log('[Login] Enviando verificación a:', tempUser.email);
       await sendEmailVerification(tempUser);
       
-      // Cerrar sesión temporal
-      await auth.signOut();
+      await auth.logout();
       
       setVerificationSent(true);
       setTimeout(() => setVerificationSent(false), 10000);
@@ -122,12 +118,16 @@ try {
       const result = await auth.login(email, password);
       clearTimeout(timeoutId);
 
-      // License expired — ProtectedRoute will surface SubscriptionExpired with the reason
-      
-      // Verificar si el email fue verificado (el contexto ya lo hace, pero por seguridad)
-      if (auth.user && !auth.user.emailVerified) {
-        setError('Tu email no está verificado. Por favor, revisa tu correo y verifica tu cuenta.');
-        await auth.logout();
+      // Email no verificado — mostrar opción de reenviar
+      if (result?.reason === 'EMAIL_NO_VERIFICADO') {
+        setError('Tu email no está verificado. Usá el botón "Reenviar verificación" de abajo.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // License expired — ProtectedRoute will surface SubscriptionExpired
+      if (result?.expired) {
+        navigate(from, { replace: true });
         setIsLoggingIn(false);
         return;
       }
@@ -144,18 +144,7 @@ try {
       clearTimeout(timeoutId);
       console.error('[Login] Login failed:', err);
       
-      // Manejar error de email no verificado
-      if (err.message === 'EMAIL_NO_VERIFICADO') {
-        setError('Tu email no está verificado. Por favor, revisa tu correo y haz clic en el enlace de verificación.');
-      } else if (err.message === 'device-license-missing') {
-        setError('Este equipo no tiene una licencia activa asignada. Contactá al administrador para activar NestxCut en esta máquina.');
-      } else if (err.message === 'device-license-inactive') {
-        setError('La licencia de este equipo está vencida o inactiva. Contactá al administrador para renovarla.');
-      } else if (err.message === 'DEVICE_ACCESS_DENIED') {
-        setError('Este equipo no tiene acceso habilitado. Contactá al administrador.');
-      } else if (err.message === 'LICENCIA_EXPIRADA') {
-        setError('La licencia de este equipo ha expirado. Contactá al administrador para renovarla.');
-      } else if (err.code === 'auth/invalid-email') {
+      if (err.code === 'auth/invalid-email') {
         setError('Email inválido.');
       } else if (err.code === 'auth/user-not-found') {
         setError('Usuario no encontrado.');
