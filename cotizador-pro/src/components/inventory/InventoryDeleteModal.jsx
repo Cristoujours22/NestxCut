@@ -1,4 +1,4 @@
-export default function InventoryDeleteModal({ item, isOpen, onClose, onConfirm }) {
+export default function InventoryDeleteModal({ item, isOpen, onClose, onConfirm, error }) {
   if (!isOpen || !item) return null;
 
   return (
@@ -15,6 +15,11 @@ export default function InventoryDeleteModal({ item, isOpen, onClose, onConfirm 
         </div>
 
         <div className="p-5 space-y-4">
+          {error && (
+            <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
           <div className="rounded-xl bg-[#10182d] border border-[#1a233a] p-4 text-sm text-[#a3aac4]">
             Vas a eliminar <strong className="text-[#dee5ff]">{item.nombre}</strong> ({item.codigo}).
           </div>

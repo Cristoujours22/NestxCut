@@ -209,6 +209,7 @@ export default function InventoryPage() {
   const [tipologiaFilter, setTipologiaFilter] = useState('todos');
   const [modalState, setModalState] = useState({ open: false, type: 'tablero', item: null });
   const [deleteState, setDeleteState] = useState({ open: false, item: null });
+  const [deleteError, setDeleteError] = useState('');
   const [stockEntryState, setStockEntryState] = useState({ open: false, item: null, mode: 'entry' });
   const [submitError, setSubmitError] = useState('');
   const [stockEntryError, setStockEntryError] = useState('');
@@ -311,24 +312,31 @@ export default function InventoryPage() {
   }, [items, itemType]);
 
   const handleDelete = async (item) => {
-    if (inventoryEnabled && API?.addInventoryMovement) {
-          await API.addInventoryMovement({
-            item_id: item.id,
-            item_name_snapshot: item.nombre,
-            item_type_snapshot: item.item_type,
-            movement_type: 'exit',
-            direction: 'out',
-            cantidad: Number(item.cantidad_disponible || 0),
-            unit_cost: Number(item.costo_unitario || 0),
-            total_cost: Number(item.costo_unitario || 0) * Number(item.cantidad_disponible || 0),
-            reference_type: 'manual',
-            motivo: 'Eliminación del item del inventario',
-          });
-        }
+    setDeleteError('');
+    try {
+      if (inventoryEnabled && API?.addInventoryMovement) {
+        await API.addInventoryMovement({
+          item_id: item.id,
+          item_name_snapshot: item.nombre,
+          item_type_snapshot: item.item_type,
+          movement_type: 'exit',
+          direction: 'out',
+          cantidad: Number(item.cantidad_disponible || 0),
+          unit_cost: Number(item.costo_unitario || 0),
+          total_cost: Number(item.costo_unitario || 0) * Number(item.cantidad_disponible || 0),
+          reference_type: 'manual',
+          motivo: 'Eliminación del item del inventario',
+        });
+      }
 
-    await API.deleteInventoryItem(item.id);
-    setDeleteState({ open: false, item: null });
-    await load();
+      await API.deleteInventoryItem(item.id);
+      setDeleteState({ open: false, item: null });
+      setDeleteError('');
+      await load();
+    } catch (error) {
+      console.error('[Inventory] Error al eliminar:', error);
+      setDeleteError(error?.message || 'Error al eliminar el item.');
+    }
   };
 
   const handleSubmit = async (payload) => {
@@ -483,7 +491,8 @@ export default function InventoryPage() {
       <InventoryDeleteModal
         isOpen={deleteState.open}
         item={deleteState.item}
-        onClose={() => setDeleteState({ open: false, item: null })}
+        error={deleteError}
+        onClose={() => { setDeleteError(''); setDeleteState({ open: false, item: null }); }}
         onConfirm={() => handleDelete(deleteState.item)}
       />
 
