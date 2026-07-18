@@ -25,13 +25,15 @@ function assertInventoryEnabled() {
 
 function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStore }) {
   // ── reads (no guard needed) ──────────────────────────────────────────
-  ipcMain.handle('get-inventory-purchases', async () => {
+  ipcMain.handle('get-inventory-purchases', async (event, uid) => {
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.getInventoryPurchases) {
-      return inventoryStore.getInventoryPurchases();
+      return inventoryStore.getInventoryPurchases(uid);
     }
     const db = getDb();
-    return [...(db?.state?.inventory_purchases || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    let purchases = [...(db?.state?.inventory_purchases || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (uid) purchases = purchases.filter((p) => p.created_by === uid);
+    return purchases;
   });
 
   ipcMain.handle('save-inventory-purchase', async (event, purchase) => {
@@ -226,13 +228,15 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
     return { success: true };
   });
 
-  ipcMain.handle('get-inventory-items', async () => {
+  ipcMain.handle('get-inventory-items', async (event, uid) => {
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.getInventoryItems) {
-      return inventoryStore.getInventoryItems();
+      return inventoryStore.getInventoryItems(uid);
     }
     const db = getDb();
-    return [...(db?.state?.inventory_items || [])].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+    let items = [...(db?.state?.inventory_items || [])].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+    if (uid) items = items.filter((i) => i.created_by === uid);
+    return items;
   });
 
   ipcMain.handle('add-inventory-item', async (event, item) => {
@@ -315,13 +319,15 @@ function registerInventoryHandlers({ ipcMain, getDb, saveState, getInventoryStor
     return { success: true };
   });
 
-  ipcMain.handle('get-inventory-movements', async () => {
+  ipcMain.handle('get-inventory-movements', async (event, uid) => {
     const inventoryStore = getInventoryStore?.();
     if (inventoryStore?.getInventoryMovements) {
-      return inventoryStore.getInventoryMovements();
+      return inventoryStore.getInventoryMovements(uid);
     }
     const db = getDb();
-    return [...(db?.state?.inventory_movements || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    let movements = [...(db?.state?.inventory_movements || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (uid) movements = movements.filter((m) => m.created_by === uid);
+    return movements;
   });
 
   ipcMain.handle('delete-inventory-movement', async (event, id) => {

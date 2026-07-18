@@ -52,6 +52,5 @@ export const changelog = [
 export const upcoming = [
   'Optimización de nesting para maximizar rendimiento de chapa',
   'Exportación PDF con diseño mejorado',
-  'Sincronización en la nube entre equipos',
   'Panel de administración con reportes avanzados',
 ];

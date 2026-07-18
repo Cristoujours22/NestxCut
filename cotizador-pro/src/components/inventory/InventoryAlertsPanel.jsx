@@ -36,7 +36,7 @@ export default function InventoryAlertsPanel({ items, onOpenStockEntry, onOpenEd
     <div className="space-y-5">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
       <div className="bg-[#0a1122] border border-[#1a233a] rounded-2xl p-5">
-        <div className="text-[#a3aac4] text-xs uppercase tracking-widest font-bold">Items monitoreados</div>
+        <div className="text-[#a3aac4] text-xs uppercase tracking-widest font-bold">Ítems monitoreados</div>
         <div className="text-3xl font-bold text-white mt-2">{items.length}</div>
       </div>
       <div className="bg-[#0a1122] border border-[#1a233a] rounded-2xl p-5">
@@ -78,7 +78,7 @@ export default function InventoryAlertsPanel({ items, onOpenStockEntry, onOpenEd
 
       <div className="bg-[#0a1122] border border-[#1a233a] rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#1a233a]">
-          <h3 className="text-white font-bold">Items agotados</h3>
+          <h3 className="text-white font-bold">Ítems agotados</h3>
         </div>
         <div className="divide-y divide-[#1a233a]">
           {exhausted.length === 0 ? (

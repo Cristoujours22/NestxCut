@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { auth as firebaseAuth } from '../firebase';
-import { sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
+import { sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import '../index.css';
 import logo from '../assets/Logo.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(() => {
     try { return localStorage.getItem('rememberLogin') === 'true'; } catch { return false; }
   });
@@ -79,6 +80,28 @@ export default function Login() {
       }
     } finally {
       setResendingVerification(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email || !validateEmail(email)) {
+      setError('Ingresá tu email primero para enviar el link de restablecimiento.');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(firebaseAuth, email);
+      showToast('success', 'Link de restablecimiento enviado a ' + email);
+    } catch (err) {
+      if (err.code === 'auth/user-not-found') {
+        showToast('warning', 'Si el email existe, recibirás un link de restablecimiento.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Demasiados intentos. Esperá un momento e intentá de nuevo.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Email inválido.');
+      } else {
+        setError('Error al enviar link: ' + err.message);
+      }
     }
   };
 
@@ -199,15 +222,35 @@ try {
           {/* Password */}
           <div className="user-box relative mb-4">
             <input
-              id="password" type="password" name="password" required
+              id="password" type={showPassword ? 'text' : 'password'} name="password" required
               value={password}
               onChange={(e) => { setPassword(e.target.value); if (error) setError(''); }}
-              className="w-full px-3 py-2 bg-transparent border-b-2 border-gray-500 text-white focus:outline-none focus:border-cyan-400 peer"
+              className="w-full px-3 py-2 pr-10 bg-transparent border-b-2 border-gray-500 text-white focus:outline-none focus:border-cyan-400 peer"
               autoComplete="current-password"
             />
             <label htmlFor="password">
               Contraseña
             </label>
+            <span
+              role="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors cursor-pointer select-none"
+              tabIndex={-1}
+            >
+              {showPassword ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </span>
           </div>
 
           {/* Recordarme */}
@@ -248,13 +291,24 @@ try {
           </button>
         </form>
 
-        {/* Link a Registro */}
-        <div className="mt-4 text-center">
+        {/* Links */}
+        <div className="mt-4 text-center space-y-1">
           <p className="text-gray-400 text-sm">
             ¿No tienes cuenta?{' '}
             <Link to="/register" className="text-cyan-400 hover:underline">
               Regístrate aquí
             </Link>
+          </p>
+          <p className="text-gray-400 text-sm">
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleForgotPassword}
+              onKeyDown={(e) => e.key === 'Enter' && handleForgotPassword()}
+              className="text-cyan-400 hover:underline cursor-pointer"
+            >
+              ¿Olvidaste tu contraseña?
+            </span>
           </p>
         </div>
       </div>

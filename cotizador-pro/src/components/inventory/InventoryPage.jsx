@@ -9,6 +9,28 @@ import InventoryStockEntryModal from './InventoryStockEntryModal';
 import InventoryProviderModal from './InventoryProviderModal';
 import InventoryPurchaseModal from './InventoryPurchaseModal';
 import { CANTO_COLUMNS } from '../../features/inventory/config/cantoColumns';
+
+const MOVEMENT_TYPE_LABELS = {
+  entry: 'Entrada',
+  exit: 'Salida',
+  adjustment_in: 'Ajuste de entrada',
+  adjustment_out: 'Ajuste de salida',
+  project_reserve: 'Reserva de proyecto',
+  project_release: 'Liberación de proyecto',
+  project_consume: 'Consumo de proyecto',
+  project_reopen_reserve: 'Reapertura de reserva',
+  project_release_cancel: 'Cancelación de liberación',
+  door_reserve: 'Reserva de puerta',
+  door_release: 'Liberación de puerta',
+  door_production_material_out: 'Salida de material (puertas)',
+  door_production_hardware_out: 'Salida de herrajes (puertas)',
+  door_production_scrap_in: 'Entrada de retal (puertas)',
+  purchase_receive: 'Recepción de compra',
+};
+
+function formatMovementType(type) {
+  return MOVEMENT_TYPE_LABELS[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
 import { TABLERO_COLUMNS } from '../../features/inventory/config/tableroColumns';
 import { HERRAJE_COLUMNS } from '../../features/inventory/config/herrajeColumns';
 import { filterInventoryItems } from '../../features/inventory/utils/inventoryStock';
@@ -79,10 +101,10 @@ function MovementsView({ movements, items, filters, onFiltersChange, onClearSele
               <tr key={movement.id}>
                 <td className="px-4 py-3 text-[#dee5ff]">{new Date(movement.created_at).toLocaleString('es-CO')}</td>
                 <td className="px-4 py-3 text-[#dee5ff]">{movement.item_name_snapshot || item?.nombre || 'Item eliminado'}</td>
-                <td className="px-4 py-3 text-[#dee5ff] capitalize">{movement.movement_type}</td>
+                <td className="px-4 py-3 text-[#dee5ff]">{formatMovementType(movement.movement_type)}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border uppercase ${getMovementBadge(movement)}`}>
-                    {movement.direction || 'neutral'}
+                    {movement.direction === 'in' ? 'Entrada' : movement.direction === 'out' ? 'Salida' : '—'}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-[#dee5ff]">{movement.cantidad}</td>

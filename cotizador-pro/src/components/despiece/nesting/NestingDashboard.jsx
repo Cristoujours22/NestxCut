@@ -34,6 +34,9 @@ export default function NestingDashboard({
   const [isRunning, setIsRunning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'detail'
+  const [configToast, setConfigToast] = useState(null);
+  const initializedRef = useRef(false);
+  const toastTimerRef = useRef(null);
 
   // We extract the rows from despieceData.
   const rows = useMemo(() => {
@@ -46,6 +49,11 @@ export default function NestingDashboard({
   const exportInFlightRef = useRef(false);
   const rowsRef = useRef(rows);
   const onOptimizationChangeRef = useRef(onOptimizationChange);
+
+  const configHash = useMemo(
+    () => [config.boardWidth, config.boardHeight, config.kerf, config.refiladoX, config.refiladoY, config.allowGlobalRotation, config.algorithm].join('|'),
+    [config]
+  );
 
   const rowContentKey = useMemo(
     () => rows.map((row) => [
@@ -68,6 +76,7 @@ export default function NestingDashboard({
   }, [onOptimizationChange]);
 
   const handleRun = useCallback(() => {
+    setConfigToast(null);
     if (runTimerRef.current) clearTimeout(runTimerRef.current);
     setIsRunning(true);
     const timer = setTimeout(() => {
@@ -116,7 +125,10 @@ export default function NestingDashboard({
   ]);
 
   useEffect(() => {
-    return () => { if (runTimerRef.current) clearTimeout(runTimerRef.current); };
+    return () => {
+      if (runTimerRef.current) clearTimeout(runTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, []);
 
   const handleExportPDF = useCallback(async () => {
@@ -245,6 +257,28 @@ export default function NestingDashboard({
     }
   }, [optimizedSheets, unplacedParts, projectName, clientName, materialName, config, despieceData, rows, isExporting]);
 
+  // Config change detection → show toast with debounce
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setConfigToast('Cambios detectados — presioná Recalcular para aplicar');
+    }, 500);
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, [configHash]);
+
+  // Auto-dismiss toast after 4s
+  useEffect(() => {
+    if (!configToast) return;
+    const t = setTimeout(() => setConfigToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [configToast]);
+
   useEffect(() => {
     if (rows.length > 0) {
       handleRun();
@@ -307,12 +341,6 @@ export default function NestingDashboard({
             </button>
           )}
 
-          <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-md border border-slate-700/50">
-              <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">Algoritmo</span>
-              <span className="text-sm text-amber-400 font-bold">
-                {config.algorithm === 'hybrid' ? 'Híbrido' : config.algorithm === 'maxrects' ? 'MaxRects' : 'Guillotina'}
-              </span>
-            </div>
           <button
             onClick={handleRun}
             disabled={isRunning || rows.length === 0}
@@ -360,23 +388,15 @@ export default function NestingDashboard({
         <div className="flex-1 overflow-y-auto p-2 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-[#0B1121] to-[#0B1121]">
           <div className="w-full max-w-full px-2 mx-auto space-y-4 pb-10">
             
-            {/* CONFIG SUMMARY BAR */}
-            <div className="flex items-center gap-3 text-[11px] bg-slate-800/40 border border-slate-700/50 rounded-lg px-4 py-2 mb-2">
-              <span className="font-bold text-slate-400 uppercase tracking-widest">Config</span>
-              <span className="text-slate-400">Lámina:</span>
-              <span className="text-white font-mono font-bold">{config.boardWidth} × {config.boardHeight} mm</span>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-400">Kerf:</span>
-              <span className="text-white font-mono font-bold">{config.kerf} mm</span>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-400">Refilado (der./sup.):</span>
-              <span className="text-white font-mono font-bold">{config.refiladoX}/{config.refiladoY} mm</span>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-400">Rotación:</span>
-              <span className={config.allowGlobalRotation ? 'text-amber-400 font-bold' : 'text-slate-500'}>
-                {config.allowGlobalRotation ? 'Sí' : 'No'}
-              </span>
-            </div>
+            {/* TOAST — config change notification */}
+            {configToast && (
+              <div className="flex items-center justify-center mb-2">
+                <div className="bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg backdrop-blur-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span>{configToast}</span>
+                </div>
+              </div>
+            )}
 
             {/* ERROR ALERTS */}
             {unplacedParts.length > 0 && (
@@ -397,25 +417,6 @@ export default function NestingDashboard({
                 </div>
               </div>
             )}
-
-            {/* STATUS LEGEND */}
-            <div className="flex items-center gap-4 px-2 text-[11px] text-slate-500 mb-1">
-              <span className="font-bold text-slate-400 uppercase tracking-widest">Leyenda</span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-[#00e0fe40] border border-[#00e0fe80]" />
-                <span>Pieza colocada</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-[#6ee7b70d] border border-dashed border-[#6ee7b74d]" />
-                <span>Espacio libre (no usado)</span>
-              </span>
-              {unplacedParts.length > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-rose-500/20 border border-rose-500/40" />
-                  <span>Pieza sin ubicar</span>
-                </span>
-              )}
-            </div>
 
             {/* PREVIEW SVG CANVAS */}
             <div className={viewMode === 'grid' ? "grid grid-cols-1 2xl:grid-cols-2 gap-4" : "flex flex-col gap-6"}>

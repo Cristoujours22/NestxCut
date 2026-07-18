@@ -115,7 +115,7 @@ export default function NestingSidebar({ config, onChange, totalParts, statsComp
                 onChange={handleChange}
                 className="peer sr-only"
               />
-              <div className="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-teal-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              <div className="relative w-9 h-5 bg-slate-700 rounded-full peer peer-checked:bg-teal-500 after:content-[''] after:absolute after:top-[2px] after:left-0 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-[20px]"></div>
             </div>
             <div>
               <div className="text-sm font-medium text-slate-300 group-hover:text-teal-400 transition-colors">Permitir Rotación Global</div>

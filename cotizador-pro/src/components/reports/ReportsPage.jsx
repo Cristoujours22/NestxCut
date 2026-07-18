@@ -9,6 +9,28 @@ function formatCurrency(value) {
   }).format(Number(value || 0));
 }
 
+const MOVEMENT_TYPE_LABELS = {
+  entry: 'Entrada',
+  exit: 'Salida',
+  adjustment_in: 'Ajuste de entrada',
+  adjustment_out: 'Ajuste de salida',
+  project_reserve: 'Reserva de proyecto',
+  project_release: 'Liberación de proyecto',
+  project_consume: 'Consumo de proyecto',
+  project_reopen_reserve: 'Reapertura de reserva',
+  project_release_cancel: 'Cancelación de liberación',
+  door_reserve: 'Reserva de puerta',
+  door_release: 'Liberación de puerta',
+  door_production_material_out: 'Salida de material (puertas)',
+  door_production_hardware_out: 'Salida de herrajes (puertas)',
+  door_production_scrap_in: 'Entrada de retal (puertas)',
+  purchase_receive: 'Recepción de compra',
+};
+
+function formatMovementType(type) {
+  return MOVEMENT_TYPE_LABELS[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 function SectionCard({ title, icon, children }) {
   return (
     <section className="bg-[#0a1122] border border-[#1a233a] rounded-[28px] shadow-xl overflow-hidden">
@@ -36,9 +58,9 @@ export default function ReportsPage() {
       try {
         const results = await Promise.allSettled([
           API?.getProjects ? API.getProjects(user?.uid) : [],
-          API?.getInventoryItems ? API.getInventoryItems() : [],
-          API?.getInventoryMovements ? API.getInventoryMovements() : [],
-          API?.getInventoryPurchases ? API.getInventoryPurchases() : [],
+          API?.getInventoryItems ? API.getInventoryItems(user?.uid) : [],
+          API?.getInventoryMovements ? API.getInventoryMovements(user?.uid) : [],
+          API?.getInventoryPurchases ? API.getInventoryPurchases(user?.uid) : [],
         ]);
 
         setProjects(results[0].status === 'fulfilled' ? results[0].value || [] : []);
@@ -120,18 +142,8 @@ export default function ReportsPage() {
                 Reportes
               </h1>
               <p className="text-[#a9b6d3] text-[14px] md:text-[15px] leading-7 max-w-[760px]">
-                Vista mixta: métricas comerciales de tus proyectos y métricas operativas globales de la empresa sobre inventario, compras, reservas y movimientos.
+                Métricas de tus proyectos y datos operativos de tu inventario. Todo filtrado por tu usuario — los reportes ya no son compartidos.
               </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                  <span className="w-2 h-2 rounded-full bg-cyan-300"></span>
-                  Comercial = solo tus proyectos
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-300">
-                  <span className="w-2 h-2 rounded-full bg-amber-300"></span>
-                  Operativo = datos compartidos
-                </div>
-              </div>
             </div>
           </div>
         </section>
@@ -171,7 +183,6 @@ export default function ReportsPage() {
           </SectionCard>
 
           <SectionCard title="Operación de inventario" icon="inventory_2">
-            <div className="mb-4 text-xs uppercase tracking-[0.18em] font-semibold text-amber-300">Datos globales compartidos</div>
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-2xl border border-[#1a233a] bg-[#060e20] p-4">
                 <div className="text-[#a3aac4] text-xs uppercase tracking-widest font-bold">Items reservados</div>
@@ -187,7 +198,6 @@ export default function ReportsPage() {
 
         <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <SectionCard title="Compras pendientes" icon="shopping_cart">
-            <div className="mb-4 text-xs uppercase tracking-[0.18em] font-semibold text-amber-300">Datos globales compartidos</div>
             <div className="space-y-3">
               {operationalMetrics.comprasPendientes.length === 0 ? (
                 <div className="text-[#6f7a97]">No hay compras pendientes.</div>
@@ -207,7 +217,6 @@ export default function ReportsPage() {
           </SectionCard>
 
           <SectionCard title="Movimientos recientes" icon="swap_horiz">
-            <div className="mb-4 text-xs uppercase tracking-[0.18em] font-semibold text-amber-300">Datos globales compartidos</div>
             <div className="space-y-3">
               {operationalMetrics.recentMovements.length === 0 ? (
                 <div className="text-[#6f7a97]">No hay movimientos recientes.</div>
@@ -215,7 +224,7 @@ export default function ReportsPage() {
                 <div key={movement.id} className="rounded-2xl border border-[#1a233a] bg-[#060e20] px-4 py-3 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[#dee5ff] font-semibold">{movement.item_name_snapshot || 'Item'}</div>
-                    <div className="text-[#6f7a97] text-sm">{movement.movement_type} · {movement.reason || movement.motivo || 'sin motivo'}</div>
+                    <div className="text-[#6f7a97] text-sm">{formatMovementType(movement.movement_type)} · {movement.reason || movement.motivo || 'sin motivo'}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[#dee5ff] font-bold">{movement.cantidad}</div>

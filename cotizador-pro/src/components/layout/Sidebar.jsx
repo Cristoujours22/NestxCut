@@ -27,7 +27,7 @@ export default function Sidebar({ onOpenNewProject, onOpenFeedback, collapsed = 
   }, []);
 
   const menuItems = [
-    { name: 'Home', icon: 'home', path: '/dashboard' },
+    { name: 'Inicio', icon: 'home', path: '/dashboard' },
     { name: 'Reportes', icon: 'analytics', path: '/reportes' },
     { name: 'Inventario', icon: 'inventory_2', path: '/inventario' },
     { name: 'Puertas', icon: 'door_front', path: '/puertas' },
@@ -183,7 +183,7 @@ export default function Sidebar({ onOpenNewProject, onOpenFeedback, collapsed = 
               <section>
                 <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-[#99f7ff] mb-3 flex items-center gap-2">
                   <span className="material-symbols-outlined text-base">history</span>
-                  Changelog
+                  Registro de cambios
                 </h3>
                 <div className="space-y-3">
                   {changelog.map((entry) => (
