@@ -12,7 +12,7 @@ function getInventoryMode() {
   } catch (e) {
     console.error('[inventoryHandlers] Error reading inventory mode:', e.message);
   }
-  return null;
+  return 'con_inventario';
 }
 
 function assertInventoryEnabled() {

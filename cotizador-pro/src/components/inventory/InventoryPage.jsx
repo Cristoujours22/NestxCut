@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import InventoryTabs from './InventoryTabs';
 import InventoryToolbar from './InventoryToolbar';
 import InventoryTable from './InventoryTable';
@@ -210,6 +210,17 @@ export default function InventoryPage() {
   const [modalState, setModalState] = useState({ open: false, type: 'tablero', item: null });
   const [deleteState, setDeleteState] = useState({ open: false, item: null });
   const [deleteError, setDeleteError] = useState('');
+  const [toast, setToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = useCallback((type, message, duration = 4000) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ type, message });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, duration);
+  }, []);
   const [stockEntryState, setStockEntryState] = useState({ open: false, item: null, mode: 'entry' });
   const [submitError, setSubmitError] = useState('');
   const [stockEntryError, setStockEntryError] = useState('');
@@ -335,7 +346,11 @@ export default function InventoryPage() {
       await load();
     } catch (error) {
       console.error('[Inventory] Error al eliminar:', error);
-      setDeleteError(error?.message || 'Error al eliminar el item.');
+      const msg = error?.message?.includes('INVENTORY_DISABLED')
+        ? 'Inventario deshabilitado. Activá el modo inventario en Configuración.'
+        : error?.message || 'Error al eliminar el item.';
+      setDeleteError(msg);
+      showToast('error', msg);
     }
   };
 
@@ -657,6 +672,20 @@ export default function InventoryPage() {
                 />
           )}
         </section>
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold ${
+          toast.type === 'success' ? 'bg-green-900/90 border-green-500/30 text-green-200' :
+          toast.type === 'warning' ? 'bg-amber-900/90 border-amber-500/30 text-amber-200' :
+          'bg-red-900/90 border-red-500/30 text-red-200'
+        }`}>
+          <span className="material-symbols-outlined text-[18px]">
+            {toast.type === 'success' ? 'check_circle' : toast.type === 'warning' ? 'warning' : 'error'}
+          </span>
+          <span>{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 }
